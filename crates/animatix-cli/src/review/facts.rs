@@ -14,7 +14,7 @@ use animatix::timeline::{
 };
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticSeverity};
 
-use crate::diagnostics::backticked_label;
+use crate::diagnostics::build_diagnostic_actor;
 use crate::frame_source::{BOUNDS_PAD, Box2, evaluate_program_frame};
 
 use super::types::{RenderFacts, Severity, SiteRestFacts, TargetKind};
@@ -316,7 +316,7 @@ pub(crate) fn collect_facts(
                 DiagnosticSeverity::Info | DiagnosticSeverity::Hint => Severity::Info,
             },
             message: diagnostic.message.clone(),
-            actor: backticked_label(&diagnostic.message),
+            actor: build_diagnostic_actor(diagnostic).map(std::borrow::Cow::into_owned),
             source_line: diagnostic.location.line,
         })
         .collect();

@@ -7,6 +7,7 @@
 //! writes that cannot land where the author expects.
 
 use super::*;
+use crate::diagnostics::DiagnosticPresentation;
 
 /// Reject configured runtime inputs used in expressions that are consumed
 /// while lowering scene structure. Hot inputs can change frame-time values,
@@ -543,6 +544,7 @@ pub(super) fn validate_reveals(timeline: &Timeline, diagnostics: &mut Vec<Diagno
                      explicitly on its declaration."
                 ),
             )
+            .with_presentation(DiagnosticPresentation::NeverRevealed)
             .with_subject(label)
             .with_ast_span(timeline.world.decl_span(id).copied()),
         );
@@ -711,6 +713,9 @@ pub(super) fn validate_actors(timeline: &mut Timeline, diagnostics: &mut Vec<Dia
                          primitive; it will not render. Load the extension that provides it."
                     ),
                 )
+                .with_presentation(DiagnosticPresentation::UnregisteredActorType(
+                    actor_type.to_string(),
+                ))
                 .with_subject(label),
             );
         }

@@ -152,7 +152,7 @@ impl GuiShell {
         // modal Escapes remain inline below.
 
         // The document and workspace controls belong to the open workbench.
-        if !self.ui_store.view.welcome_open {
+        if !self.ui_store.view.welcome_open && !self.ui_store.view.preview_fullscreen {
             egui::Panel::top("toolbar")
                 .frame(egui::Frame::NONE)
                 .resizable(false)
@@ -162,12 +162,16 @@ impl GuiShell {
         let diagnostics = self.document_store.combined_diagnostics();
 
         // Diagnostics panel (collapsible)
-        if self.ui_store.view.diagnostics_panel_visible {
+        if self.ui_store.view.diagnostics_panel_visible && !self.ui_store.view.preview_fullscreen {
             self.diagnostics_panel_ui(ui, &diagnostics);
         }
 
         // The diagnostics button in the footer anchors its peek overlay.
-        let diagnostics_chip_rect = self.status_bar_ui(ui, &diagnostics, &theme);
+        let diagnostics_chip_rect = if self.ui_store.view.preview_fullscreen {
+            None
+        } else {
+            self.status_bar_ui(ui, &diagnostics, &theme)
+        };
 
         if self.ui_store.view.diagnostics_peek_open {
             match diagnostics_chip_rect {
@@ -212,10 +216,13 @@ impl GuiShell {
         // Rendered below the modals and skipped while one is open, so a modal
         // always owns the screen (and the Escape key). Anchored to the central
         // workspace rect so they do not cover the toolbar or status bar.
-        if !self.ui_store.view.welcome_open && !self.modal_open() {
+        if !self.ui_store.view.welcome_open
+            && !self.modal_open()
+            && !self.ui_store.view.preview_fullscreen
+        {
             let mut drawer_cmds = ActionQueue::default();
             self.compact_sidebar_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
-            self.compact_detail_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
+            self.inspector_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
             self.handle_actions(drawer_cmds);
         }
 
@@ -279,14 +286,18 @@ impl GuiShell {
                     ui.add_space(SPACE_4);
                     ui.add(Alert::new(
                         format!(
-                            "No diagnostics — all clear {}",
+                            "{} {}",
+                            crate::app::i18n::text(ui, "gui-diagnostic-all-clear"),
                             egui_phosphor::regular::CHECK_CIRCLE
                         ),
                         AlertLevel::Success,
                     ));
                 } else {
                     let has_error = diagnostics.iter().any(|d| d.is_error());
-                    if let Some(message) = diagnostics_banner_message(diagnostics) {
+                    if let Some(message) = diagnostics_banner_message(
+                        diagnostics,
+                        crate::app::i18n::current_language(ui.ctx()),
+                    ) {
                         ui.add_space(SPACE_2);
                         ui.add(Alert::new(
                             message,
@@ -334,7 +345,11 @@ impl GuiShell {
                     let errors =
                         diagnostics.iter().filter(|diagnostic| diagnostic.is_error()).count();
                     let warnings = diagnostics.len() - errors;
-                    let status = &self.preview_store.preview.status;
+                    let status = self
+                        .preview_store
+                        .preview
+                        .status
+                        .display(crate::app::i18n::current_language(ui.ctx()));
                     let compact = ui.available_width() < 310.0;
                     if !status.is_empty() && !compact {
                         ui.separator();
@@ -346,7 +361,7 @@ impl GuiShell {
                             theme.palette.text.secondary
                         };
                         let label = egui::Label::new(
-                            egui::RichText::new(status.as_str())
+                            egui::RichText::new(status.as_ref())
                                 .font(TextRole::BodyS.font_id())
                                 .color(color),
                         )
@@ -362,7 +377,7 @@ impl GuiShell {
                                             .preview
                                             .error
                                             .as_deref()
-                                            .unwrap_or(status),
+                                            .unwrap_or(status.as_ref()),
                                     )
                                 },
                             );
@@ -395,11 +410,9 @@ impl GuiShell {
         } else {
             (icons::CHECK_CIRCLE, theme.palette.status.success)
         };
-        let label = if errors + warnings == 0 {
-            "No diagnostics".to_owned()
-        } else {
-            format!("{errors} errors · {warnings} warnings")
-        };
+        use crate::app::i18n::{current_language, with_arg};
+        let language = current_language(ui.ctx());
+        let label = components::diagnostics::diagnostic_counts(ui, errors, warnings);
         let button = if compact || errors + warnings == 0 {
             Button::icon(icon)
         } else {
@@ -409,7 +422,7 @@ impl GuiShell {
             button
                 .icon_color(color)
                 .hover_icon_color(color)
-                .with_tooltip(format!("{label} · click to peek, double-click to pin"))
+                .with_tooltip(with_arg(language, "gui-diagnostics-peek-help", "label", label))
                 .active(
                     self.ui_store.view.diagnostics_panel_visible
                         || self.ui_store.view.diagnostics_peek_open,
@@ -437,9 +450,10 @@ impl GuiShell {
         // overlay drawer); on exit the pane visibility captured on entry is
         // restored so explicit user choices are not overridden.
         let avail = ui.available_size();
+        let fullscreen = self.ui_store.view.preview_fullscreen;
         let compact = crate::app::persistence::compact_for_width(avail.x);
         let was_compact = self.ui_store.view.compact;
-        if compact != was_compact {
+        if !fullscreen && compact != was_compact {
             let transition = crate::app::persistence::reconcile_compact(
                 &mut self.ui_store.view.tree,
                 was_compact,
@@ -454,13 +468,19 @@ impl GuiShell {
                     "workspace compact-mode changed"
                 );
             }
-            // Overlay drawers are compact-only, and any open drawer is stale
-            // after a breakpoint crossing.
             self.ui_store.set_compact(compact);
+            if compact
+                && self.ui_store.view.compact_restore.is_some_and(|state| state.detail_visible)
+            {
+                self.ui_store.view.compact_drawer = Some(panels::CompactDrawer::Detail);
+            } else if !compact && crate::app::persistence::detail_visible(&self.ui_store.view.tree)
+            {
+                self.ui_store.view.compact_drawer = None;
+            }
         }
 
         let preset = self.ui_store.view.layout_preset;
-        if compact {
+        if !fullscreen && compact {
             // The sidebar is a fixed-width icon rail; ignore the preset's
             // sidebar pixel floor and give the rest to the preview.
             crate::app::persistence::enforce_compact_layout(
@@ -469,7 +489,7 @@ impl GuiShell {
                 avail.x,
                 avail.y,
             );
-        } else {
+        } else if !fullscreen {
             // Keep region sizes inside the preset's pixel bounds before layout,
             // so a window smaller than the build-time reference does not scale
             // panels below their floors.
@@ -495,6 +515,7 @@ impl GuiShell {
 
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
+            language: crate::app::i18n::current_language(ui.ctx()),
             voiceover_history: &self.narration_takes.voiceover_history,
             document_store: &mut self.document_store,
             workspace_store: &mut self.workspace_store,
@@ -511,9 +532,16 @@ impl GuiShell {
             sidebar_tab: &mut self.ui_store.sidebar_tab,
             compact,
             compact_drawer: &mut self.ui_store.view.compact_drawer,
+            preview_fullscreen: fullscreen,
             debug_layout: self.ui_store.view.debug_layout,
             debug_spacing: self.ui_store.view.debug_spacing,
         };
-        tree.ui(&mut behavior, ui);
+        if fullscreen {
+            use egui_tiles::Behavior as _;
+            let _ =
+                behavior.pane_ui(ui, egui_tiles::TileId::from_u64(0), &mut WorkspaceTab::Preview);
+        } else {
+            tree.ui(&mut behavior, ui);
+        }
     }
 }

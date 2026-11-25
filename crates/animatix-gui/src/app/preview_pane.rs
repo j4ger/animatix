@@ -34,7 +34,7 @@ impl PreviewPaneState {
                 snap_line_color: None,
                 snap_hud_label: None,
             },
-            status: "Loaded file".to_string(),
+            status: crate::app::i18n::StatusText::message("gui-status-loaded", []),
             status_severity: StatusSeverity::Info,
             error: None,
             dimensions,
@@ -46,11 +46,11 @@ impl PreviewPaneState {
         }
     }
 
-    pub fn set_status_info(&mut self, msg: impl Into<String>) {
+    pub fn set_status_info(&mut self, msg: impl Into<i18n::StatusText>) {
         self.status = msg.into();
         self.status_severity = StatusSeverity::Info;
     }
-    pub fn set_status_error(&mut self, msg: impl Into<String>) {
+    pub fn set_status_error(&mut self, msg: impl Into<i18n::StatusText>) {
         self.status = msg.into();
         self.status_severity = StatusSeverity::Error;
     }

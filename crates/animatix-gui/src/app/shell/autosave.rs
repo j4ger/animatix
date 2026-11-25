@@ -34,7 +34,10 @@ impl GuiShell {
 
     /// Toast to show when a save is refused because of a pending prompt.
     pub(crate) fn recovery_prompt_save_blocked(&self) -> Toast {
-        Toast::warning("Choose Recover or Discard before saving")
+        Toast::warning(crate::app::i18n::text_for(
+            self.ui_store.view.language,
+            "gui-recovery-before-save",
+        ))
     }
 
     /// How long until the next autosave write, for `request_repaint_after`.
@@ -149,8 +152,9 @@ impl GuiShell {
             let _title_close = dialog::title_row(
                 ui,
                 &format!(
-                    "{}  Recover unsaved changes",
-                    egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE
+                    "{}  {}",
+                    egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE,
+                    crate::app::i18n::text(ui, "gui-recovery-title")
                 ),
             );
             let mut body_close = false;
@@ -160,9 +164,21 @@ impl GuiShell {
 
             ui.add(
                 egui::Label::new(
-                    egui::RichText::new(&self.ui_store.recovery_prompt.message)
-                        .size(TextRole::Body.size())
-                        .color(theme.palette.text.secondary),
+                    egui::RichText::new(crate::app::i18n::render(
+                        ui,
+                        "gui-recovery-prompt",
+                        &[(
+                            "path",
+                            self.ui_store
+                                .recovery_prompt
+                                .source_path
+                                .as_deref()
+                                .map(|path| path.display().to_string())
+                                .unwrap_or_default(),
+                        )],
+                    ))
+                    .size(TextRole::Body.size())
+                    .color(theme.palette.text.secondary),
                 )
                 .selectable(false),
             );
@@ -174,7 +190,7 @@ impl GuiShell {
                     // and mark the document dirty so it is not silently saved.
                     let recover = ui.add_sized(
                         [110.0, ROW_L],
-                        Button::primary("Recover")
+                        Button::primary(crate::app::i18n::text(ui, "gui-recovery-recover"))
                             .with_icon(egui_phosphor::regular::ARROW_CLOCKWISE),
                     );
                     if recover.clicked() {
@@ -184,9 +200,11 @@ impl GuiShell {
                             },
                             Err(err) => {
                                 tracing::warn!("Recovery failed: {}", err);
-                                self.ui_store
-                                    .toasts
-                                    .push(Toast::error(format!("Recovery failed: {err}")));
+                                self.ui_store.toasts.push(Toast::error(crate::app::i18n::render(
+                                    ui,
+                                    "gui-recovery-failed",
+                                    &[("detail", err)],
+                                )));
                                 // Keep the prompt open so the file is not lost.
                             },
                         }
@@ -195,7 +213,8 @@ impl GuiShell {
                     // Discard: the user does not want the sidecar; delete it.
                     let discard = ui.add_sized(
                         [110.0, ROW_L],
-                        Button::danger("Discard").with_icon(egui_phosphor::regular::TRASH),
+                        Button::danger(crate::app::i18n::text(ui, "gui-action-discard"))
+                            .with_icon(egui_phosphor::regular::TRASH),
                     );
                     if discard.clicked() {
                         self.discard_recovery();
@@ -218,13 +237,16 @@ impl GuiShell {
         self.document_store.replace_text(text);
         self.preview_store.pending_rebuild_at =
             Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-        self.preview_store.preview.set_status_info(format!(
-            "Recovered unsaved changes from {} • rebuilding",
-            sidecar.display()
-        ));
-        self.ui_store
-            .toasts
-            .push(Toast::success("Recovered unsaved changes — review and save"));
+        self.preview_store
+            .preview
+            .set_status_info(crate::app::i18n::StatusText::message(
+                "gui-recovery-rebuilding",
+                [("path", sidecar.display().to_string())],
+            ));
+        self.ui_store.toasts.push(Toast::success(crate::app::i18n::text_for(
+            self.ui_store.view.language,
+            "gui-recovery-review-save",
+        )));
         // The sidecar stays on disk until a real save or explicit discard, so a
         // crash during review still leaves the edits recoverable.
         self.ui_store.recovery_prompt.close();
@@ -244,7 +266,12 @@ impl GuiShell {
             .unwrap_or(false);
         if let (Some(sidecar), true) = (sidecar.as_deref(), removed) {
             tracing::info!("Discarded recovery file {}", sidecar.display());
-            self.preview_store.preview.set_status_info("Discarded recovered changes");
+            self.preview_store
+                .preview
+                .set_status_info(crate::app::i18n::StatusText::message(
+                    "gui-status-recovery-discarded",
+                    [],
+                ));
         }
         self.ui_store.recovery_prompt.close();
     }

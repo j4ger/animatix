@@ -2,10 +2,29 @@
 
 use std::ops::Range;
 
+use chumsky::error::{RichPattern, RichReason};
 use chumsky::prelude::*;
 
 use crate::ast::ByteSpan;
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::diagnostics::{
+    Diagnostic, DiagnosticCode, DiagnosticPhase, DiagnosticPresentation, ParseExpectation,
+    ParsePresentation,
+};
+use crate::token::TokenKind;
+
+// Chumsky carries custom error payloads as strings. Pack rule identity and its
+// source argument there, then restore the unchanged canonical text at the parser boundary.
+const FIELD_SEPARATOR: char = '\u{1f}';
+
+pub(super) fn rule_error<'src>(
+    span: ByteSpan,
+    id: &str,
+    canonical: impl std::fmt::Display,
+    argument: Option<&str>,
+) -> Rich<'src, TokenKind, ByteSpan> {
+    let argument = argument.unwrap_or_default();
+    Rich::custom(span, format!("{id}{FIELD_SEPARATOR}{argument}{FIELD_SEPARATOR}{canonical}"))
+}
 
 /// A structured parse error with human-readable location and context.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,6 +43,8 @@ pub struct ParseError {
     pub found: Option<String>,
     /// Parser context stack (labels of enclosing grammar rules).
     pub context: Vec<String>,
+    /// Display data for frontends that localize parser messages.
+    pub presentation: Option<ParsePresentation>,
 }
 
 impl ParseError {
@@ -41,11 +62,15 @@ impl ParseError {
         if !self.context.is_empty() {
             msg.push_str(&format!("\n  in {}", self.context.join(" > ")));
         }
-        Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, msg).with_location(
-            self.line,
-            self.column,
-            self.span.clone(),
-        )
+        let diagnostic = Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, msg)
+            .with_location(self.line, self.column, self.span.clone());
+        match &self.presentation {
+            Some(problem) => diagnostic.with_presentation(DiagnosticPresentation::Parse {
+                problem: problem.clone(),
+                context: self.context.clone(),
+            }),
+            None => diagnostic,
+        }
     }
 
     /// Convert a chumsky `Rich` token error into a structured `ParseError`.
@@ -60,12 +85,13 @@ impl ParseError {
         let line = line0 + 1;
         let column = column0 + 1;
 
-        let mut _message = String::new();
+        let message;
+        let presentation;
         let mut expected = Vec::new();
         let mut found = None;
 
         match err.reason() {
-            chumsky::error::RichReason::ExpectedFound {
+            RichReason::ExpectedFound {
                 expected: exp,
                 found: f,
             } => {
@@ -74,38 +100,61 @@ impl ParseError {
                 // something else, statement, something else, ...") that read
                 // as noise to authors.
                 let mut seen = std::collections::HashSet::new();
-                expected = exp
-                    .iter()
-                    .map(|p| p.to_string())
-                    .filter(|label| label != "something else")
-                    .filter(|label| seen.insert(label.clone()))
-                    .collect();
+                let mut patterns = Vec::new();
+                for pattern in exp {
+                    let canonical = pattern.to_string();
+                    if canonical == "something else" || !seen.insert(canonical.clone()) {
+                        continue;
+                    }
+                    patterns.push(match pattern {
+                        RichPattern::Label(label) => ParseExpectation::Rule(label.to_string()),
+                        RichPattern::Any => ParseExpectation::Any,
+                        RichPattern::EndOfInput => ParseExpectation::EndOfInput,
+                        _ => ParseExpectation::Syntax(canonical.clone()),
+                    });
+                    expected.push(canonical);
+                }
                 found = f.as_ref().map(|c| c.to_string());
                 let expected_str = expected.join(", ");
-                match (expected_str.is_empty(), found.as_ref()) {
-                    (false, Some(f)) => _message = format!("expected {expected_str}, found '{f}'"),
-                    (false, None) => {
-                        _message = format!("expected {expected_str}, found end of input")
-                    },
-                    (true, Some(f)) => _message = format!("unexpected '{f}'"),
-                    (true, None) => _message = "unexpected end of input".to_string(),
-                }
+                message = match (expected_str.is_empty(), found.as_ref()) {
+                    (false, Some(f)) => format!("expected {expected_str}, found '{f}'"),
+                    (false, None) => format!("expected {expected_str}, found end of input"),
+                    (true, Some(f)) => format!("unexpected '{f}'"),
+                    (true, None) => "unexpected end of input".to_string(),
+                };
+                presentation = Some(ParsePresentation::Mismatch {
+                    expected: patterns,
+                    found: found.clone(),
+                });
             },
-            chumsky::error::RichReason::Custom(msg) => {
-                _message = msg.clone();
+            RichReason::Custom(msg) => {
+                let mut fields = msg.splitn(3, FIELD_SEPARATOR);
+                if let (Some(id), Some(argument), Some(canonical)) =
+                    (fields.next(), fields.next(), fields.next())
+                {
+                    message = canonical.to_owned();
+                    presentation = Some(ParsePresentation::Rule {
+                        id: id.to_owned(),
+                        argument: (!argument.is_empty()).then(|| argument.to_owned()),
+                    });
+                } else {
+                    message = msg.clone();
+                    presentation = None;
+                }
             },
         }
 
         let context: Vec<String> = err.contexts().map(|(pattern, _)| pattern.to_string()).collect();
 
         Self {
-            message: _message,
+            message,
             span: start..end,
             line,
             column,
             expected,
             found,
             context,
+            presentation,
         }
     }
 }

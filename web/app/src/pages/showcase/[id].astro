@@ -3,7 +3,7 @@ import Page from '../../layouts/Page.astro';
 import EditableScene from '../../components/EditableScene.astro';
 import {works, pageUrl} from '../../lib/content';
 import {workCopy} from '../../lib/catalog-zh';
-import {pageLanguage} from '../../lib/language';
+import {choose, pageLanguage} from '../../lib/language';
 import {sceneSource} from '../../lib/scene-source';
 import {ui} from '../../lib/ui';
 
@@ -25,7 +25,7 @@ const experiments: Record<string, [string, string, string]> = {
 };
 const [exampleCode, exampleEn, exampleZh] = experiments[work.id];
 const next = works[(works.indexOf(original) + 1) % works.length];
-const nextTitle = t(next.title, workCopy[next.id].title);
+const nextTitle = choose(language, next.title, workCopy[next.id].title);
 const patternControl = work.controls === 'start_pattern';
 ---
 <Page title={work.title}>
@@ -38,23 +38,23 @@ const patternControl = work.controls === 'start_pattern';
     <div class="example-workspace">
       <EditableScene id={work.id} title={work.title} {source} recording download>
         {work.controls && <div slot="presets" class="scene-presets">
-          <label>{patternControl ? t('Start with', '先播') : t('Initial phase', '初始相位')}
+          <label>{patternControl ? t('web-start-with') : t('web-initial-phase')}
             <select data-scene-preset disabled name={work.controls} aria-describedby={patternControl ? 'start-pattern-hint' : undefined}>
-              <option value="" hidden disabled>{t('Custom', '自定义')}</option>
+              <option value="" hidden disabled>{t('web-custom')}</option>
               {patternControl
-                ? <><option value="0" selected>0 · {t('Ripple', '涟漪')}</option><option value="1">1 · {t('Cascade', '级联')}</option></>
-                : <><option value="0" selected>0° · {t('In phase', '同相')}</option><option value="90">90° · {t('Quarter cycle', '四分之一周期')}</option><option value="180">180° · {t('Half cycle', '半周期')}</option></>}
+                ? <><option value="0" selected>0 · {t('web-ripple')}</option><option value="1">1 · {t('web-cascade')}</option></>
+                : <><option value="0" selected>0° · {t('web-in-phase')}</option><option value="90">90° · {t('web-quarter-cycle')}</option><option value="180">180° · {t('web-half-cycle')}</option></>}
             </select>
           </label>
-          {patternControl && <p id="start-pattern-hint" class="preset-hint">{t('Sets the value of', '改写源码开头的')} <code>start_pattern</code> {t('at the top of the source.', '变量。')}</p>}
+          {patternControl && <p id="start-pattern-hint" class="preset-hint">{t('web-sets-the-value-of')} <code>start_pattern</code> {t('web-at-the-top-of-the-source')}</p>}
           <p class="source-status" role="status"></p>
         </div>}
       </EditableScene>
       <aside class="example-notes">
         <section class="example-experiment">
-          <h2>{t('Try an edit', '试着改一处')}</h2>
+          <h2>{t('web-try-an-edit')}</h2>
           <code>{exampleCode}</code>
-          <p>{t(exampleEn, exampleZh)}</p>
+          <p>{choose(language, exampleEn, exampleZh)}</p>
         </section>
         <section class="example-explanation">
           <h2>{work.insight}</h2>
@@ -63,8 +63,8 @@ const patternControl = work.controls === 'start_pattern';
         </section>
       </aside>
     </div>
-    <nav class="example-next" aria-label={t('Next example', '下一个示例')}>
-      <a href={pageUrl(language, `showcase/${next.id}/`)}><span>{t('Next example', '下一个示例')}</span> {nextTitle} <span aria-hidden="true">→</span></a>
+    <nav class="example-next" aria-label={t('web-next-example')}>
+      <a href={pageUrl(language, `showcase/${next.id}/`)}><span>{t('web-next-example')}</span> {nextTitle} <span aria-hidden="true">→</span></a>
     </nav>
   </article>
 </Page>

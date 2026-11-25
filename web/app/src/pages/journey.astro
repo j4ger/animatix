@@ -1,6 +1,6 @@
 ---
 import {pageUrl} from '../lib/content';
-import {pageLanguage} from '../lib/language';
+import {choose, pageLanguage} from '../lib/language';
 import {noiseCancellation} from '../lib/scene-catalog';
 import {sceneSource} from '../lib/scene-source';
 import {ui} from '../lib/ui';
@@ -14,19 +14,19 @@ import '../styles/preferences.css';
 const language = pageLanguage(Astro.currentLocale);
 const labels = ui(language);
 const {t} = labels;
-const title = t('How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？');
-const description = t('How do headphones cancel noise? Follow a train rumble into an ear cup in a short animated explainer made with Animatix.', '从列车上的低沉轰鸣开始，看看主动降噪耳机如何改变到达耳朵的声音。');
+const title = choose(language, 'How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？');
+const description = choose(language, 'How do headphones cancel noise? Follow a train rumble into an ear cup in a short animated explainer made with Animatix.', '从列车上的低沉轰鸣开始，看看主动降噪耳机如何改变到达耳朵的声音。');
 const editor = pageUrl(language, `playground/?scene=${noiseCancellation.id}`);
 ---
 <SiteDocument {title} {description} htmlClass="journey-page">
-  <a class="skip" href="#story">{t("Skip to the explainer", "跳到正文")}</a>
+  <a class="skip" href="#story">{t('web-skip-to-the-explainer')}</a>
   <SiteHeader id="choreography" playgroundUrl={editor}/>
   <main id="story">
     <div class="journey">
       <div class="film">
         <EditableScene id={noiseCancellation.id} {title} source={sceneSource(noiseCancellation.id)}
           posterPath="content/journey/quiet-carriage.webp" width={960} height={560} duration={16}
-          posterAlt={t("The gold train rumble and green sound at the ear initially have identical waves.", "开头的金色列车轰鸣和绿色耳边声压具有相同波形。")}
+          posterAlt={choose(language, "The gold train rumble and green sound at the ear initially have identical waves.", "开头的金色列车轰鸣和绿色耳边声压具有相同波形。")}
           download>
           <p slot="playback-status" class="scene-status" data-cue-status role="status"></p>
         </EditableScene>
@@ -35,35 +35,35 @@ const editor = pageUrl(language, `playground/?scene=${noiseCancellation.id}`);
       <div class="story-copy">
         <section id="train" aria-labelledby="question" data-amx-cue="train">
           <div class="passage">
-            <p class="eyebrow"><span class="swatch rumble"></span>{t("On the train", "在列车上")}</p>
-            <h1 id="question">{t('How do headphones ', '降噪耳机如何')}<em>{t('cancel noise?', '消掉噪声？')}</em></h1>
-            <p class="narration">{t("You take a window seat. The carriage hums. Follow one low note as the headphones switch on. At first, the green line at your ear follows the train’s rumble.", "你坐在窗边，车厢里传来持续的低鸣。戴上耳机，跟踪其中一个低频音。开头那条绿色曲线表示耳朵听到的声音，它与列车的轰鸣相同。")}</p>
-            <a class="turn" href="#speaker">{t("Switch on the headphones", "打开降噪")} <span aria-hidden="true">↓</span></a>
+            <p class="eyebrow"><span class="swatch rumble"></span>{choose(language, "On the train", "在列车上")}</p>
+            <h1 id="question">{choose(language, 'How do headphones ', '降噪耳机如何')}<em>{choose(language, 'cancel noise?', '消掉噪声？')}</em></h1>
+            <p class="narration">{choose(language, "You take a window seat. The carriage hums. Follow one low note as the headphones switch on. At first, the green line at your ear follows the train’s rumble.", "你坐在窗边，车厢里传来持续的低鸣。戴上耳机，跟踪其中一个低频音。开头那条绿色曲线表示耳朵听到的声音，它与列车的轰鸣相同。")}</p>
+            <a class="turn" href="#speaker">{t('web-switch-on-the-headphones')} <span aria-hidden="true">↓</span></a>
           </div>
         </section>
         <section id="speaker" aria-labelledby="speaker-title" data-amx-cue="speaker">
           <div class="passage">
-            <p class="eyebrow"><span class="swatch speaker"></span>{t("Inside the headphones", "耳机如何降噪")}</p>
-            <h2 id="speaker-title">{t('One wave meets ', '原声遇到')}<em>{t('its opposite.', '反向的波')}</em></h2>
-            <p class="narration">{t("A microphone picks up the rumble. The speaker makes its own wave, timed so that a peak in the train’s sound meets a trough at your ear.", "麦克风拾取轰鸣，扬声器发出另一道波，让原声的波峰碰上扬声器的波谷。")}</p>
-            <a class="turn" href="#ear">{t("See what reaches your ear", "看看耳朵听到了什么")} <span aria-hidden="true">↓</span></a>
+            <p class="eyebrow"><span class="swatch speaker"></span>{choose(language, "Inside the headphones", "耳机如何降噪")}</p>
+            <h2 id="speaker-title">{choose(language, 'One wave meets ', '原声遇到')}<em>{choose(language, 'its opposite.', '反向的波')}</em></h2>
+            <p class="narration">{choose(language, "A microphone picks up the rumble. The speaker makes its own wave, timed so that a peak in the train’s sound meets a trough at your ear.", "麦克风拾取轰鸣，扬声器发出另一道波，让原声的波峰碰上扬声器的波谷。")}</p>
+            <a class="turn" href="#ear">{t('web-see-what-reaches-your-ear')} <span aria-hidden="true">↓</span></a>
           </div>
         </section>
         <section id="ear" aria-labelledby="ear-title" data-amx-cue="ear">
           <div class="passage">
-            <p class="eyebrow"><span class="swatch ear"></span>{t("At your ear", "到达耳朵的声音")}</p>
-            <h2 id="ear-title">{t('The train keeps moving. ', '列车继续开。')}<em>{t('The hum fades.', '耳边安静了。')}</em></h2>
-            <p class="narration">{t("The green line is the sum of the two waves. When they’re equal and opposite, it goes flat. This one note cancels inside the ear cup. Outside, the carriage is just as loud.", "绿线是两道波的叠加。它们幅度相同、方向相反时，绿线变平，说明这个低频音在耳罩里被抵消了。车厢里的轰鸣依旧。")}</p>
-            <a class="turn" href="#quiet-carriage" data-edit-film>{t("Open the film’s source", "查看动画源码")} <span aria-hidden="true">↑</span></a>
+            <p class="eyebrow"><span class="swatch ear"></span>{choose(language, "At your ear", "到达耳朵的声音")}</p>
+            <h2 id="ear-title">{choose(language, 'The train keeps moving. ', '列车继续开。')}<em>{choose(language, 'The hum fades.', '耳边安静了。')}</em></h2>
+            <p class="narration">{choose(language, "The green line is the sum of the two waves. When they’re equal and opposite, it goes flat. This one note cancels inside the ear cup. Outside, the carriage is just as loud.", "绿线是两道波的叠加。它们幅度相同、方向相反时，绿线变平，说明这个低频音在耳罩里被抵消了。车厢里的轰鸣依旧。")}</p>
+            <a class="turn" href="#quiet-carriage" data-edit-film>{t('web-open-the-film-s-source')} <span aria-hidden="true">↑</span></a>
           </div>
         </section>
       </div>
     </div>
-    <aside class="endnote" aria-label={t("Try the same film with a weaker speaker", "用更低的扬声器幅度重试")}>
-      <p>{t("What if the speaker pushes only half as hard?", "如果扬声器的幅度减半，会发生什么？")}</p>
-      <a href={editor + '&speaker_level=0.5'} data-edit-film="half">{t("Try half strength", "试试幅度减半")} <span aria-hidden="true">↑</span></a>
+    <aside class="endnote" aria-label={t('web-try-the-same-film-with-a-weaker-speaker')}>
+      <p>{choose(language, "What if the speaker pushes only half as hard?", "如果扬声器的幅度减半，会发生什么？")}</p>
+      <a href={editor + '&speaker_level=0.5'} data-edit-film="half">{t('web-try-half-strength')} <span aria-hidden="true">↑</span></a>
     </aside>
   </main>
-  <noscript><p class="noscript">{t("The text tells the full story. Enable JavaScript to play the film.", "可直接阅读下方讲解。启用 JavaScript 后即可播放动画。")}</p></noscript>
+  <noscript><p class="noscript">{t('web-the-text-tells-the-full-story-enable-javascript-to-play-the-film')}</p></noscript>
   <script src="../scripts/journey.ts"></script>
 </SiteDocument>

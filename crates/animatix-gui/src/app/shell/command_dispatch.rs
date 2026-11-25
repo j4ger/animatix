@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use super::*;
-use crate::app::components::toast::Toast;
+use crate::app::i18n::{self, StatusText};
 
 impl GuiShell {
     pub(crate) fn handle_command(&mut self, command: Command) -> Vec<Effect> {
@@ -68,7 +68,7 @@ impl GuiShell {
     fn command_open_file(&mut self, path: PathBuf) -> Vec<Effect> {
         if self.document_store.source.is_dirty() {
             self.ui_store.unsaved_changes.open(
-                format!("Save changes before opening \"{}\"?", path.display()),
+                StatusText::message("gui-unsaved-open", [("path", path.display().to_string())]),
                 Command::OpenFile(path).into(),
             );
             return vec![];
@@ -84,15 +84,17 @@ impl GuiShell {
                 self.preview_store.in_flight_rebuild = None;
                 self.preview_store.rebuild_in_progress = false;
                 self.preview_store.preview.error = None;
-                self.preview_store.preview.status = format!("Opening {}…", path.display());
+                self.preview_store.preview.status = crate::app::i18n::StatusText::message(
+                    "gui-status-opening",
+                    [("path", path.display().to_string())],
+                );
                 self.preview_store.preview_dirty = true;
             },
             Err(err) => {
                 self.pending_open = None;
-                self.preview_store.preview.set_status_error(format!(
-                    "Open failed • {} • {}",
-                    path.display(),
-                    err
+                self.preview_store.preview.set_status_error(StatusText::message(
+                    "gui-status-open-failed-detail",
+                    [("path", path.display().to_string()), ("detail", err)],
                 ));
             },
         }
@@ -107,7 +109,7 @@ impl GuiShell {
     fn command_switch_workspace(&mut self, path: PathBuf) -> Vec<Effect> {
         if self.document_store.source.is_dirty() {
             self.ui_store.unsaved_changes.open(
-                format!("Save changes before switching workspace to \"{}\"?", path.display()),
+                StatusText::message("gui-unsaved-switch", [("path", path.display().to_string())]),
                 Command::SwitchWorkspace(path).into(),
             );
             return vec![];
@@ -130,15 +132,16 @@ impl GuiShell {
     fn command_reload(&mut self) -> Vec<Effect> {
         if self.recovery_prompt_pending() {
             return vec![Effect::Toast(
-                crate::app::components::toast::Toast::warning(
-                    "Choose Recover or Discard before reloading",
-                ),
+                crate::app::components::toast::Toast::warning(i18n::text_for(
+                    self.ui_store.view.language,
+                    "gui-recovery-before-reload",
+                )),
             )];
         }
         if self.document_store.source.is_dirty() {
             self.ui_store
                 .unsaved_changes
-                .open("Save changes before reloading?".to_string(), Command::Reload.into());
+                .open(StatusText::message("gui-unsaved-reload", []), Command::Reload.into());
             return vec![];
         }
         file::handle_reload(
@@ -171,7 +174,12 @@ impl GuiShell {
         if self.plugin_manager.reload() {
             self.apply_plugin_reload();
         } else {
-            self.preview_store.preview.set_status_info("Plugins already up to date");
+            self.preview_store
+                .preview
+                .set_status_info(crate::app::i18n::StatusText::message(
+                    "gui-status-plugins-current",
+                    [],
+                ));
         }
         vec![]
     }
@@ -259,9 +267,10 @@ impl GuiShell {
         patch: &crate::editor::source_patch::SourcePatch,
     ) -> Vec<Effect> {
         let Some(text) = patch.apply(&self.document_store.source) else {
-            return vec![Effect::Toast(Toast::warning(
-                "Source changed. Open the edit again to use the current revision.",
-            ))];
+            return vec![Effect::Notice(
+                crate::app::components::toast::ToastLevel::Warning,
+                crate::app::i18n::StatusText::message("gui-narration-source-stale", []),
+            )];
         };
         let snapshot = self.ui_store.snapshot_with_preview(&self.preview_store);
         self.document_store.snapshot(command.clone(), snapshot.clone());
@@ -269,9 +278,9 @@ impl GuiShell {
         self.preview_store.pending_rebuild_at =
             Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
         self.preview_store.preview.error = None;
-        vec![Effect::Status(format!(
-            "{} • rebuild scheduled",
-            patch.label()
+        vec![Effect::Status(crate::app::i18n::StatusText::message(
+            "gui-status-patch-rebuild",
+            [("action", patch.label().to_owned())],
         ))]
     }
 
@@ -296,21 +305,20 @@ impl GuiShell {
 
     fn command_scroll_to_line(&mut self, line: usize, column: usize) -> Vec<Effect> {
         self.reveal_source_editor();
+        self.document_store
+            .source
+            .editor
+            .set_source_view(crate::editor::narration::SourceView::Full);
         ui::handle_scroll_to_line(&mut self.document_store, line, column)
     }
 
     fn reveal_source_editor(&mut self) {
-        // Source navigation must reveal the editor, not focus a hidden pane.
-        let detail_visible = if self.ui_store.view.compact {
-            self.ui_store.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail)
-        } else {
-            crate::app::persistence::detail_visible(&self.ui_store.view.tree)
-        };
-        if !detail_visible
-            || crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
-                != Some(crate::app::WorkspaceTab::Code)
-        {
-            ui::handle_show_code(&mut self.ui_store);
+        self.ui_store.view.preview_fullscreen = false;
+        if self.ui_store.view.layout_preset != crate::app::LayoutPreset::Code {
+            ui::handle_apply_layout(&mut self.ui_store, crate::app::LayoutPreset::Code);
+        }
+        if self.ui_store.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail) {
+            self.ui_store.view.compact_drawer = None;
         }
     }
 
@@ -322,21 +330,19 @@ impl GuiShell {
     ) -> Vec<Effect> {
         let source = &mut self.document_store.source;
         if source.epoch() != epoch || source.editor.text() != source.text() {
-            return vec![Effect::Toast(Toast::warning(
-                "Source changed. Refresh the narration cue.",
-            ))];
+            return vec![Effect::Notice(
+                crate::app::components::toast::ToastLevel::Warning,
+                crate::app::i18n::StatusText::message("gui-narration-cue-refresh", []),
+            )];
         }
         if source.editor.reveal_narration(scene, marker) {
-            let effects = crate::app::handlers::ui::handle_apply_layout(
-                &mut self.ui_store,
-                crate::app::LayoutPreset::Code,
-            );
             self.reveal_source_editor();
-            effects
+            vec![]
         } else {
-            vec![Effect::Toast(Toast::warning(
-                "This narration phrase has no current source match.",
-            ))]
+            vec![Effect::Notice(
+                crate::app::components::toast::ToastLevel::Warning,
+                crate::app::i18n::StatusText::message("gui-narration-cue-no-match", []),
+            )]
         }
     }
 
@@ -354,9 +360,10 @@ impl GuiShell {
             || self.preview_store.has_pending_rebuild()
             || document.last_rebuild_error.is_some()
         {
-            return vec![Effect::Toast(Toast::warning(
-                "Rebuild the current source to review this cue.",
-            ))];
+            return vec![Effect::Notice(
+                crate::app::components::toast::ToastLevel::Warning,
+                crate::app::i18n::StatusText::message("gui-narration-cue-rebuild", []),
+            )];
         }
         let resolve = |statements: &[animatix_syntax::ast::Stmt]| {
             crate::app::panels::timeline_panel::review_markers(
@@ -384,7 +391,10 @@ impl GuiShell {
                 !matches!(effect, Effect::EditorScroll(_) | Effect::EditorHighlight(_))
             }));
         } else {
-            effects.push(Effect::Toast(Toast::warning("This narration cue is unresolved.")));
+            effects.push(Effect::Notice(
+                crate::app::components::toast::ToastLevel::Warning,
+                crate::app::i18n::StatusText::message("gui-narration-cue-unresolved", []),
+            ));
         }
         effects
     }

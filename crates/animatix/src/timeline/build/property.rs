@@ -533,6 +533,13 @@ impl Timeline {
                         prop.name
                     ),
                 )
+                .with_presentation(
+                    crate::diagnostics::DiagnosticPresentation::UnknownDeclarationProperty {
+                        actor: label.to_owned(),
+                        actor_type: ty.to_owned(),
+                        property: prop.name.clone(),
+                    },
+                )
                 .with_subject(format!("{label}.{}", prop.name)),
             );
         }

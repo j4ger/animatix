@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use animatix_syntax::diagnostics::{Diagnostic, diagnostics_phase_summary};
+use animatix_syntax::diagnostics::Diagnostic;
 
 use crate::app::commands::Command;
 use crate::app::document::DocumentSession;
@@ -61,18 +61,6 @@ impl DocumentStore {
         diagnostics.extend(self.history.render_diagnostics.iter().cloned());
         diagnostics.extend(self.history.runtime_diagnostics.iter().cloned());
         diagnostics
-    }
-
-    /// Convenience: build a status string that includes diagnostic summary.
-    pub fn document_status(&self, base_status: String) -> String {
-        if self.source.document.diagnostics.is_empty() {
-            base_status
-        } else {
-            format!(
-                "{base_status} • {}",
-                diagnostics_phase_summary(&self.source.document.diagnostics)
-            )
-        }
     }
 
     /// Begin an undo snapshot — captures source text before mutation.

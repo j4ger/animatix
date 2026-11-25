@@ -25,131 +25,131 @@ enum CheatSheetEntry {
 /// Keyboard shortcut groups.
 const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
     (
-        "Playback",
+        "gui-shortcut-sheet-playback",
         &[
             CheatSheetEntry::Bindings {
                 names: &["Play/Pause"],
-                desc: "Play / Pause",
+                desc: "gui-shortcut-sheet-play-pause",
             },
             CheatSheetEntry::Bindings {
                 names: &["Prev Keyframe", "Next Keyframe"],
-                desc: "Prev / Next keyframe",
+                desc: "gui-shortcut-sheet-prev-next-keyframe",
             },
             CheatSheetEntry::Bindings {
                 names: &["Step Back 1 Frame", "Step Forward 1 Frame"],
-                desc: "Prev / Next frame",
+                desc: "gui-shortcut-sheet-prev-next-frame",
             },
             CheatSheetEntry::Gesture {
-                key: "T (hold)",
-                desc: "Time lens scrub",
+                key: "gui-shortcut-sheet-t-hold",
+                desc: "gui-shortcut-sheet-time-lens-scrub",
             },
             CheatSheetEntry::Gesture {
                 key: "\u{2190} / \u{2192}",
-                desc: "Scrub timeline",
+                desc: "gui-shortcut-sheet-scrub-timeline",
             },
             CheatSheetEntry::Bindings {
                 names: &["Toggle Presentation Mode"],
-                desc: "Presentation mode",
+                desc: "gui-shortcut-sheet-presentation-mode",
             },
             CheatSheetEntry::Bindings {
                 names: &["Step Previous", "Step Next"],
-                desc: "Step Prev / Next",
+                desc: "gui-shortcut-sheet-step-prev-next",
             },
         ],
     ),
     (
-        "Selection",
+        "gui-shortcut-sheet-selection",
         &[
             CheatSheetEntry::Gesture {
-                key: "Drag",
-                desc: "Marquee selection",
+                key: "gui-shortcut-sheet-drag",
+                desc: "gui-shortcut-sheet-marquee-selection",
             },
             CheatSheetEntry::Gesture {
-                key: "Click",
-                desc: "Inspect actor",
+                key: "gui-shortcut-sheet-click",
+                desc: "gui-shortcut-sheet-inspect-actor",
             },
             CheatSheetEntry::Gesture {
-                key: "Shift + click",
-                desc: "Extend selection",
+                key: "gui-shortcut-sheet-shift-click",
+                desc: "gui-shortcut-sheet-extend-selection",
             },
             CheatSheetEntry::Gesture {
-                key: "Alt + click",
-                desc: "Locate source",
+                key: "gui-shortcut-sheet-alt-click",
+                desc: "gui-shortcut-sheet-locate-source",
             },
         ],
     ),
     (
-        "Canvas",
+        "gui-shortcut-sheet-canvas",
         &[
             CheatSheetEntry::Gesture {
-                key: "Middle-drag",
-                desc: "Pan canvas",
+                key: "gui-shortcut-sheet-middle-drag",
+                desc: "gui-shortcut-sheet-pan-canvas",
             },
             CheatSheetEntry::Gesture {
-                key: "Scroll",
-                desc: "Zoom",
+                key: "gui-shortcut-sheet-scroll",
+                desc: "gui-shortcut-sheet-zoom",
             },
             CheatSheetEntry::Bindings {
                 names: &["Zoom to Selection", "Zoom to All"],
-                desc: "Zoom to sel. / all",
+                desc: "gui-shortcut-sheet-zoom-to-sel-all",
             },
         ],
     ),
     (
-        "Timeline",
+        "gui-shortcut-sheet-timeline",
         &[
             CheatSheetEntry::Gesture {
-                key: "Click ruler",
-                desc: "Scrub to time",
+                key: "gui-shortcut-sheet-click-ruler",
+                desc: "gui-shortcut-sheet-scrub-to-time",
             },
             CheatSheetEntry::Gesture {
-                key: "Drag ruler",
-                desc: "Scrub",
+                key: "gui-shortcut-sheet-drag-ruler",
+                desc: "gui-shortcut-sheet-scrub",
             },
             CheatSheetEntry::Bindings {
                 names: &["Prev Keyframe", "Next Keyframe"],
-                desc: "Prev / Next keyframe",
+                desc: "gui-shortcut-sheet-prev-next-keyframe",
             },
             CheatSheetEntry::Bindings {
                 names: &["Scene 1", "Scene 2", "Scene 3"],
-                desc: "Jump to scene",
+                desc: "gui-shortcut-sheet-jump-to-scene",
             },
             CheatSheetEntry::Bindings {
                 names: &["Scrub Backward", "Scrub Forward"],
-                desc: "Scrub in small steps",
+                desc: "gui-shortcut-sheet-scrub-in-small-steps",
             },
         ],
     ),
     (
-        "General",
+        "gui-shortcut-sheet-general",
         &[
             CheatSheetEntry::Bindings {
                 names: &["Save"],
-                desc: "Save",
+                desc: "gui-shortcut-sheet-save",
             },
             CheatSheetEntry::Bindings {
                 names: &["Undo", "Redo"],
-                desc: "Undo / Redo",
+                desc: "gui-shortcut-sheet-undo-redo",
             },
             CheatSheetEntry::Bindings {
                 names: &["Reload", "Rebuild"],
-                desc: "Reload / Rebuild",
+                desc: "gui-shortcut-sheet-reload-rebuild",
             },
             CheatSheetEntry::Bindings {
                 names: &["Find/Replace"],
-                desc: "Find / Replace",
+                desc: "gui-shortcut-sheet-find-replace",
             },
             CheatSheetEntry::Bindings {
                 names: &["Command Palette"],
-                desc: "Command palette",
+                desc: "gui-shortcut-sheet-command-palette",
             },
             CheatSheetEntry::Bindings {
                 names: &["Editor Sync"],
-                desc: "Toggle editor sync",
+                desc: "gui-shortcut-sheet-toggle-editor-sync",
             },
             CheatSheetEntry::Bindings {
                 names: &["Escape"],
-                desc: "Cancel selection / presentation",
+                desc: "gui-shortcut-sheet-cancel-selection-presentation",
             },
         ],
     ),
@@ -163,7 +163,10 @@ impl GuiShell {
             .with_min_size([380.0, 320.0]);
 
         let open = components::dialog::modal(ui, &spec, |ui, _dc| -> bool {
-            let close = components::dialog::title_row(ui, "Keyboard Shortcuts");
+            let close = {
+                let title = crate::app::i18n::text(ui, "gui-settings-section-shortcuts");
+                components::dialog::title_row(ui, &title)
+            };
             ui.add_space(sp.base.space_3);
             ui.separator();
             ui.add_space(sp.base.space_3);
@@ -229,7 +232,7 @@ fn shortcut_column(
         ui.set_min_width(width);
         for (title, shortcuts) in groups {
             ui.label(
-                RichText::new(*title)
+                RichText::new(crate::app::i18n::text(ui, title))
                     .size(TextRole::BodyS.size())
                     .color(theme.palette.accent.primary)
                     .strong(),
@@ -261,10 +264,17 @@ fn shortcut_row(
                 return;
             }
             let key = hints.join(" / ");
-            shortcut_row_inner(ui, &key, desc, col_w, sp.base.row_s);
+            let desc = crate::app::i18n::text(ui, desc);
+            shortcut_row_inner(ui, &key, &desc, col_w, sp.base.row_s);
         },
         CheatSheetEntry::Gesture { key, desc } => {
-            shortcut_row_inner(ui, key, desc, col_w, sp.base.row_s);
+            let key = if key.starts_with("gui-") {
+                crate::app::i18n::text(ui, key)
+            } else {
+                key.to_owned()
+            };
+            let desc = crate::app::i18n::text(ui, desc);
+            shortcut_row_inner(ui, &key, &desc, col_w, sp.base.row_s);
         },
     }
 }

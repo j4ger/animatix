@@ -6,8 +6,19 @@
 // clean and fails in the browser (see check-embed-globals.mjs).
 import { execFileSync } from "node:child_process";
 import * as esbuild from "esbuild";
+import { compileLabels } from "./fluent-labels.mjs";
 
 execFileSync(process.execPath, ["check-embed-globals.mjs"], { stdio: "inherit" });
+
+const fluentLabels = {
+  name: "fluent-labels",
+  setup(build) {
+    build.onLoad({ filter: /\.ftl$/ }, ({ path }) => ({
+      contents: JSON.stringify(compileLabels(path)),
+      loader: "json",
+    }));
+  },
+};
 
 await esbuild.build({
   entryPoints: ["../embed/src/amx-player.js"],
@@ -16,6 +27,7 @@ await esbuild.build({
   format: "esm",
   minify: true,
   target: "es2022",
+  plugins: [fluentLabels],
 });
 
 console.log("embed bundle ready: web/embed/amx-player.js");

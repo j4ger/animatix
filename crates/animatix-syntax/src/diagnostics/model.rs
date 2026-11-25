@@ -36,6 +36,8 @@ pub struct Diagnostic {
     pub code: DiagnosticCode,
     /// Human-readable message describing the issue.
     pub message: String,
+    /// Optional localized presentation of the same issue.
+    pub presentation: Option<DiagnosticPresentation>,
     /// Source location associated with the diagnostic.
     pub location: DiagnosticLocation,
 }
@@ -52,6 +54,7 @@ impl Diagnostic {
             phase,
             code,
             message: message.into(),
+            presentation: None,
             location: DiagnosticLocation::default(),
         }
     }
@@ -63,8 +66,15 @@ impl Diagnostic {
             phase,
             code,
             message: message.into(),
+            presentation: None,
             location: DiagnosticLocation::default(),
         }
+    }
+
+    /// Attaches display data without changing the canonical message.
+    pub fn with_presentation(mut self, presentation: DiagnosticPresentation) -> Self {
+        self.presentation = Some(presentation);
+        self
     }
 
     /// Attaches a source file path to the diagnostic.

@@ -1,30 +1,32 @@
-//! Components tab.
+//! Imported component inventory.
 
 use super::*;
 
-pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
+pub(super) fn components_content_ui(
+    components: &HashMap<String, animatix_syntax::module::ComponentEntry>,
+    ui: &mut egui::Ui,
+) {
     let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
-    if ctx.components.is_empty() {
-        layout::empty_state(
-            ui,
-            egui_phosphor::regular::CUBE,
-            "No components",
-            "Import modules with pub component definitions to see them here.",
+    if components.is_empty() {
+        ui.label(
+            egui::RichText::new(crate::app::i18n::text(ui, "gui-components-empty"))
+                .small()
+                .weak(),
         );
         return;
     }
 
-    egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-        let mut names: Vec<&String> = ctx.components.keys().collect();
+    ui.scope(|ui| {
+        let mut names: Vec<&String> = components.keys().collect();
         names.sort();
         for name in names {
-            let entry = &ctx.components[name];
+            let entry = &components[name];
             let row_id = ui.scope_id().with(name);
             row::Row::new(name)
                 .icon(Some(egui_phosphor::regular::CUBE))
                 .label_color(t.palette.text.secondary)
-                .sense(egui::Sense::click())
+                .sense(egui::Sense::hover())
                 .show(ui, row_id);
 
             // Slots display
@@ -88,5 +90,3 @@ pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut eg
         }
     });
 }
-
-// ─── Assets Tab ───────────────────────────────────────────────────────────

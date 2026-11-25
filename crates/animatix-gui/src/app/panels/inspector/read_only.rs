@@ -2,7 +2,7 @@
 use super::property_groups::{PropertyKind, build_property_groups};
 use super::{InspectorContext, source};
 use crate::app::commands::Command;
-use crate::app::components::layout;
+use crate::app::i18n::{current_language, empty_state, format, text, with_arg};
 use crate::app::panels::panel_frame;
 use animatix::timeline::{EntityId, Timeline};
 use egui::{RichText, ScrollArea};
@@ -12,17 +12,17 @@ pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::
         let theme = eparts::theme(ui);
         if !ctx.source_current {
             ui.label(
-                RichText::new("Last built scene · source is out of date")
+                RichText::new(crate::app::i18n::text(ui, "gui-preview-source-outdated"))
                     .color(theme.palette.status.warning),
             );
-            ui.small("Source links resume after a successful rebuild.");
+            ui.small(text(ui, "gui-source-navigation-resume"));
         }
         let Some(timeline) = ctx.timeline else {
-            layout::empty_state(
+            empty_state(
                 ui,
                 egui_phosphor::regular::MAGNIFYING_GLASS,
-                "No built scene",
-                "Open an .amx file to inspect its preview.",
+                "gui-preview-no-built-scene",
+                "gui-inspector-empty-help",
             );
             return;
         };
@@ -45,29 +45,43 @@ pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::
 
 fn scene_summary(ctx: &InspectorContext<'_>, timeline: &Timeline, ui: &mut egui::Ui) {
     ui.add_space(8.0);
-    ui.strong(ctx.active_scene.unwrap_or("Scene"));
+    ui.strong(
+        ctx.active_scene
+            .map(str::to_owned)
+            .unwrap_or_else(|| text(ui, "gui-inspector-scene")),
+    );
     let mut rows = vec![
         (
-            "Canvas",
+            "gui-inspector-canvas",
             format!("{} × {}", ctx.scene_dimensions.width, ctx.scene_dimensions.height),
         ),
-        ("Local duration", format!("{:.3} s", timeline.duration_seconds())),
-        ("Objects", timeline.tracks().len().to_string()),
+        ("gui-inspector-local-duration", format!("{:.3} s", timeline.duration_seconds())),
+        ("gui-inspector-objects", timeline.tracks().len().to_string()),
     ];
     if let Some(composition) = ctx.composition {
         rows.push((
-            "Composition",
-            format!("{} scenes · {:.3} s", composition.scenes.len(), composition.global_duration_s),
+            "gui-inspector-composition",
+            format(current_language(ui.ctx()), "gui-inspector-scene-count", {
+                let mut args = animatix_i18n::FluentArgs::new();
+                args.set("count", composition.scenes.len());
+                args.set("duration", format!("{:.3}", composition.global_duration_s));
+                args
+            }),
         ));
     }
     value_rows(ui, rows);
     ui.add_space(crate::app::design_tokens::spatial::SPACE_5);
-    ui.label("Select an object to inspect it.");
+    ui.label(crate::app::i18n::text(ui, "gui-inspector-select-object"));
 }
 
 fn selection_summary(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
-    ui.strong(format!("{} objects selected", ctx.selected_actors.len()));
-    ui.small("Choose one to inspect its source and sampled values.");
+    ui.strong(with_arg(
+        current_language(ui.ctx()),
+        "gui-inspector-selection-count",
+        "count",
+        ctx.selected_actors.len(),
+    ));
+    ui.small(text(ui, "gui-inspector-selected-help"));
     let mut labels: Vec<_> = ctx.selected_actors.iter().cloned().collect();
     labels.sort();
     for label in labels {
@@ -92,18 +106,23 @@ fn actor_summary(
     ui.add_space(10.0);
     source_card(ctx, timeline, id, label, actor_type, ui);
     ui.add_space(12.0);
-    ui.strong("At the playhead");
+    ui.strong(text(ui, "gui-inspector-playhead"));
     let global_s = ctx.preview.playback.current_time_s();
     let local_s = local_time(ctx, global_s);
-    let mut rows = vec![("Scene time", format!("{local_s:.3} s"))];
+    let mut rows = vec![("gui-inspector-scene-time", format!("{local_s:.3} s"))];
     if ctx.composition.is_some() {
-        rows.push(("Global time", format!("{global_s:.3} s")));
+        rows.push(("gui-inspector-global-time", format!("{global_s:.3} s")));
     }
     let parent = timeline.world().hierarchy(id).parent.and_then(|p| timeline.get_entity_label(p));
-    rows.push(("Parent", parent.unwrap_or("Scene root").to_owned()));
+    rows.push((
+        "gui-inspector-parent",
+        parent
+            .map(str::to_owned)
+            .unwrap_or_else(|| text(ui, "gui-inspector-scene-root")),
+    ));
     if let Some(bounds) = timeline.world().local_bounds(id) {
         rows.push((
-            "Last measured local bounds",
+            "gui-inspector-local-bounds",
             format!(
                 "({:.1}, {:.1}) · {:.1} × {:.1}",
                 bounds.x0,
@@ -114,11 +133,11 @@ fn actor_summary(
         ));
     }
     value_rows(ui, rows);
-    ui.small("Sampled tracks and defaults, not a post-layout property dump. Expressions and layout can change the final rendered result.");
+    ui.small(text(ui, "gui-inspector-samples-help"));
     ui.add_space(10.0);
     let time_ms = (local_s.max(0.0) * 1000.0) as u64;
     for group in build_property_groups(timeline, id, time_ms) {
-        egui::CollapsingHeader::new(format!("{}  {}", group.icon, group.name))
+        egui::CollapsingHeader::new(format!("{}  {}", group.icon, group_label(ui, group.name)))
             .id_salt(("inspect_group", label, group.name))
             .default_open(matches!(group.name, "Transform" | "Text" | "Layout"))
             .show(ui, |ui| {
@@ -131,16 +150,18 @@ fn actor_summary(
                             )
                             .wrap(),
                         )
-                        .on_hover_text(value_type_hint(&property.kind));
+                        .on_hover_text(value_type_hint(ui, &property.kind));
                         if property.has_keyframes {
-                            ui.small(format!(
-                                "{} keys{}",
+                            let key = if property.has_keyframe_at_current_time {
+                                "gui-inspector-key-count-at-time"
+                            } else {
+                                "gui-inspector-key-count"
+                            };
+                            ui.small(with_arg(
+                                current_language(ui.ctx()),
+                                key,
+                                "count",
                                 property.keyframe_count,
-                                if property.has_keyframe_at_current_time {
-                                    " · key at this time"
-                                } else {
-                                    ""
-                                }
                             ));
                         }
                         ui.add_space(5.0);
@@ -151,11 +172,31 @@ fn actor_summary(
     let assets: Vec<_> = timeline.asset_cache().assets_for(label).collect();
     if !assets.is_empty() {
         ui.separator();
-        ui.strong("Referenced assets");
+        ui.strong(text(ui, "gui-inspector-assets"));
         for asset in assets {
             ui.add(egui::Label::new(asset).wrap());
         }
     }
+}
+
+fn group_label(ui: &egui::Ui, group: &str) -> String {
+    let message = match group {
+        "Transform" => "gui-inspector-group-transform",
+        "Layout" => "gui-inspector-group-layout",
+        "Style" => "gui-inspector-group-style",
+        "Shape" => "gui-inspector-group-shape",
+        "Text" => "gui-inspector-group-text",
+        "Plot & Coordinates" => "gui-inspector-group-plot-coordinates",
+        "Annotation" => "gui-inspector-group-annotation",
+        "Media" => "gui-inspector-group-media",
+        "Audio" => "gui-inspector-group-audio",
+        "Visibility" => "gui-inspector-group-visibility",
+        "Other" => "gui-inspector-group-other",
+        "Geometry" => "gui-inspector-group-geometry",
+        "Filter" => "gui-inspector-group-filter",
+        _ => return group.to_owned(),
+    };
+    text(ui, message)
 }
 
 fn source_card(
@@ -166,7 +207,7 @@ fn source_card(
     ty: &str,
     ui: &mut egui::Ui,
 ) {
-    ui.strong("Source");
+    ui.strong(text(ui, "gui-inspector-source"));
     let location = if ctx.source_current {
         cached_source_location(ctx, timeline, id, label, ty, ui)
     } else {
@@ -175,15 +216,20 @@ fn source_card(
     if let Some(span) = location {
         ui.add(egui::Label::new(ctx.source_path.display().to_string()).wrap());
         if ui
-            .link(format!("Go to declaration · {}:{}", span.start_line, span.start_col))
+            .link(with_arg(
+                current_language(ui.ctx()),
+                "gui-inspector-go-to-declaration",
+                "position",
+                format!("{}:{}", span.start_line, span.start_col),
+            ))
             .clicked()
         {
             ctx.commands
                 .push_back(Command::ScrollToLine(span.start_line - 1, span.start_col - 1).into());
         }
     } else {
-        ui.small("No verified direct declaration in this source snapshot.");
-        ui.small("Generated, imported and component objects may have multiple origins. Navigation is intentionally unavailable rather than guessed.");
+        ui.small(text(ui, "gui-inspector-no-declaration"));
+        ui.small(text(ui, "gui-inspector-origins"));
     }
 }
 
@@ -200,7 +246,7 @@ fn value_rows(ui: &mut egui::Ui, rows: Vec<(&str, String)>) {
     let mut key_width = 0.0_f32;
     let mut value_width = 0.0_f32;
     for (key, value) in &rows {
-        let key = WidgetText::from(RichText::new(*key).small().weak());
+        let key = WidgetText::from(RichText::new(text(ui, key)).small().weak());
         let value = WidgetText::from(RichText::new(value).monospace());
         key_width = key_width.max(
             key.into_galley(
@@ -227,7 +273,7 @@ fn value_rows(ui: &mut egui::Ui, rows: Vec<(&str, String)>) {
     // Switch the whole group so neighbouring rows never drift to different columns.
     let columns = key_width + gap + value_width <= ui.available_width();
     for (key, value) in rows {
-        let key = Label::new(RichText::new(key).small().weak());
+        let key = Label::new(RichText::new(text(ui, key)).small().weak());
         let value = Label::new(RichText::new(value).monospace());
         if columns {
             ui.horizontal(|ui| {
@@ -269,15 +315,25 @@ pub(super) fn display_value(kind: &PropertyKind) -> String {
     }
 }
 
-fn value_type_hint(kind: &PropertyKind) -> String {
+fn value_type_hint(ui: &egui::Ui, kind: &PropertyKind) -> String {
+    let language = current_language(ui.ctx());
     match kind {
-        PropertyKind::Enum { variants, .. } => format!("Choices: {}", variants.join(", ")),
-        PropertyKind::EnumOwned { variants, .. } => format!("Choices: {}", variants.join(", ")),
-        PropertyKind::Union { variants, .. } => format!("{} accepted value types", variants.len()),
-        PropertyKind::Sum { variants, .. } => {
-            format!("Variants: {}", variants.iter().map(|v| v.name).collect::<Vec<_>>().join(", "))
+        PropertyKind::Enum { variants, .. } => {
+            with_arg(language, "gui-inspector-value-choices", "choices", variants.join(", "))
         },
-        _ => "Read-only sampled value. Edit the source to change it.".to_owned(),
+        PropertyKind::EnumOwned { variants, .. } => {
+            with_arg(language, "gui-inspector-value-choices", "choices", variants.join(", "))
+        },
+        PropertyKind::Union { variants, .. } => {
+            with_arg(language, "gui-inspector-value-types", "count", variants.len())
+        },
+        PropertyKind::Sum { variants, .. } => with_arg(
+            language,
+            "gui-inspector-value-variants",
+            "variants",
+            variants.iter().map(|v| v.name).collect::<Vec<_>>().join(", "),
+        ),
+        _ => text(ui, "gui-inspector-readonly-help"),
     }
 }
 
@@ -355,9 +411,9 @@ mod summary_layout_tests {
                 value_rows(
                     ui,
                     vec![
-                        ("Canvas", "1,920 × 1,080".into()),
-                        ("Local duration", "20.000 s".into()),
-                        ("Objects", "6".into()),
+                        ("gui-inspector-canvas", "1,920 × 1,080".into()),
+                        ("gui-inspector-local-duration", "20.000 s".into()),
+                        ("gui-inspector-objects", "6".into()),
                     ],
                 );
             });

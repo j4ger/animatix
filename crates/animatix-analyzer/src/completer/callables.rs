@@ -26,6 +26,7 @@ pub(super) fn callable_completions(
             label,
             kind: CompletionKind::Callable,
             detail: Some(signature(callable)),
+            detail_message: None,
             documentation: Some(callable.help.clone()),
             insert_text: Some(format!("{insert_name}(")),
         });
@@ -39,6 +40,7 @@ pub(super) fn callable_completions(
             label: name.clone(),
             kind: CompletionKind::Callable,
             detail: descriptor.as_ref().map(signature).or_else(|| Some("Function".to_string())),
+            detail_message: descriptor.is_none().then_some(CompletionDetail::Function),
             documentation: descriptor.as_ref().map(|callable| callable.help.clone()),
             insert_text: Some(format!("{name}(")),
         });
@@ -80,6 +82,7 @@ pub(super) fn method_completions(symbols: &SymbolTable, receiver: &str) -> Vec<C
                 label: name.clone(),
                 kind: CompletionKind::Callable,
                 detail: Some(signature(&descriptor)),
+                detail_message: None,
                 documentation: None,
                 insert_text: Some(format!("{name}(")),
             })
@@ -120,6 +123,7 @@ pub(super) fn argument_completions(
             label: param.name.clone(),
             kind: CompletionKind::Parameter,
             detail: Some(type_name(&param.ty)),
+            detail_message: None,
             documentation: (!param.help.is_empty()).then(|| param.help.clone()),
             insert_text: Some(format!("{}: ${{1}}", param.name)),
         });
@@ -144,6 +148,7 @@ pub(super) fn modifier_completions() -> Vec<CompletionItem> {
         label: name.to_string(),
         kind: CompletionKind::Parameter,
         detail: Some("Modifier".to_string()),
+        detail_message: Some(CompletionDetail::Modifier),
         documentation: Some(help.to_string()),
         insert_text: Some(format!("{name}: ")),
     })
@@ -373,6 +378,7 @@ pub(super) fn actor_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
             label: name.clone(),
             kind: CompletionKind::Label,
             detail: info.ty.as_ref().map(|ty| format!("Actor: {ty}")),
+            detail_message: info.ty.clone().map(CompletionDetail::Actor),
             documentation: None,
             insert_text: None,
         })

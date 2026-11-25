@@ -11,18 +11,18 @@ import '../styles/preferences.css';
 const language = pageLanguage(Astro.currentLocale);
 const {t} = ui(language);
 const {
-  title = t('A language for animated explainers', '为解释性动画而生的语言'),
-  description = t('Animatix is an open-source language for creating explanatory animations in code.', 'Animatix 是一门用代码制作解释性动画的开源语言。'),
+  title = t('web-page-default-title'),
+  description = t('web-page-default-description'),
   wide = false, home = false, homeLinks = false,
 } = Astro.props;
 ---
 <SiteDocument {title} {description} {home} {homeLinks} bodyClass="project-page">
-  <a class="skip" href="#main">{t('Skip to content', '跳到正文')}</a>
+  <a class="skip" href="#main">{t('web-skip-to-content')}</a>
   <SiteHeader homeLinks={homeLinks}/>
   <main id="main" class:list={['main', {wide}]}><slot/></main>
   <footer class="project-footer">
     <span>© 2026 j4ger</span>
     <span aria-hidden="true">·</span>
-    <a href={github+'/blob/main/LICENSE'}>{t('MIT Licensed', 'MIT 许可')}</a>
+    <a href={github+'/blob/main/LICENSE'}>{t('web-mit-licensed')}</a>
   </footer>
 </SiteDocument>

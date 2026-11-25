@@ -33,10 +33,12 @@ pub fn render_mixed_audio(
     let media_error = |err| ExportError::VideoEncode(format!("Audio muxing failed: {err}"));
     let mut container = AVFormatContextOutput::create(&filename).map_err(media_error)?;
     let mut audio =
-        AudioEncoder::prepare(&mut container, segments, 0.0..duration_s, false, true, warn)?
-            .ok_or_else(|| {
-                ExportError::VideoEncode("No audio starts within the export duration".into())
-            })?;
+        AudioEncoder::prepare(&mut container, segments, 0.0..duration_s, false, true, |event| {
+            warn(event.to_string())
+        })?
+        .ok_or_else(|| {
+            ExportError::VideoEncode("No audio starts within the export duration".into())
+        })?;
     container.write_header(&mut None).map_err(media_error)?;
     audio.finish(&mut container)?;
     container.write_trailer().map_err(media_error)?;

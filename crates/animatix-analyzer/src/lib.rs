@@ -43,7 +43,9 @@ pub use animatix_core::callable::{
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::parser::ParseError;
 use animatix_syntax::token::Token;
-pub use completer::{CompletionItem, CompletionKind, all_snippets, completions_at};
+pub use completer::{
+    CompletionDetail, CompletionItem, CompletionKind, all_snippets, completions_at,
+};
 pub use diagnostics::{
     Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics,
     collect_diagnostics_with_config,

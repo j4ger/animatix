@@ -93,13 +93,17 @@ pub(super) fn handle_scroll_zoom(
                         (scene_at_cursor.y - rel.y as f64 * new_scale) as f32,
                     );
                     ctx.preview.viewport.preview_pan = ctx.clamp_pan(new_pan, preview_rect);
-                    ctx.preview.status =
-                        format!("Zoom: {:.0}%", ctx.preview.viewport.preview_zoom * 100.0);
+                    ctx.preview.status = crate::app::i18n::StatusText::message(
+                        "gui-preview-zoom-percent",
+                        [("zoom", format!("{:.0}", ctx.preview.viewport.preview_zoom * 100.0))],
+                    );
                 }
             } else {
                 ctx.preview.viewport.preview_zoom = new_zoom;
-                ctx.preview.status =
-                    format!("Zoom: {:.0}%", ctx.preview.viewport.preview_zoom * 100.0);
+                ctx.preview.status = crate::app::i18n::StatusText::message(
+                    "gui-preview-zoom-percent",
+                    [("zoom", format!("{:.0}", ctx.preview.viewport.preview_zoom * 100.0))],
+                );
             }
         }
     }
@@ -249,7 +253,7 @@ pub(super) fn handle_file_drop(
                 ctx.commands.push_back(Command::OpenFile(path).into());
             } else {
                 ctx.preview.status =
-                    "Add media in source code; dropping it cannot change the scene".into();
+                    crate::app::i18n::StatusText::message("gui-preview-add-media-source", []);
             }
         }
     }

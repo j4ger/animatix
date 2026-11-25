@@ -33,7 +33,10 @@ impl GuiShell {
                     if self.document_store.source.document.is_dirty {
                         if !self.ui_store.unsaved_changes.is_open {
                             self.ui_store.unsaved_changes.open(
-                                "File changed on disk. Reload and discard your unsaved edits?",
+                                crate::app::i18n::StatusText::message(
+                                    "gui-unsaved-external-change",
+                                    [],
+                                ),
                                 Command::Reload.into(),
                             );
                         }
@@ -41,7 +44,12 @@ impl GuiShell {
                     }
                     if let Err(err) = self.document_store.source.document.reload_from_disk() {
                         self.preview_store.preview.error = Some(err.to_string());
-                        self.preview_store.preview.set_status_error("Hot reload failed");
+                        self.preview_store.preview.set_status_error(
+                            crate::app::i18n::StatusText::message(
+                                "gui-status-hot-reload-failed",
+                                [],
+                            ),
+                        );
                     } else {
                         self.document_store.source.source_epoch =
                             self.document_store.source.epoch().next();
@@ -51,7 +59,8 @@ impl GuiShell {
                             self.document_store.source.document.source_text.clone(),
                         );
                         self.workspace_store.last_reload_time = Some(app_time);
-                        self.preview_store.preview.status = "File reloaded; rebuilding".to_string();
+                        self.preview_store.preview.status =
+                            crate::app::i18n::StatusText::message("gui-status-file-reloaded", []);
                         self.preview_store.preview.error = None;
                         self.preview_store.pending_rebuild_at = Some(
                             std::time::Instant::now()
@@ -80,10 +89,10 @@ impl GuiShell {
             workspace_root.clone(),
             plugin_paths,
         );
-        let (mut document, status, error, is_welcome) = if show_welcome {
+        let (mut document, error, is_welcome) = if show_welcome {
             // No recent file persisted — show welcome screen
             let doc = DocumentSession::from_error(initial_path.clone());
-            (doc, None, None, true)
+            (doc, None, true)
         } else {
             let context = plugin_manager.context();
             let manifest = plugin_manager.manifest();
@@ -95,12 +104,12 @@ impl GuiShell {
             ) {
                 Ok(document) => {
                     let error = document.last_rebuild_error.clone();
-                    (document, None, error, false)
+                    (document, error, false)
                 },
                 Err(error) => {
                     // Persisted file missing/deleted — fall back to welcome
                     let doc = DocumentSession::from_error(initial_path.clone());
-                    (doc, None, Some(error.to_string()), true)
+                    (doc, Some(error.to_string()), true)
                 },
             }
         };
@@ -120,20 +129,17 @@ impl GuiShell {
         };
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
-        if let Some(status) = status {
-            preview.status = status;
-        } else if has_source_load_failure(&document.diagnostics) {
-            preview.set_status_error(format!(
-                "Opened {} • parse/load error • {}",
-                document.file_path.display(),
-                diagnostics_phase_summary(&document.diagnostics)
-            ));
+        if has_source_load_failure(&document.diagnostics) {
+            preview.set_status_error(crate::app::handlers::file::opened_status(&document));
         }
         preview.error = error.clone();
 
         let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
 
         let mut ui_store = UiStore::new(tree);
+        if let Some(preset) = persistence.as_ref().and_then(|p| p.layout_preset) {
+            ui_store.view.layout_preset = preset;
+        }
         ui_store.recent_files = crate::app::persistence::load_recent_files();
         ui_store.view.welcome_open = is_welcome;
 
@@ -219,10 +225,14 @@ impl GuiShell {
                 })
                 .collect::<Vec<_>>()
                 .join("; ");
-            shell
-                .ui_store
-                .toasts
-                .push(Toast::warning(format!("Plugin load issue: {message}")));
+            shell.ui_store.toasts.push(Toast::warning(
+                crate::app::i18n::StatusText::message(
+                    "gui-file-plugin-load",
+                    [("detail", message)],
+                )
+                .display(shell.ui_store.view.language)
+                .into_owned(),
+            ));
         }
 
         if !is_welcome {

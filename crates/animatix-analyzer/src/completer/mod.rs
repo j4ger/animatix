@@ -14,6 +14,8 @@ pub struct CompletionItem {
     pub kind: CompletionKind,
     /// Additional detail (e.g., type info).
     pub detail: Option<String>,
+    /// Typed alternative for interfaces that localize the detail.
+    pub detail_message: Option<CompletionDetail>,
     /// Documentation string.
     pub documentation: Option<String>,
     /// Text to insert (if different from label).
@@ -82,6 +84,8 @@ use values::*;
 mod api;
 mod callables;
 mod context;
+mod detail;
+pub use detail::CompletionDetail;
 mod properties;
 mod snippets;
 #[cfg(test)]

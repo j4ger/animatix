@@ -1,5 +1,6 @@
 //! Build and stream a mixed audio track directly into the video container.
 
+use super::ExportWarning;
 use std::ffi::{CStr, CString};
 use std::ops::Range;
 
@@ -99,16 +100,17 @@ impl AudioEncoder {
         range: Range<f64>,
         webm: bool,
         warn_on_cutoff: bool,
-        warn: impl Fn(String),
+        warn: impl Fn(ExportWarning),
     ) -> Result<Option<Self>, ExportError> {
         let mut inputs = Vec::with_capacity(segments.len());
         for segment in segments {
             if segment.start_time_s >= range.end {
                 if warn_on_cutoff {
-                    warn(format!(
-                        "Export ends at {:.3}s before audio '{}' starts at {:.3}s.",
-                        range.end, segment.source, segment.start_time_s,
-                    ));
+                    warn(ExportWarning::AudioStartsAfterExport {
+                        source: segment.source.to_string(),
+                        cutoff_s: range.end,
+                        start_s: segment.start_time_s,
+                    });
                 }
                 continue;
             }
@@ -125,10 +127,11 @@ impl AudioEncoder {
                     continue;
                 }
                 if warn_on_cutoff && end > range.end + 0.001 {
-                    warn(format!(
-                        "Export ends at {:.3}s and will cut off audio '{}' ending at {end:.3}s.",
-                        range.end, segment.source,
-                    ));
+                    warn(ExportWarning::AudioCutOff {
+                        source: segment.source.to_string(),
+                        cutoff_s: range.end,
+                        end_s: end,
+                    });
                 }
             }
             inputs.push(input);

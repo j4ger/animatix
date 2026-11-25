@@ -7,6 +7,7 @@ use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::Button;
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::i18n::{render, text};
 use animatix::composition::Composition;
 use egui::{Align2, Pos2, Rect, Sense, Stroke};
 
@@ -16,27 +17,24 @@ pub(crate) fn toolbar(
     markers: &[TimingMarker],
     commands: &mut ActionQueue,
     id: egui::Id,
+    size: eparts::Size,
+    source_current: bool,
 ) -> bool {
     let debug_id = id.with("review_debug_tracks");
     let mut debug = ui.data(|d| d.get_temp::<bool>(debug_id)).unwrap_or(false);
     ui.horizontal(|ui| {
-        markers::marker_menu(ui, markers, commands);
+        markers::marker_menu(ui, markers, commands, size, source_current);
         let current = preview.playback.current_time_s();
         for (icon, label, forward) in [
-            (
-                egui_phosphor::regular::CARET_LEFT,
-                "Previous source marker · jump and reveal source",
-                false,
-            ),
-            (
-                egui_phosphor::regular::CARET_RIGHT,
-                "Next source marker · jump and reveal source",
-                true,
-            ),
+            (egui_phosphor::regular::CARET_LEFT, "gui-timeline-marker-previous", false),
+            (egui_phosphor::regular::CARET_RIGHT, "gui-timeline-marker-next", true),
         ] {
             let target = adjacent_marker(markers, current, forward);
             if ui
-                .add_enabled(target.is_some(), Button::icon(icon).with_tooltip(label))
+                .add_enabled(
+                    target.is_some(),
+                    Button::icon(icon).with_size(size).with_tooltip(text(ui, label)),
+                )
                 .clicked()
                 && let Some(marker) = target
             {
@@ -47,9 +45,9 @@ pub(crate) fn toolbar(
             preview.playback.loop_start_s.is_some() || preview.playback.loop_end_s.is_some();
         if ui
             .add(
-                Button::ghost("")
-                    .with_icon(egui_phosphor::regular::BRACKETS_SQUARE)
-                    .with_tooltip("Set loop to visible interval · preview only")
+                Button::icon(egui_phosphor::regular::BRACKETS_SQUARE)
+                    .with_size(size)
+                    .with_tooltip(text(ui, "gui-timeline-loop-visible"))
                     .active(has_loop),
             )
             .clicked()
@@ -65,7 +63,9 @@ pub(crate) fn toolbar(
         if ui
             .add_enabled(
                 has_loop,
-                Button::icon(egui_phosphor::regular::X).with_tooltip("Clear review loop"),
+                Button::icon(egui_phosphor::regular::X)
+                    .with_size(size)
+                    .with_tooltip(text(ui, "gui-timeline-loop-clear")),
             )
             .clicked()
         {
@@ -75,7 +75,8 @@ pub(crate) fn toolbar(
         if ui
             .add(
                 Button::icon(egui_phosphor::regular::SLIDERS_HORIZONTAL)
-                    .with_tooltip("Show actor and property tracks · read-only")
+                    .with_size(size)
+                    .with_tooltip(text(ui, "gui-timeline-show-tracks"))
                     .active(debug),
             )
             .clicked()
@@ -164,7 +165,15 @@ pub(crate) fn scene_track(
             commands.push_back(Command::SelectScene(name.clone()).into());
             commands.push_back(Command::ScrubTo(start).into());
         }
-        response.on_hover_text(format!("{name}\n{start:.3}s – {end:.3}s global\nClick to review. Scene order is defined in source."));
+        response.on_hover_text(render(
+            ui,
+            "gui-timeline-review-scene",
+            &[
+                ("scene", name.clone()),
+                ("start", format!("{start:.3}")),
+                ("end", format!("{end:.3}")),
+            ],
+        ));
     }
 }
 

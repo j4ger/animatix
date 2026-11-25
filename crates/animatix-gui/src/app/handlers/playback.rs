@@ -37,9 +37,9 @@ pub fn handle_toggle_playback(preview_store: &mut PreviewStore) -> Vec<Effect> {
 pub fn handle_toggle_editor_sync(ui_store: &mut UiStore) -> Vec<Effect> {
     ui_store.editor_sync_enabled = !ui_store.editor_sync_enabled;
     vec![if ui_store.editor_sync_enabled {
-        Effect::Status("Editor sync ON".to_string())
+        Effect::Status(crate::app::i18n::StatusText::message("gui-playback-editor-sync-on", []))
     } else {
-        Effect::Status("Editor sync OFF".to_string())
+        Effect::Status(crate::app::i18n::StatusText::message("gui-playback-editor-sync-off", []))
     }]
 }
 
@@ -52,9 +52,10 @@ pub fn handle_editor_changed(
     preview_store.pending_rebuild_at =
         Some(Instant::now() + Duration::from_millis(ui_store.rebuild_debounce_ms));
     preview_store.preview.error = None;
-    vec![Effect::Status(
-        "Editing source • rebuild scheduled".to_string(),
-    )]
+    vec![Effect::Status(crate::app::i18n::StatusText::message(
+        "gui-playback-rebuild-scheduled",
+        [],
+    ))]
 }
 
 fn collect_keyframes(document_store: &DocumentStore) -> Vec<f64> {
@@ -73,11 +74,14 @@ fn keyframe_effects(
     document_store: &DocumentStore,
     preview_store: &PreviewStore,
     ui_store: &UiStore,
-    label: &str,
+    message: &'static str,
 ) -> Vec<Effect> {
-    let status = format!(
-        "{label} keyframe • t = {:.2}s / {:.2}s",
-        preview_store.preview.playback.current_time_s, preview_store.preview.playback.duration_s
+    let status = crate::app::i18n::StatusText::message(
+        message,
+        [
+            ("time", format!("{:.2}", preview_store.preview.playback.current_time_s)),
+            ("duration", format!("{:.2}", preview_store.preview.playback.duration_s)),
+        ],
     );
     let mut effects = vec![Effect::Status(status)];
     effects.extend(editor_sync_effects(
@@ -96,7 +100,7 @@ pub fn handle_prev_keyframe(
     let keyframes = collect_keyframes(document_store);
     preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
     preview_store.preview_dirty = true;
-    keyframe_effects(document_store, preview_store, ui_store, "Previous")
+    keyframe_effects(document_store, preview_store, ui_store, "gui-playback-keyframe-previous")
 }
 
 pub fn handle_next_keyframe(
@@ -107,7 +111,7 @@ pub fn handle_next_keyframe(
     let keyframes = collect_keyframes(document_store);
     preview_store.preview.playback.go_to_next_keyframe(&keyframes);
     preview_store.preview_dirty = true;
-    keyframe_effects(document_store, preview_store, ui_store, "Next")
+    keyframe_effects(document_store, preview_store, ui_store, "gui-playback-keyframe-next")
 }
 
 pub fn handle_frame_step_forward(
@@ -119,9 +123,9 @@ pub fn handle_frame_step_forward(
     preview_store.preview.playback.frame_step_forward(fps);
     preview_store.preview_dirty = true;
     sync_active_scene_from_time(document_store, preview_store);
-    let mut effects = vec![Effect::Status(format!(
-        "Frame step forward • t = {:.2}s",
-        preview_store.preview.playback.current_time_s
+    let mut effects = vec![Effect::Status(crate::app::i18n::StatusText::message(
+        "gui-playback-frame-forward",
+        [("time", format!("{:.2}", preview_store.preview.playback.current_time_s))],
     ))];
     effects.extend(editor_sync_effects(
         document_store,
@@ -140,9 +144,9 @@ pub fn handle_frame_step_backward(
     preview_store.preview.playback.frame_step_backward(fps);
     preview_store.preview_dirty = true;
     sync_active_scene_from_time(document_store, preview_store);
-    let mut effects = vec![Effect::Status(format!(
-        "Frame step backward • t = {:.2}s",
-        preview_store.preview.playback.current_time_s
+    let mut effects = vec![Effect::Status(crate::app::i18n::StatusText::message(
+        "gui-playback-frame-backward",
+        [("time", format!("{:.2}", preview_store.preview.playback.current_time_s))],
     ))];
     effects.extend(editor_sync_effects(
         document_store,
@@ -186,10 +190,12 @@ pub fn handle_step_next(
     sync_active_scene_from_time(document_store, preview_store);
     let mut effects = vec![
         Effect::Repaint,
-        Effect::Status(format!(
-            "Step next • t = {:.2}s / {:.2}s",
-            preview_store.preview.playback.current_time_s,
-            preview_store.preview.playback.duration_s
+        Effect::Status(crate::app::i18n::StatusText::message(
+            "gui-playback-step-next",
+            [
+                ("time", format!("{:.2}", preview_store.preview.playback.current_time_s)),
+                ("duration", format!("{:.2}", preview_store.preview.playback.duration_s)),
+            ],
         )),
     ];
     effects.extend(editor_sync_effects(
@@ -210,10 +216,12 @@ pub fn handle_step_previous(
     sync_active_scene_from_time(document_store, preview_store);
     let mut effects = vec![
         Effect::Repaint,
-        Effect::Status(format!(
-            "Step prev • t = {:.2}s / {:.2}s",
-            preview_store.preview.playback.current_time_s,
-            preview_store.preview.playback.duration_s
+        Effect::Status(crate::app::i18n::StatusText::message(
+            "gui-playback-step-prev",
+            [
+                ("time", format!("{:.2}", preview_store.preview.playback.current_time_s)),
+                ("duration", format!("{:.2}", preview_store.preview.playback.duration_s)),
+            ],
         )),
     ];
     effects.extend(editor_sync_effects(
@@ -230,9 +238,9 @@ pub fn handle_toggle_presentation_mode(preview_store: &mut PreviewStore) -> Vec<
         preview_store.preview.fit_zoom_requested = true;
     }
     let status = if preview_store.preview.playback.presentation_mode {
-        "Presentation mode ON (Esc to exit, Click/Space to advance)"
+        crate::app::i18n::StatusText::message("gui-playback-presentation-on", [])
     } else {
-        "Presentation mode OFF"
+        crate::app::i18n::StatusText::message("gui-playback-presentation-off", [])
     };
-    vec![Effect::Repaint, Effect::Status(status.to_string())]
+    vec![Effect::Repaint, Effect::Status(status)]
 }

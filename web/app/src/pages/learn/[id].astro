@@ -3,7 +3,7 @@ import Page from '../../layouts/Page.astro';
 import LearningScene from '../../components/LearningScene.astro';
 import {lessons, pageUrl} from '../../lib/content';
 import {lessonCopy} from '../../lib/catalog-zh';
-import {pageLanguage} from '../../lib/language';
+import {choose, pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
 export function getStaticPaths() {
   return lessons.map((lesson, i) => ({params: {id: lesson.id}, props: {lesson, i}}));
@@ -13,12 +13,12 @@ const {t} = ui(language);
 const {i} = Astro.props;
 const original: typeof lessons[number] = Astro.props.lesson;
 const lesson = language === 'zh' ? {...original, ...lessonCopy[original.id]} : original;
-const titleOf = (entry: typeof lessons[number]) => t(entry.title, lessonCopy[entry.id].title);
+const titleOf = (entry: typeof lessons[number]) => choose(language, entry.title, lessonCopy[entry.id].title);
 ---
 <Page title={lesson.title}>
-  <LearningScene entry={lesson} backPath="learn/" backLabel={t('Learning route', '全部教程')}
-    eyebrow={t(`Lesson 0${i + 1} / 06`, `第 ${i + 1} 课 / 共 6 课`)}
-    posterAlt={t(`Rendered still from ${lesson.title}`, `「${lesson.title}」的静帧`)}/>
+  <LearningScene entry={lesson} backPath="learn/" backLabel={t('web-learning-route')}
+    eyebrow={t('web-lesson-number', {index: String(i + 1)})}
+    posterAlt={t('web-lesson-still', {title: lesson.title})}/>
   <div class="lesson-nav">
     {i > 0 && <a href={pageUrl(language, `learn/${lessons[i - 1].id}/`)}>← {titleOf(lessons[i - 1])}</a>}
     {i < lessons.length - 1 && <a href={pageUrl(language, `learn/${lessons[i + 1].id}/`)}>{titleOf(lessons[i + 1])} →</a>}

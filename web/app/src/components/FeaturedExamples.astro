@@ -1,28 +1,26 @@
 ---
 import {url, pageUrl, works} from '../lib/content';
 import {workCopy} from '../lib/catalog-zh';
-import {pageLanguage} from '../lib/language';
+import {choose, pageLanguage} from '../lib/language';
 import {noiseCancellation} from '../lib/scene-catalog';
-import {ui} from '../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
-const {t} = ui(language);
 
 const titles: Record<string, string> = {
-  'move-the-basis': t('Matrix shear', '矩阵剪切'),
-  'make-room': t('Stable insertion sort', '稳定插入排序'),
-  'when-waves-meet': t('Wave interference', '波的干涉'),
-  'words-keep-time': t('Maintenance notice', '维护通知'),
+  'move-the-basis': choose(language, 'Matrix shear', '矩阵剪切'),
+  'make-room': choose(language, 'Stable insertion sort', '稳定插入排序'),
+  'when-waves-meet': choose(language, 'Wave interference', '波的干涉'),
+  'words-keep-time': choose(language, 'Maintenance notice', '维护通知'),
 };
 const examples = [
   {
     path: noiseCancellation.page, poster: 'journey/noise-waves.webp', width: 960, height: 560,
-    title: t('How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？'),
-    category: t('Physics', '物理'), color: '#cce893',
+    title: choose(language, 'How do headphones cancel noise?', '降噪耳机是怎么消掉噪声的？'),
+    category: choose(language, 'Physics', '物理'), color: '#cce893',
   },
   ...works.map(work => ({
     path: `showcase/${work.id}/`, poster: `posters/${work.id}.png`, width: 1280, height: 720,
-    title: titles[work.id] ?? t(work.title, workCopy[work.id].title),
-    category: t(work.category, workCopy[work.id].category), color: work.color,
+    title: titles[work.id] ?? choose(language, work.title, workCopy[work.id].title),
+    category: choose(language, work.category, workCopy[work.id].category), color: work.color,
   })),
 ];
 ---

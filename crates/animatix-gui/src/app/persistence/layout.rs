@@ -1,103 +1,46 @@
 use super::*;
 
-pub(crate) fn clamp_ratio(ratio: f32, available: f32, min: f32, max: f32) -> f32 {
-    (ratio * available).clamp(min, max)
-}
-
-/// Per-preset region preferences (ratios, pixel bounds, detail tab).
-pub(crate) struct PresetRegions {
+struct PresetRegions {
     left: (f32, f32, f32),
-    detail: (f32, f32, f32),
     bottom: (f32, f32, f32),
-    tab: WorkspaceTab,
-    hide_surroundings: bool,
 }
 
-pub(crate) fn preset_regions(preset: LayoutPreset) -> PresetRegions {
+fn preset_regions(preset: LayoutPreset) -> PresetRegions {
     use metrics::*;
     match preset {
         LayoutPreset::Animate => PresetRegions {
             left: (LEFT_RATIO, LEFT_MIN, LEFT_MAX),
-            detail: (DETAIL_INSPECTOR_RATIO, DETAIL_INSPECTOR_MIN, DETAIL_INSPECTOR_MAX),
-            bottom: (0.32, 220.0, 420.0),
-            tab: WorkspaceTab::Inspector,
-            hide_surroundings: false,
+            bottom: (0.32, 200.0, 420.0),
         },
         LayoutPreset::Code => PresetRegions {
-            left: (0.14, 180.0, 300.0),
-            detail: (DETAIL_CODE_RATIO, DETAIL_CODE_MIN, DETAIL_CODE_MAX),
-            bottom: (0.18, 160.0, 260.0),
-            tab: WorkspaceTab::Code,
-            hide_surroundings: false,
-        },
-        LayoutPreset::Inspect => PresetRegions {
-            left: (0.12, 160.0, 260.0),
-            detail: (0.30, 300.0, 460.0),
-            bottom: (0.30, 220.0, 420.0),
-            tab: WorkspaceTab::Inspector,
-            hide_surroundings: false,
-        },
-        LayoutPreset::Focus => PresetRegions {
-            left: (LEFT_RATIO, LEFT_MIN, LEFT_MAX),
-            detail: (DETAIL_INSPECTOR_RATIO, DETAIL_INSPECTOR_MIN, DETAIL_INSPECTOR_MAX),
-            bottom: (BOTTOM_RATIO, BOTTOM_MIN, BOTTOM_MAX),
-            tab: WorkspaceTab::Inspector,
-            hide_surroundings: true,
+            left: (0.14, 170.0, 290.0),
+            bottom: (0.18, 138.0, 245.0),
         },
     }
 }
 
-/// Build a workspace tree for a preset at a reference window size.
-///
-/// Sidebar | Preview | Detail, with Timeline | Curves as a full-width bottom tab
-/// group. Each detail/bottom region is a tab group, so only one tab shows.
-pub(crate) fn build_tree_for(preset: LayoutPreset, width: f32, height: f32) -> Tree<WorkspaceTab> {
-    let regions = preset_regions(preset);
-    let mut tiles = Tiles::default();
+fn clamp_ratio(ratio: f32, available: f32, min: f32, max: f32) -> f32 {
+    (ratio * available).clamp(min, max)
+}
 
+pub(crate) fn build_tree_for(preset: LayoutPreset, width: f32, height: f32) -> Tree<WorkspaceTab> {
+    let mut tiles = Tiles::default();
     let sidebar = tiles.insert_pane(WorkspaceTab::Sidebar);
     let preview = tiles.insert_pane(WorkspaceTab::Preview);
-    let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
     let code = tiles.insert_pane(WorkspaceTab::Code);
+    let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
     let timeline = tiles.insert_pane(WorkspaceTab::Timeline);
-    let curves = tiles.insert_pane(WorkspaceTab::Curves);
-
-    // Inspector and Code share one tab group: mutually exclusive detail views.
-    let detail = tiles.insert_tab_tile(vec![inspector, code]);
-    // Timeline and Curves share the bottom tab group: mutually exclusive.
-    let bottom = tiles.insert_tab_tile(vec![timeline, curves]);
-
-    let left_px = clamp_ratio(regions.left.0, width, regions.left.1, regions.left.2);
-    let detail_px = clamp_ratio(regions.detail.0, width, regions.detail.1, regions.detail.2);
-    let preview_px = (width - left_px - detail_px).max(metrics::PREVIEW_MIN);
-
-    let mut top_row = Linear::new(LinearDir::Horizontal, vec![sidebar, preview, detail]);
-    top_row.shares[sidebar] = left_px;
-    top_row.shares[preview] = preview_px;
-    top_row.shares[detail] = detail_px;
-    let top_row = tiles.insert_container(top_row);
-
-    let dock_h = (height - VERTICAL_CHROME).max(1.0);
-    let bottom_px = clamp_ratio(regions.bottom.0, dock_h, regions.bottom.1, regions.bottom.2);
-    let root = tiles.insert_container(Linear::new_binary(
-        LinearDir::Vertical,
-        [top_row, bottom],
-        (1.0 - bottom_px / dock_h).clamp(0.1, 0.9),
+    let top = tiles.insert_container(Linear::new(
+        LinearDir::Horizontal,
+        vec![sidebar, code, preview, inspector],
     ));
-
-    // egui_tiles 0.18 takes `impl Into<egui::Id>`; `&str` no longer converts.
+    let root = tiles.insert_container(Linear::new(LinearDir::Vertical, vec![top, timeline]));
     let mut tree = Tree::new(egui::Id::unique("workspace"), root, tiles);
-    activate_detail_tab(&mut tree, regions.tab);
-    activate_bottom_tab(&mut tree, WorkspaceTab::Timeline);
-    if regions.hide_surroundings {
-        set_pane_visible(&mut tree, WorkspaceTab::Sidebar, false);
-        set_detail_visible(&mut tree, false);
-        set_bottom_visible(&mut tree, false);
-    }
+    tree.set_visible(inspector, false);
+    apply_layout_preset(&mut tree, preset, width, height);
     tree
 }
 
-/// Default workspace layout: Animate, sized to the initial window.
 pub(crate) fn default_tree() -> Tree<WorkspaceTab> {
     build_tree_for(
         LayoutPreset::Animate,
@@ -106,321 +49,219 @@ pub(crate) fn default_tree() -> Tree<WorkspaceTab> {
     )
 }
 
-/// Apply a preset's proportions and detail tab to an existing tree.
-/// Returns `false` when expected panes are missing; callers then rebuild.
 pub(crate) fn apply_layout_preset(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
     width: f32,
     height: f32,
 ) -> bool {
-    let Some(sidebar) = tree.tiles.find_pane(&WorkspaceTab::Sidebar) else {
-        return false;
-    };
-    let Some(preview) = tree.tiles.find_pane(&WorkspaceTab::Preview) else {
-        return false;
-    };
-    let Some(inspector) = tree.tiles.find_pane(&WorkspaceTab::Inspector) else {
-        return false;
-    };
-    let Some(timeline) = tree.tiles.find_pane(&WorkspaceTab::Timeline) else {
-        return false;
-    };
-    // A pre-Curves layout lacks the bottom tab group; `false` makes the caller
-    // rebuild via `build_tree_for`, the migration path.
-    let Some(_curves) = tree.tiles.find_pane(&WorkspaceTab::Curves) else {
-        return false;
-    };
-    let Some(detail) = tree.tiles.parent_of(inspector) else {
-        return false;
-    };
-    let Some(bottom) = tree.tiles.parent_of(timeline) else {
-        return false;
-    };
-    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
-        return false;
-    };
-
-    let regions = preset_regions(preset);
-    let left_px = clamp_ratio(regions.left.0, width, regions.left.1, regions.left.2);
-    let detail_px = clamp_ratio(regions.detail.0, width, regions.detail.1, regions.detail.2);
-    let preview_px = (width - left_px - detail_px).max(metrics::PREVIEW_MIN);
-    if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(top_row) {
-        linear.shares.set_share(sidebar, left_px);
-        linear.shares.set_share(preview, preview_px);
-        linear.shares.set_share(detail, detail_px);
-    }
-
-    let dock_h = (height - VERTICAL_CHROME).max(1.0);
-    let bottom_px = clamp_ratio(regions.bottom.0, dock_h, regions.bottom.1, regions.bottom.2);
-    let top_frac = (1.0 - bottom_px / dock_h).clamp(0.1, 0.9);
-    if let Some(root) = tree.root
-        && let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root)
-    {
-        linear.shares.set_share(top_row, top_frac);
-        linear.shares.set_share(bottom, 1.0 - top_frac);
-    }
-
-    let visible = !regions.hide_surroundings;
-    tree.set_visible(sidebar, visible);
-    set_pane_visible(tree, WorkspaceTab::Timeline, true);
-    set_pane_visible(tree, WorkspaceTab::Curves, true);
-    set_pane_visible(tree, WorkspaceTab::Inspector, true);
-    set_pane_visible(tree, WorkspaceTab::Code, true);
-    set_detail_visible(tree, visible);
-    set_bottom_visible(tree, visible);
-    if visible {
-        activate_detail_tab(tree, regions.tab);
-        // Only pick a default when the group has no active tab (e.g. after
-        // Focus hid it); a user's Timeline/Curves choice is preserved.
-        if active_bottom_tab(tree).is_none() {
-            activate_bottom_tab(tree, WorkspaceTab::Timeline);
+    for tab in [
+        WorkspaceTab::Sidebar,
+        WorkspaceTab::Preview,
+        WorkspaceTab::Timeline,
+    ] {
+        if !set_pane_visible(tree, tab, true) {
+            return false;
         }
     }
+    if !show_timeline(tree)
+        || !set_pane_visible(tree, WorkspaceTab::Code, preset == LayoutPreset::Code)
+    {
+        return false;
+    }
+    let regions = preset_regions(preset);
+    let left = clamp_ratio(regions.left.0, width, regions.left.1, regions.left.2);
+    let editor = (width * 0.44).clamp(300.0, 740.0);
+    let detail = (width * 0.21).clamp(224.0, 390.0);
+    let preview = (width
+        - left
+        - if preset == LayoutPreset::Code {
+            editor
+        } else {
+            0.0
+        }
+        - if detail_visible(tree) { detail } else { 0.0 })
+    .max(metrics::PREVIEW_MIN);
+    set_horizontal_shares(tree, [left, editor, preview, detail]);
+    let dock_h = (height - VERTICAL_CHROME).max(1.0);
+    let bottom = clamp_ratio(regions.bottom.0, dock_h, regions.bottom.1, regions.bottom.2);
+    set_vertical_shares(tree, dock_h, bottom, false);
     true
 }
 
-/// Enforce the preset's pixel bounds on the docked regions each frame.
-///
-/// Shares are relative, so a smaller window would scale regions below their pixel
-/// floors. Clamp each region into `[min, max]` and let the preview absorb the
-/// difference; regions already in bounds are untouched, preserving user resizes.
+const TOP_TABS: [WorkspaceTab; 4] = [
+    WorkspaceTab::Sidebar,
+    WorkspaceTab::Code,
+    WorkspaceTab::Preview,
+    WorkspaceTab::Inspector,
+];
+
+/// Some custom dock arrangements intentionally aren't a single horizontal split.
+fn top_split(tree: &Tree<WorkspaceTab>) -> Option<(TileId, [TileId; 4])> {
+    let [sidebar, editor, preview, inspector] = TOP_TABS.map(|tab| tree.tiles.find_pane(&tab));
+    let panes = [sidebar?, editor?, preview?, inspector?];
+    let parent = tree.tiles.parent_of(panes[0])?;
+    let Container::Linear(linear) = tree.tiles.get_container(parent)? else {
+        return None;
+    };
+    (linear.dir == LinearDir::Horizontal
+        && panes.iter().all(|&pane| linear.children.contains(&pane)))
+    .then_some((parent, panes))
+}
+
+fn set_horizontal_shares(tree: &mut Tree<WorkspaceTab>, widths: [f32; 4]) {
+    if let Some((parent, panes)) = top_split(tree)
+        && let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(parent)
+    {
+        for (pane, width) in panes.into_iter().zip(widths) {
+            linear.shares.set_share(pane, width.max(1.0));
+        }
+    }
+}
+
 pub(crate) fn enforce_layout_bounds(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
     width: f32,
     height: f32,
 ) {
-    if width <= 0.0 || height <= 0.0 {
-        return;
-    }
-    enforce_horizontal_bounds(tree, preset, width);
+    enforce_horizontal_bounds(tree, preset, width, false);
     enforce_vertical_bounds(tree, preset, height);
 }
 
-/// Horizontal pass: sidebar | preview (| detail). Skipped in compact mode, where
-/// the sidebar is a fixed-width rail ([`enforce_compact_rail`]) and detail is hidden.
 pub(crate) fn enforce_horizontal_bounds(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
     width: f32,
+    compact: bool,
 ) {
-    let regions = preset_regions(preset);
-
-    let (Some(sidebar), Some(preview), Some(inspector)) = (
-        tree.tiles.find_pane(&WorkspaceTab::Sidebar),
-        tree.tiles.find_pane(&WorkspaceTab::Preview),
-        tree.tiles.find_pane(&WorkspaceTab::Inspector),
-    ) else {
+    if width <= 0.0 {
+        return;
+    }
+    let Some((parent, panes)) = top_split(tree) else {
         return;
     };
-    let Some(detail) = tree.tiles.parent_of(inspector) else {
+    let visible = panes.map(|pane| tree.is_visible(pane));
+    let kids: Vec<_> = panes.into_iter().zip(visible).filter_map(|(p, v)| v.then_some(p)).collect();
+    let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get(parent) else {
         return;
     };
-    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
-        return;
-    };
-
-    if tree.is_visible(sidebar) && tree.is_visible(preview) {
-        let detail_visible = tree.is_visible(detail);
-        let mut kids = vec![sidebar, preview];
-        if detail_visible {
-            kids.push(detail);
+    let mut allocated = linear.shares.split(&kids, width).into_iter();
+    let mut widths = visible.map(|v| {
+        if v {
+            allocated.next().unwrap_or_default()
+        } else {
+            0.0
         }
-        if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(top_row) {
-            let px = linear.shares.split(&kids, width);
-            let mut left = px[0].clamp(regions.left.1, regions.left.2);
-            let mut detail_px = if detail_visible {
-                px[2].clamp(regions.detail.1, regions.detail.2)
-            } else {
-                0.0
-            };
-            let mut preview_px = (width - left - detail_px).max(0.0);
-            // When the window is too small, reclaim in reverse priority: detail
-            // first, then sidebar toward rail width, then preview. Keeps every
-            // region present.
-            if preview_px < metrics::PREVIEW_MIN {
-                let need = metrics::PREVIEW_MIN - preview_px;
-                let take = detail_px.min(need);
-                detail_px -= take;
-                preview_px += take;
-            }
-            if preview_px < metrics::PREVIEW_MIN {
-                let need = metrics::PREVIEW_MIN - preview_px;
-                let take = (left - RAIL_MIN).max(0.0).min(need);
-                left -= take;
-                preview_px += take;
-            }
-            linear.shares.set_share(sidebar, left);
-            linear.shares.set_share(preview, preview_px);
-            if detail_visible {
-                linear.shares.set_share(detail, detail_px);
-            }
+    });
+    if visible[0] {
+        let left = preset_regions(preset).left;
+        widths[0] = if compact {
+            crate::app::panels::COMPACT_RAIL_WIDTH
+        } else {
+            widths[0].clamp(left.1, left.2)
+        };
+    }
+    let usable = (width - widths[0]).max(1.0);
+    if visible[1] {
+        let min_editor = if compact { 260.0 } else { 310.0 };
+        widths[1] = widths[1].clamp(min_editor, 740.0).min(usable * 0.73);
+    }
+    if visible[3] {
+        let remaining = (usable - widths[1] - metrics::PREVIEW_MIN).max(120.0);
+        widths[3] = widths[3].clamp(224.0, 390.0).min(remaining);
+    }
+    widths[2] = (usable - widths[1] - widths[3]).max(1.0);
+    let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(parent) else {
+        return;
+    };
+    for i in 0..4 {
+        if visible[i] {
+            linear.shares.set_share(panes[i], widths[i].max(1.0));
         }
     }
 }
 
-/// Vertical pass: top row above the bottom tab group. Runs in every mode.
+fn set_vertical_shares(tree: &mut Tree<WorkspaceTab>, height: f32, bottom: f32, clamp: bool) {
+    let Some(root) = tree.root else {
+        return;
+    };
+    let Some(timeline) = tree.tiles.find_pane(&WorkspaceTab::Timeline) else {
+        return;
+    };
+    let Some(region) = direct_region(tree, root, timeline) else {
+        return;
+    };
+    if !tree.is_visible(region) {
+        return;
+    }
+    let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root) else {
+        return;
+    };
+    if linear.dir != LinearDir::Vertical || linear.children.len() != 2 {
+        return;
+    }
+    let bottom = if clamp {
+        let px = linear.shares.split(&linear.children, height);
+        let Some(index) = linear.children.iter().position(|id| *id == region) else {
+            return;
+        };
+        px[index].clamp(bottom, 420.0)
+    } else {
+        bottom
+    }
+    .min(height * 0.65);
+    if let Some(top) = linear.children.iter().copied().find(|id| *id != region) {
+        linear.shares.set_share(top, (height - bottom).max(1.0));
+        linear.shares.set_share(region, bottom.max(1.0));
+    }
+}
+
 pub(crate) fn enforce_vertical_bounds(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
     height: f32,
 ) {
-    let regions = preset_regions(preset);
-    let (Some(sidebar), Some(timeline)) = (
-        tree.tiles.find_pane(&WorkspaceTab::Sidebar),
-        tree.tiles.find_pane(&WorkspaceTab::Timeline),
-    ) else {
-        return;
-    };
-    // Resize the bottom tab group, not the pane, so Timeline and Curves share one
-    // allocation. A pre-Curves layout has the pane directly under the root; fall
-    // back to it until a preset rebuilds.
-    let Some(bottom_region) = bottom_region_child(tree, timeline) else {
-        return;
-    };
-    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
-        return;
-    };
+    if height > 0.0 {
+        set_vertical_shares(tree, height, preset_regions(preset).bottom.1, true);
+    }
+}
 
-    if tree.is_visible(bottom_region)
-        && let Some(root) = tree.root
-    {
-        let kids = vec![top_row, bottom_region];
-        if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root) {
-            let px = linear.shares.split(&kids, height);
-            let bottom_px = px[1].clamp(regions.bottom.1, regions.bottom.2);
-            linear.shares.set_share(top_row, (height - bottom_px).max(0.0));
-            linear.shares.set_share(bottom_region, bottom_px);
+fn direct_region(tree: &Tree<WorkspaceTab>, root: TileId, mut pane: TileId) -> Option<TileId> {
+    loop {
+        let parent = tree.tiles.parent_of(pane)?;
+        if parent == root {
+            return Some(pane);
         }
+        pane = parent;
     }
 }
 
-/// The vertical sibling owning the bottom allocation: normally the Timeline/Curves
-/// tab group; for a pre-Curves layout, the Timeline pane directly.
-pub(crate) fn bottom_region_child(tree: &Tree<WorkspaceTab>, timeline: TileId) -> Option<TileId> {
-    let Some(curves) = tree.tiles.find_pane(&WorkspaceTab::Curves) else {
-        return Some(timeline);
-    };
-    match (tree.tiles.parent_of(curves), tree.tiles.parent_of(timeline)) {
-        (Some(curves_parent), Some(timeline_parent)) if curves_parent == timeline_parent => {
-            Some(curves_parent)
-        },
-        _ => Some(timeline),
-    }
-}
-
-/// Valid tab-group member lists, keyed by a probe pane used to locate the
-/// group's container in the tree.
-const DETAIL_TABS: [WorkspaceTab; 2] = [WorkspaceTab::Inspector, WorkspaceTab::Code];
-const BOTTOM_TABS: [WorkspaceTab; 2] = [WorkspaceTab::Timeline, WorkspaceTab::Curves];
-
-/// Show or hide the whole detail region (Inspector + Code tab group).
 pub(crate) fn set_detail_visible(tree: &mut Tree<WorkspaceTab>, visible: bool) -> bool {
-    set_group_visible(tree, WorkspaceTab::Inspector, visible)
+    set_pane_visible(tree, WorkspaceTab::Inspector, visible)
 }
-
-/// Show or hide the whole bottom region (Timeline + Curves tab group).
-pub(crate) fn set_bottom_visible(tree: &mut Tree<WorkspaceTab>, visible: bool) -> bool {
-    set_group_visible(tree, WorkspaceTab::Timeline, visible)
-}
-
-/// Whether the detail region is visible. Visibility lives on the group container,
-/// not the pane's always-on flag.
 pub(crate) fn detail_visible(tree: &Tree<WorkspaceTab>) -> bool {
-    group_visible(tree, WorkspaceTab::Inspector)
+    pane_visible(tree, WorkspaceTab::Inspector)
 }
 
-/// Whether the bottom region (Timeline + Curves tab group) is visible.
-pub(crate) fn bottom_visible(tree: &Tree<WorkspaceTab>) -> bool {
-    group_visible(tree, WorkspaceTab::Timeline)
+pub(crate) fn show_timeline(tree: &mut Tree<WorkspaceTab>) -> bool {
+    show_pane(tree, WorkspaceTab::Timeline)
+}
+pub(crate) fn show_inspector(tree: &mut Tree<WorkspaceTab>) -> bool {
+    show_pane(tree, WorkspaceTab::Inspector)
 }
 
-pub(crate) fn group_visible(tree: &Tree<WorkspaceTab>, probe: WorkspaceTab) -> bool {
-    tree.tiles
-        .find_pane(&probe)
-        .and_then(|pane| tree.tiles.parent_of(pane))
-        .is_none_or(|container| tree.is_visible(container))
-}
-
-pub(crate) fn set_group_visible(
-    tree: &mut Tree<WorkspaceTab>,
-    probe: WorkspaceTab,
-    visible: bool,
-) -> bool {
-    let Some(pane) = tree.tiles.find_pane(&probe) else {
+fn show_pane(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
+    let Some(mut tile) = tree.tiles.find_pane(&tab) else {
         return false;
     };
-    let Some(container) = tree.tiles.parent_of(pane) else {
-        return false;
-    };
-    tree.set_visible(container, visible);
+    tree.set_visible(tile, true);
+    while let Some(parent) = tree.tiles.parent_of(tile) {
+        tile = parent;
+        tree.set_visible(tile, true);
+    }
+    tree.make_active(|_id, tile| matches!(tile, Tile::Pane(pane) if *pane == tab));
     true
-}
-
-/// Activate a tab inside the detail region, making the region visible.
-pub(crate) fn activate_detail_tab(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
-    activate_group_tab(tree, &DETAIL_TABS, WorkspaceTab::Inspector, tab)
-}
-
-/// Activate a tab inside the bottom region, making the region visible.
-pub(crate) fn activate_bottom_tab(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
-    activate_group_tab(tree, &BOTTOM_TABS, WorkspaceTab::Timeline, tab)
-}
-
-pub(crate) fn activate_group_tab(
-    tree: &mut Tree<WorkspaceTab>,
-    members: &[WorkspaceTab],
-    probe: WorkspaceTab,
-    tab: WorkspaceTab,
-) -> bool {
-    if !members.contains(&tab) || tree.tiles.find_pane(&tab).is_none() {
-        return false;
-    }
-    set_group_visible(tree, probe, true);
-    tree.make_active(|_id, tile| matches!(tile, Tile::Pane(pane) if *pane == tab))
-}
-
-/// Select a detail tab *without* changing region visibility.
-///
-/// Used by the compact overlay drawer, which renders the active detail tab while
-/// the docked region stays hidden; both read the same active tab.
-pub(crate) fn set_active_detail_tab(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
-    if !DETAIL_TABS.contains(&tab) || tree.tiles.find_pane(&tab).is_none() {
-        return false;
-    }
-    tree.make_active(|_id, tile| matches!(tile, Tile::Pane(pane) if *pane == tab))
-}
-
-/// Which detail tab is currently active.
-pub(crate) fn active_detail_tab(tree: &Tree<WorkspaceTab>) -> Option<WorkspaceTab> {
-    active_group_tab(tree, &DETAIL_TABS, WorkspaceTab::Inspector)
-}
-
-/// Which bottom tab is currently active.
-pub(crate) fn active_bottom_tab(tree: &Tree<WorkspaceTab>) -> Option<WorkspaceTab> {
-    active_group_tab(tree, &BOTTOM_TABS, WorkspaceTab::Timeline)
-}
-
-pub(crate) fn active_group_tab(
-    tree: &Tree<WorkspaceTab>,
-    members: &[WorkspaceTab],
-    probe: WorkspaceTab,
-) -> Option<WorkspaceTab> {
-    let pane = tree.tiles.find_pane(&probe)?;
-    let container = tree.tiles.parent_of(pane)?;
-    let tabs = match tree.tiles.get_container(container)? {
-        Container::Tabs(tabs) => tabs,
-        _ => return None,
-    };
-    for tab in members {
-        if let Some(id) = tree.tiles.find_pane(tab)
-            && tabs.is_active(id)
-        {
-            return Some(*tab);
-        }
-    }
-    None
 }
 
 pub(crate) fn set_pane_visible(
@@ -428,13 +269,11 @@ pub(crate) fn set_pane_visible(
     tab: WorkspaceTab,
     visible: bool,
 ) -> bool {
-    match tree.tiles.find_pane(&tab) {
-        Some(id) => {
-            tree.set_visible(id, visible);
-            true
-        },
-        None => false,
-    }
+    let Some(tile) = tree.tiles.find_pane(&tab) else {
+        return false;
+    };
+    tree.set_visible(tile, visible);
+    true
 }
 
 pub(crate) fn persistence_path() -> PathBuf {
@@ -447,7 +286,90 @@ pub(crate) fn persistence_path() -> PathBuf {
 
 pub(crate) fn load_workspace_persistence(path: &Path) -> Option<WorkspacePersistence> {
     let content = fs::read_to_string(path).ok()?;
-    ron::from_str::<WorkspacePersistence>(&content).ok()
+    let mut saved: WorkspacePersistence = ron::from_str(&content).ok()?;
+    migrate_workspace(&mut saved);
+    Some(saved)
+}
+
+/// Rebuild legacy dock topology while preserving its window and settings.
+pub(super) fn migrate_workspace(saved: &mut WorkspacePersistence) {
+    let tree = &mut saved.tree;
+    let legacy = saved.layout_version < WORKSPACE_LAYOUT_VERSION;
+    if !legacy
+        && top_split(tree).is_some()
+        && tree.tiles.find_pane(&WorkspaceTab::Timeline).is_some()
+    {
+        close_curve_comparison(tree);
+        return;
+    }
+
+    let was_writing = tree.tiles.find_pane(&WorkspaceTab::Code).is_some_and(|editor| {
+        tree.is_visible(editor)
+            && tree.tiles.parent_of(editor).is_some_and(|parent| {
+                tree.is_visible(parent)
+                    && match tree.tiles.get_container(parent) {
+                        Some(Container::Tabs(tabs)) => tabs.is_active(editor),
+                        Some(Container::Linear(_)) => {
+                            saved.layout_preset == Some(LayoutPreset::Code)
+                        },
+                        _ => false,
+                    }
+            })
+    });
+    let preset = if was_writing {
+        LayoutPreset::Code
+    } else {
+        LayoutPreset::Animate
+    };
+    let [width, height] = saved
+        .window_size
+        .unwrap_or([INITIAL_WINDOW_SIZE.0 as f32, INITIAL_WINDOW_SIZE.1 as f32]);
+    let pin = !legacy && detail_visible(tree);
+    saved.tree = build_tree_for(preset, width, height);
+    if pin {
+        show_inspector(&mut saved.tree);
+    }
+    saved.layout_preset = Some(preset);
+    saved.layout_version = WORKSPACE_LAYOUT_VERSION;
+}
+
+pub(crate) fn toggle_curve_comparison(tree: &mut Tree<WorkspaceTab>) {
+    if close_curve_comparison(tree) {
+        return;
+    }
+    let Some(timeline) = tree.tiles.find_pane(&WorkspaceTab::Timeline) else {
+        return;
+    };
+    let Some(parent) = tree.tiles.parent_of(timeline) else {
+        return;
+    };
+    let curves = tree.tiles.insert_pane(WorkspaceTab::Curves);
+    let group = tree.tiles.insert_tab_tile(vec![timeline, curves]);
+    replace_region(tree, parent, timeline, group);
+    show_pane(tree, WorkspaceTab::Curves);
+}
+
+fn close_curve_comparison(tree: &mut Tree<WorkspaceTab>) -> bool {
+    let Some(curves) = tree.tiles.find_pane(&WorkspaceTab::Curves) else {
+        return false;
+    };
+    if let Some(group) = tree.tiles.parent_of(curves)
+        && let Some(timeline) = tree.tiles.find_pane(&WorkspaceTab::Timeline)
+        && tree.tiles.parent_of(timeline) == Some(group)
+        && let Some(parent) = tree.tiles.parent_of(group)
+    {
+        replace_region(tree, parent, group, timeline);
+        tree.tiles.remove(group);
+    }
+    tree.remove_recursively(curves);
+    true
+}
+
+/// Carry the bottom-region height across temporary comparison tab changes.
+fn replace_region(tree: &mut Tree<WorkspaceTab>, parent: TileId, from: TileId, to: TileId) {
+    if let Some(Tile::Container(container)) = tree.tiles.get_mut(parent) {
+        let _ = container.replace_child(from, to);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -492,9 +414,15 @@ pub(crate) fn default_app_theme() -> String {
     "auto".to_string()
 }
 
+pub(crate) const WORKSPACE_LAYOUT_VERSION: u8 = 2;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct WorkspacePersistence {
     pub(crate) tree: Tree<WorkspaceTab>,
+    #[serde(default)]
+    pub(crate) layout_version: u8,
+    #[serde(default)]
+    pub(crate) layout_preset: Option<LayoutPreset>,
     #[serde(default)]
     pub(crate) window_size: Option<[f32; 2]>,
     #[serde(default)]

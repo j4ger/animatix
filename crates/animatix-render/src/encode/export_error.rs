@@ -63,3 +63,69 @@ impl From<std::ffi::NulError> for ExportError {
         Self::InvalidPath(err)
     }
 }
+
+/// Export preflight intent and source values for presentation by a UI.
+#[derive(Clone, Debug)]
+pub enum ExportWarning {
+    /// The export finishes before an audio segment begins.
+    AudioStartsAfterExport {
+        /// Authored media source.
+        source: String,
+        /// End of the exported time range, in seconds.
+        cutoff_s: f64,
+        /// Start of the audio segment, in seconds.
+        start_s: f64,
+    },
+    /// The export clips the end of an audio segment.
+    AudioCutOff {
+        /// Authored media source.
+        source: String,
+        /// End of the exported time range, in seconds.
+        cutoff_s: f64,
+        /// End of the audio segment, in seconds.
+        end_s: f64,
+    },
+    /// The export clips captions at the end of a timeline or scene.
+    CaptionsCutOff {
+        /// Authored scene name for composition exports.
+        scene: Option<String>,
+        /// Time where export clips the captions, in seconds.
+        cutoff_s: f64,
+        /// End of the last caption, in seconds.
+        end_s: f64,
+    },
+}
+
+impl std::fmt::Display for ExportWarning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AudioStartsAfterExport {
+                source,
+                cutoff_s,
+                start_s,
+            } => write!(
+                f,
+                "Export ends at {cutoff_s:.3}s before audio '{source}' starts at {start_s:.3}s."
+            ),
+            Self::AudioCutOff {
+                source,
+                cutoff_s,
+                end_s,
+            } => write!(
+                f,
+                "Export ends at {cutoff_s:.3}s and will cut off audio '{source}' ending at {end_s:.3}s."
+            ),
+            Self::CaptionsCutOff {
+                scene,
+                cutoff_s,
+                end_s,
+            } => {
+                write!(f, "Export will cut off captions")?;
+                if let Some(scene) = scene {
+                    write!(f, " in scene '{scene}'")?;
+                }
+                write!(f, " at {cutoff_s:.3}s; the last caption ends at {end_s:.3}s.")
+            },
+        }
+    }
+}

@@ -7,6 +7,7 @@ use crate::app::document::narration::{
     NarrationTrack, VoiceoverHistory, VoiceoverStatus, voiceover,
 };
 use crate::app::document::version::SourceEpoch;
+use crate::app::i18n::{render, text};
 use animatix::timeline::Timeline;
 use animatix_syntax::narration::{self, AnchorEdge, NarrationAnchor};
 
@@ -15,6 +16,7 @@ type ParagraphCache = ((u64, u64, u64, bool), Arc<Vec<Paragraph>>);
 struct Paragraph {
     text: String,
     marker: String,
+    take_target: String,
     interval: Option<(f64, f64)>,
     status: VoiceoverStatus,
     bindings: Vec<(String, Option<f64>, String)>,
@@ -66,7 +68,7 @@ impl ReviewTrack {
         ui.painter().text(
             Pos2::new(rect.left() + 8., rect.center().y),
             Align2::LEFT_CENTER,
-            "Paragraphs",
+            text(ui, "gui-timeline-paragraphs"),
             font.clone(),
             theme.palette.text.secondary,
         );
@@ -112,13 +114,13 @@ impl ReviewTrack {
                 ui.data_mut(|d| d.insert_temp(self.selection_id, p.marker.clone()));
                 commands.push_back(Command::ScrubTo(start + offset).into());
             }
-            response.on_hover_text(format!("{}\n{}", p.text, p.status.label()));
+            response.on_hover_text(format!("{}\n{}", p.text, text(ui, p.status.message_id())));
         }
         if !aligned && let Some(first) = self.paragraphs.first() {
             let label = if self.paragraphs.iter().all(|p| p.status == first.status) {
-                first.status.label()
+                text(ui, first.status.message_id())
             } else {
-                "Select a paragraph to see its voiceover status"
+                text(ui, "gui-narration-voiceover-select-status")
             };
             ui.painter().text(
                 Pos2::new(coords.bar_origin_x + 8., rect.center().y),
@@ -183,6 +185,7 @@ impl ScriptReview<'_> {
                         })
                         .collect();
                 Some(Paragraph {
+                    take_target: p.id(),
                     text: p.text,
                     marker,
                     interval,
@@ -193,8 +196,14 @@ impl ScriptReview<'_> {
             .collect()
     }
 
-    pub(super) fn show(&self, ui: &mut egui::Ui, commands: &mut ActionQueue) -> ReviewTrack {
-        let id = ui.scope_id().with(("script_review", self.scene));
+    pub(super) fn show(
+        &self,
+        ui: &mut egui::Ui,
+        commands: &mut ActionQueue,
+        panel_id: egui::Id,
+    ) -> ReviewTrack {
+        // Selection and cache are independent of toolbar wrapping on resize.
+        let id = panel_id.with(("script_review", self.scene));
         let key = (self.epoch.0, self.revision, self.history.revision, self.current);
         let data: Option<ParagraphCache> = ui.data(|d| d.get_temp(id));
         let paragraphs = match data {
@@ -236,21 +245,38 @@ impl ScriptReview<'_> {
         }
         let mut detail = SpeechDetail::Paragraphs;
         ui.horizontal_wrapped(|ui| {
+            ui.strong(text(ui, "gui-narration-title"));
             let title = selected
                 .as_ref()
                 .and_then(|s| paragraphs.iter().position(|p| p.marker == *s))
-                .map(|i| format!("Paragraph {}", i + 1))
-                .unwrap_or_else(|| "All paragraphs".into());
-            egui::ComboBox::from_id_salt(id.with("paragraph")).selected_text(title).show_ui(
-                ui,
-                |ui| {
-                    ui.selectable_value(&mut selected, None, "All paragraphs");
+                .map(|i| {
+                    render(ui, "gui-timeline-paragraph-number", &[("number", (i + 1).to_string())])
+                })
+                .unwrap_or_else(|| text(ui, "gui-timeline-paragraphs-all"));
+            egui::ComboBox::from_id_salt(id.with("paragraph"))
+                .selected_text(title)
+                .width(116.0)
+                .wrap_mode(egui::TextWrapMode::Truncate)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut selected,
+                        None,
+                        text(ui, "gui-timeline-paragraphs-all"),
+                    );
                     for (i, p) in paragraphs.iter().enumerate() {
                         if ui
                             .selectable_value(
                                 &mut selected,
                                 Some(p.marker.clone()),
-                                format!("{}   {} · {}", i + 1, p.text, p.status.label()),
+                                render(
+                                    ui,
+                                    "gui-timeline-paragraph-option",
+                                    &[
+                                        ("number", (i + 1).to_string()),
+                                        ("script", p.text.clone()),
+                                        ("status", text(ui, p.status.message_id())),
+                                    ],
+                                ),
                             )
                             .clicked()
                             && let Some((start, _)) = p.interval
@@ -259,30 +285,55 @@ impl ScriptReview<'_> {
                             commands.push_back(Command::ScrubTo(start + self.offset).into());
                         }
                     }
-                },
-            );
+                });
             if let Some(p) =
                 selected.as_ref().and_then(|s| paragraphs.iter().find(|p| p.marker == *s))
             {
                 detail = SpeechDetail::Selected(p.interval);
-                if ui.add_enabled(self.current, egui::Button::new("Go to script")).clicked() {
+                if ui
+                    .add_enabled(self.current, egui::Button::new(text(ui, "gui-toolbar-voiceover")))
+                    .clicked()
+                {
+                    commands.push_back(
+                        Command::OpenParagraphTakes {
+                            epoch: self.epoch,
+                            scene: self.scene.map(str::to_owned),
+                            paragraph: p.take_target.clone(),
+                        }
+                        .into(),
+                    );
+                }
+                if ui
+                    .add_enabled(
+                        self.current,
+                        egui::Button::new(text(ui, "gui-narration-go-to-script")),
+                    )
+                    .clicked()
+                {
                     self.reveal(commands, &p.marker);
                 }
                 if self.current && !p.bindings.is_empty() {
-                    ui.menu_button(format!("Bindings ({})", p.bindings.len()), |ui| {
-                        for (label, time, marker) in &p.bindings {
-                            if ui.button(label).clicked() {
-                                if let Some(t) = time {
-                                    commands.push_back(Command::ScrubTo(*t).into());
+                    ui.menu_button(
+                        render(
+                            ui,
+                            "gui-timeline-paragraph-bindings",
+                            &[("count", p.bindings.len().to_string())],
+                        ),
+                        |ui| {
+                            for (label, time, marker) in &p.bindings {
+                                if ui.button(label).clicked() {
+                                    if let Some(t) = time {
+                                        commands.push_back(Command::ScrubTo(*t).into());
+                                    }
+                                    self.reveal(commands, marker);
+                                    ui.close();
                                 }
-                                self.reveal(commands, marker);
-                                ui.close();
                             }
-                        }
-                    });
+                        },
+                    );
                 }
                 if p.status != VoiceoverStatus::Current {
-                    ui.weak(p.status.label());
+                    ui.weak(text(ui, p.status.message_id()));
                 }
             }
         });

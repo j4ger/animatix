@@ -1,6 +1,7 @@
 use crate::ast::{Span, is_array_member_label};
 use crate::diagnostics::{
-    Diagnostic, DiagnosticCode, DiagnosticLocation, DiagnosticPhase, DiagnosticSeverity,
+    Diagnostic, DiagnosticCode, DiagnosticLocation, DiagnosticPhase, DiagnosticPresentation,
+    DiagnosticSeverity,
 };
 use crate::symbol_table::SymbolTable;
 use crate::token::{Token, TokenKind, byte_to_line_col};
@@ -19,6 +20,7 @@ pub(crate) fn span_diagnostic(
         phase: DiagnosticPhase::Build,
         code,
         message,
+        presentation: None,
         location: DiagnosticLocation {
             line: Some(line),
             column: Some(col),
@@ -53,6 +55,12 @@ pub(crate) fn type_mismatch_diagnostic(
         col,
         end_col,
     )
+    .with_presentation(DiagnosticPresentation::PropertyTypeMismatch {
+        owner: owner.to_owned(),
+        property: property.to_owned(),
+        expected: format!("{expected:?}"),
+        actual: format!("{actual:?}"),
+    })
 }
 
 pub(crate) fn span_positions(span: &Option<Span>) -> (usize, usize, usize, usize) {

@@ -1,3 +1,7 @@
+export function isGraphicsBackendError(message) {
+  return /no WebGPU adapter|no suitable graphics adapter|webgpu.*not.*support|WebGL2 canvas:|no supported graphics backend/i.test(message);
+}
+
 const KINDS = new Set(["resource", "capability", "version", "build", "cancel"]);
 
 export function playerError(error, fallbackKind = "resource") {

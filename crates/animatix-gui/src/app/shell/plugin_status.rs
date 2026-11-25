@@ -26,7 +26,10 @@ impl GuiShell {
         let mut describe_library: Option<PathBuf> = None;
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
-            let title_close = dialog::title_row(ui, "Plugins");
+            let title_close = {
+                let title = crate::app::i18n::text(ui, "gui-plugins-title");
+                dialog::title_row(ui, &title)
+            };
             ui.add_space(sp.base.space_3);
 
             plugin_status_loaded_ui(ui, &snapshot, theme, sp, &mut reload);
@@ -73,14 +76,20 @@ impl GuiShell {
             let output = library.with_extension("amx-plugin.toml");
             match crate::app::document::plugins::generate_manifest_for_library(&library, &output) {
                 Ok(path) => {
-                    self.preview_store
-                        .preview
-                        .set_status_info(format!("Wrote plugin manifest: {path}"));
+                    self.preview_store.preview.set_status_info(
+                        crate::app::i18n::StatusText::message(
+                            "gui-plugin-manifest-written",
+                            [("path", path.to_string())],
+                        ),
+                    );
                 },
                 Err(err) => {
-                    self.preview_store
-                        .preview
-                        .set_status_error(format!("Plugin describe failed: {err}"));
+                    self.preview_store.preview.set_status_error(
+                        crate::app::i18n::StatusText::message(
+                            "gui-plugin-describe-failed",
+                            [("detail", err.to_string())],
+                        ),
+                    );
                 },
             }
         }
@@ -101,7 +110,7 @@ impl GuiShell {
         describe_library: &mut Option<PathBuf>,
     ) {
         ui.label(
-            egui::RichText::new("Explicit plugin paths")
+            egui::RichText::new(crate::app::i18n::text(ui, "gui-plugins-paths"))
                 .size(TextRole::Title.size())
                 .color(theme.palette.text.primary)
                 .strong(),
@@ -118,7 +127,7 @@ impl GuiShell {
                 if ui
                     .add(
                         Button::icon(egui_phosphor::regular::X)
-                            .with_tooltip("Remove explicit plugin path"),
+                            .with_tooltip(crate::app::i18n::text(ui, "gui-plugins-remove-path")),
                     )
                     .clicked()
                 {
@@ -131,7 +140,13 @@ impl GuiShell {
                 .placeholder("/path/to/plugin.amx-plugin.toml")
                 .desired_width(ui.available_width() - 96.0)
                 .show(ui);
-            if ui.add(Button::ghost("Add").with_icon(egui_phosphor::regular::PLUS)).clicked() {
+            if ui
+                .add(
+                    Button::ghost(crate::app::i18n::text(ui, "gui-action-add"))
+                        .with_icon(egui_phosphor::regular::PLUS),
+                )
+                .clicked()
+            {
                 let trimmed = self.ui_store.plugin_path_input.trim();
                 if !trimmed.is_empty() {
                     *add_path = Some(PathBuf::from(trimmed));
@@ -144,7 +159,7 @@ impl GuiShell {
         #[cfg(feature = "plugin-loading")]
         if ui
             .add(
-                Button::ghost("Generate manifest from library…")
+                Button::ghost(crate::app::i18n::text(ui, "gui-plugins-generate-manifest"))
                     .with_icon(egui_phosphor::regular::FILE_CODE),
             )
             .clicked()
@@ -167,7 +182,7 @@ fn plugin_status_loaded_ui(
 ) {
     ui.horizontal(|ui| {
         ui.label(
-            egui::RichText::new("Loaded plugins")
+            egui::RichText::new(crate::app::i18n::text(ui, "gui-plugins-loaded"))
                 .size(TextRole::Title.size())
                 .color(theme.palette.text.primary)
                 .strong(),
@@ -175,7 +190,10 @@ fn plugin_status_loaded_ui(
         ui.add(Badge::new(snapshot.plugin_names.len().to_string()));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
-                .add(Button::ghost("Reload").with_icon(egui_phosphor::regular::ARROW_CLOCKWISE))
+                .add(
+                    Button::ghost(crate::app::i18n::text(ui, "gui-command-reload"))
+                        .with_icon(egui_phosphor::regular::ARROW_CLOCKWISE),
+                )
                 .clicked()
             {
                 *reload = true;
@@ -186,7 +204,7 @@ fn plugin_status_loaded_ui(
 
     if snapshot.plugin_names.is_empty() {
         ui.label(
-            egui::RichText::new("No native or in-process plugins are installed.")
+            egui::RichText::new(crate::app::i18n::text(ui, "gui-plugins-none"))
                 .size(TextRole::BodyS.size())
                 .color(theme.palette.text.muted),
         );
@@ -210,7 +228,7 @@ fn plugin_status_manifests_ui(
     sp: Spatial,
 ) {
     ui.label(
-        egui::RichText::new("Manifests")
+        egui::RichText::new(crate::app::i18n::text(ui, "gui-plugins-manifests"))
             .size(TextRole::Title.size())
             .color(theme.palette.text.primary)
             .strong(),
@@ -219,7 +237,7 @@ fn plugin_status_manifests_ui(
     egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
         if snapshot.sources.is_empty() {
             ui.label(
-                egui::RichText::new("No `.amx-plugin.toml` manifests found.")
+                egui::RichText::new(crate::app::i18n::text(ui, "gui-plugins-no-manifests"))
                     .size(TextRole::BodyS.size())
                     .color(theme.palette.text.muted),
             );
@@ -274,7 +292,7 @@ fn plugin_status_issues_ui(
     sp: Spatial,
 ) {
     ui.label(
-        egui::RichText::new("Issues")
+        egui::RichText::new(crate::app::i18n::text(ui, "gui-plugins-issues"))
             .size(TextRole::Title.size())
             .color(theme.palette.text.primary)
             .strong(),
@@ -282,7 +300,7 @@ fn plugin_status_issues_ui(
     ui.add_space(sp.base.space_2);
     if snapshot.issues.is_empty() {
         ui.label(
-            egui::RichText::new("No plugin load or install issues.")
+            egui::RichText::new(crate::app::i18n::text(ui, "gui-plugins-no-issues"))
                 .size(TextRole::BodyS.size())
                 .color(theme.palette.text.muted),
         );

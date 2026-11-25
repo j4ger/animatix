@@ -1,4 +1,5 @@
 ---
+import {clientCatalog} from '../lib/ui';
 import PreferenceHead from '../components/PreferenceHead.astro';
 import {base, pageUrl, url} from '../lib/content';
 import {htmlLanguage, pageLanguage, sitePagePath} from '../lib/language';
@@ -31,6 +32,7 @@ const route = sitePagePath(Astro.url.pathname, base);
   <title>{title} · Animatix</title>
 </head>
 <body class={bodyClass}>
+  <script is:inline type="application/json" id="animatix-ui" set:html={clientCatalog(language)} />
   <slot/>
 </body>
 </html>

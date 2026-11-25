@@ -11,13 +11,13 @@ const platforms = [
 ];
 ---
 <section class="local-run" id="install" aria-labelledby="local-title" data-install>
-  <h2 id="local-title">{t('Install Animatix', '安装 Animatix')}</h2>
+  <h2 id="local-title">{t('web-install-animatix')}</h2>
   <div class="install-panel">
-    <div class="install-tabs" role="tablist" aria-label={t('Operating system', '操作系统')}>
+    <div class="install-tabs" role="tablist" aria-label={t('web-operating-system')}>
       {platforms.map((platform, i) => <button type="button" role="tab" id={`install-tab-${platform.id}`} data-platform={platform.id} aria-controls={`install-${platform.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>{platform.label}</button>)}
     </div>
     {platforms.map((platform, i) => <div class="install-body" role="tabpanel" id={`install-${platform.id}`} aria-labelledby={`install-tab-${platform.id}`} hidden={i !== 0}>
-      <a class="button primary" href={github + '/releases'}>{t('GitHub Releases', 'GitHub 发布页')} <span aria-hidden="true">↗</span></a>
+      <a class="button primary" href={github + '/releases'}>{t('web-github-releases')} <span aria-hidden="true">↗</span></a>
     </div>)}
   </div>
 </section>

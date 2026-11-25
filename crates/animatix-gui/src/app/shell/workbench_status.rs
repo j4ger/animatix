@@ -1,5 +1,6 @@
 //! Keep source truth and last-successful preview provenance visible.
 use crate::app::GuiShell;
+use crate::app::i18n::{Language, current_language, text_for, with_arg};
 
 impl GuiShell {
     pub(crate) fn workbench_status_ui(&self, ui: &mut egui::Ui) {
@@ -13,8 +14,14 @@ impl GuiShell {
         let narration_pending = self.document_store.source.document.diagnostics.iter().any(|d| {
             d.code == animatix_syntax::diagnostics::DiagnosticCode::NarrationBindingUnresolved
         });
-        let (label, detail, warning) =
-            preview_provenance(pending, failed, stale, generation, narration_pending);
+        let (label, detail, warning) = preview_provenance(
+            current_language(ui.ctx()),
+            pending,
+            failed,
+            stale,
+            generation,
+            narration_pending,
+        );
         let color = if warning {
             theme.palette.status.warning
         } else {
@@ -32,45 +39,50 @@ impl GuiShell {
 }
 
 fn preview_provenance(
+    language: Language,
     pending: bool,
     failed: bool,
     stale: bool,
     generation: Option<u64>,
     narration_pending: bool,
-) -> (String, &'static str, bool) {
+) -> (String, String, bool) {
     let build = generation
-        .map(|n| format!("build {n}"))
-        .unwrap_or_else(|| "no successful build".into());
+        .map(|n| with_arg(language, "gui-status-build-number", "number", n.to_string()))
+        .unwrap_or_else(|| text_for(language, "gui-status-never-built"));
     if pending {
         (
-            format!("Building · {build}"),
-            "The canvas still shows the previous successful source snapshot.",
+            with_arg(language, "gui-status-preview-building", "build", build),
+            text_for(language, "gui-status-preview-building-help"),
             true,
         )
     } else if failed {
         (
-            format!("Build failed · {build}"),
-            "The preview shows the last successful build. See diagnostics for the source error.",
+            with_arg(language, "gui-status-preview-build-failed", "build", build),
+            text_for(language, "gui-status-preview-failed-help"),
             true,
         )
     } else if stale {
         (
-            format!("Out-of-date preview · {build}"),
-            "The source changed after this preview was built.",
+            with_arg(language, "gui-status-preview-stale", "build", build),
+            text_for(language, "gui-status-preview-stale-help"),
             true,
         )
     } else if generation.is_none() {
-        ("No preview built".into(), "Open a source file to build a preview.", true)
+        (
+            text_for(language, "gui-status-preview-empty"),
+            text_for(language, "gui-status-preview-empty-help"),
+            true,
+        )
     } else if narration_pending {
         (
-            "Preview · narration needs attention".into(),
-            "Check the script for a voiceover update or a timing choice.",
+            text_for(language, "gui-status-preview-narration"),
+            text_for(language, "gui-status-preview-narration-help"),
             true,
         )
     } else {
         (
-            "Preview current".into(),
-            "The preview matches the latest successful source build.",
+            text_for(language, "gui-status-preview-current"),
+            text_for(language, "gui-status-preview-current-help"),
             false,
         )
     }
@@ -78,18 +90,22 @@ fn preview_provenance(
 
 #[cfg(test)]
 mod tests {
-    use super::preview_provenance;
+    use super::{Language, preview_provenance};
     #[test]
     fn pending_and_failed_never_claim_current() {
-        assert!(preview_provenance(true, false, false, Some(2), false).0.starts_with("Building"));
         assert!(
-            preview_provenance(false, true, false, Some(2), false)
+            preview_provenance(Language::English, true, false, false, Some(2), false)
+                .0
+                .starts_with("Building")
+        );
+        assert!(
+            preview_provenance(Language::English, false, true, false, Some(2), false)
                 .0
                 .starts_with("Build failed")
         );
-        assert!(preview_provenance(false, false, true, Some(2), false).2);
-        assert!(preview_provenance(false, false, false, None, false).2);
-        assert!(preview_provenance(false, false, false, Some(2), true).2);
-        assert!(!preview_provenance(false, false, false, Some(2), false).2);
+        assert!(preview_provenance(Language::English, false, false, true, Some(2), false).2);
+        assert!(preview_provenance(Language::English, false, false, false, None, false).2);
+        assert!(preview_provenance(Language::English, false, false, false, Some(2), true).2);
+        assert!(!preview_provenance(Language::English, false, false, false, Some(2), false).2);
     }
 }

@@ -1,5 +1,6 @@
 use super::*;
 use crate::ast::{Expr, Property, TargetSegment};
+use crate::diagnostics::DiagnosticPresentation;
 
 /// Bare identifiers are the DSL spelling for string-valued enums
 /// (`align: end`, `easing: ease-out`).  When the property expects a
@@ -77,6 +78,7 @@ fn check_assignment(
                     col,
                     end_col,
                 )
+                .with_presentation(DiagnosticPresentation::UndefinedLabel)
                 .with_subject(label.to_string()),
             );
         }
@@ -96,14 +98,22 @@ fn check_assignment(
     if let Some(effect_ty) = effect_ty {
         if let Some(known_props) = symbols.properties.get(&effect_ty) {
             if !known_props.iter().any(|p| p == property) {
-                diagnostics.push(span_diagnostic(
-                    DiagnosticSeverity::Info,
-                    DiagnosticCode::UnknownProperty,
-                    format!("Effect '{}' has no parameter '{}'", effect_ty, property),
-                    line,
-                    col,
-                    end_col,
-                ));
+                diagnostics.push(
+                    span_diagnostic(
+                        DiagnosticSeverity::Info,
+                        DiagnosticCode::UnknownProperty,
+                        format!("Effect '{}' has no parameter '{}'", effect_ty, property),
+                        line,
+                        col,
+                        end_col,
+                    )
+                    .with_presentation(
+                        DiagnosticPresentation::UnknownEffectParameter {
+                            effect: effect_ty.clone(),
+                            parameter: property.to_owned(),
+                        },
+                    ),
+                );
             }
 
             let key = (effect_ty.clone(), property.to_string());
@@ -132,17 +142,26 @@ fn check_assignment(
         if let Some(expected_type) = crate::symbol_table::effect_param_type(param.kind) {
             let actual_type = actual_property_type(&expected_type, value, symbols);
             if !crate::typing::is_subtype(&actual_type, &expected_type) {
-                diagnostics.push(span_diagnostic(
-                    DiagnosticSeverity::Warning,
-                    DiagnosticCode::TypeMismatch,
-                    format!(
-                        "Type mismatch for effect parameter '{}': expected {:?}, found {:?}",
-                        property, expected_type, actual_type
+                diagnostics.push(
+                    span_diagnostic(
+                        DiagnosticSeverity::Warning,
+                        DiagnosticCode::TypeMismatch,
+                        format!(
+                            "Type mismatch for effect parameter '{}': expected {:?}, found {:?}",
+                            property, expected_type, actual_type
+                        ),
+                        line,
+                        col,
+                        end_col,
+                    )
+                    .with_presentation(
+                        DiagnosticPresentation::EffectParameterTypeMismatch {
+                            parameter: property.to_owned(),
+                            expected: format!("{expected_type:?}"),
+                            actual: format!("{actual_type:?}"),
+                        },
                     ),
-                    line,
-                    col,
-                    end_col,
-                ));
+                );
             }
         }
     } else if let Some(stage_label) = stage_param_segment(target, symbols, property) {
@@ -165,17 +184,25 @@ fn check_assignment(
             if !known_props.iter().any(|p| p == property)
                 && !info.plot_params.iter().any(|p| p == property)
             {
-                diagnostics.push(span_diagnostic(
-                    DiagnosticSeverity::Info,
-                    DiagnosticCode::UnknownProperty,
-                    format!(
-                        "Property '{}' not commonly used on {} (may still be valid)",
-                        property, ty
+                diagnostics.push(
+                    span_diagnostic(
+                        DiagnosticSeverity::Info,
+                        DiagnosticCode::UnknownProperty,
+                        format!(
+                            "Property '{}' not commonly used on {} (may still be valid)",
+                            property, ty
+                        ),
+                        line,
+                        col,
+                        end_col,
+                    )
+                    .with_presentation(
+                        DiagnosticPresentation::UncommonProperty {
+                            actor_type: ty.to_string(),
+                            property: property.to_owned(),
+                        },
                     ),
-                    line,
-                    col,
-                    end_col,
-                ));
+                );
             }
 
             let key = (ty.clone(), property.to_string());
@@ -232,14 +259,17 @@ fn check_actor_decl(
             Some((start, end)) => (start.0 + 1, start.1 + 1, end.1 + 1),
             None => (line, col, end_col),
         };
-        diagnostics.push(span_diagnostic(
-            DiagnosticSeverity::Error,
-            DiagnosticCode::UnknownType,
-            format!("Unknown type: {}", ty),
-            ty_line,
-            ty_col,
-            ty_end_col,
-        ));
+        diagnostics.push(
+            span_diagnostic(
+                DiagnosticSeverity::Error,
+                DiagnosticCode::UnknownType,
+                format!("Unknown type: {}", ty),
+                ty_line,
+                ty_col,
+                ty_end_col,
+            )
+            .with_presentation(DiagnosticPresentation::UnknownType(ty.to_owned())),
+        );
     }
 
     check_actor_properties(ty, props, span, symbols, source, diagnostics);
@@ -263,17 +293,25 @@ pub(super) fn check_actor_properties(
             let (prop_line, prop_col, prop_end_line, prop_end_col) =
                 property_positions(prop, source, line, col, end_col);
             if !known_props.contains(&prop.name) && !plot_params.contains(&prop.name) {
-                diagnostics.push(span_diagnostic(
-                    DiagnosticSeverity::Info,
-                    DiagnosticCode::UnknownProperty,
-                    format!(
-                        "Property '{}' not commonly used on {} (may still be valid)",
-                        prop.name, ty
+                diagnostics.push(
+                    span_diagnostic(
+                        DiagnosticSeverity::Info,
+                        DiagnosticCode::UnknownProperty,
+                        format!(
+                            "Property '{}' not commonly used on {} (may still be valid)",
+                            prop.name, ty
+                        ),
+                        prop_line,
+                        prop_col,
+                        prop_end_col,
+                    )
+                    .with_presentation(
+                        DiagnosticPresentation::UncommonProperty {
+                            actor_type: ty.to_owned(),
+                            property: prop.name.clone(),
+                        },
                     ),
-                    prop_line,
-                    prop_col,
-                    prop_end_col,
-                ));
+                );
                 if let Some(last) = diagnostics.last_mut() {
                     last.location.end_line = Some(prop_end_line);
                 }

@@ -18,6 +18,7 @@ theme-json = ["eparts/theme-json"]
 animatix = { path = "../animatix" }
 animatix-render = { path = "../animatix-render" }
 animatix-analyzer = { path = "../animatix-analyzer" }
+animatix-i18n = { path = "../animatix-i18n" }
 animatix-plugin-tooling = { path = "../animatix-plugin-tooling" }
 animatix-syntax = { path = "../animatix-syntax" }
 eparts = { path = "../eparts" }

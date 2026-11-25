@@ -99,8 +99,8 @@ impl EditorBuffer {
                     .and_then(NarrationTrack::find);
                 let (status, _) =
                     voiceover(history, track.as_ref(), paragraph, self.narration_anchor_changes());
-                let status = status.label();
-                self.script_actions(ui, &index, ordinal, epoch, commands, status);
+                let status = crate::app::i18n::text(ui, status.message_id());
+                self.script_actions(ui, &index, ordinal, epoch, commands, &status);
                 ui.add_space(ui.spacing().item_spacing.y);
             }
             self.add_paragraph_ui(ui, &index, epoch, document.active_scene.as_deref(), commands);
@@ -112,8 +112,12 @@ impl EditorBuffer {
         if self.narration.code_edit_rejected {
             let full_source = ui
                 .horizontal_wrapped(|ui| {
-                    ui.label("This edit crosses hidden script.");
-                    ui.add(Button::ghost("Edit in full source")).clicked()
+                    ui.label(crate::app::i18n::text(ui, "gui-narration-hidden-edit"));
+                    ui.add(Button::ghost(crate::app::i18n::text(
+                        ui,
+                        "gui-narration-edit-full-source",
+                    )))
+                    .clicked()
                 })
                 .inner;
             if full_source {
@@ -174,9 +178,9 @@ impl EditorBuffer {
             })
             .map(|selection| selection.range.clone());
         let label = if selection.is_some() {
-            "Bind phrase"
+            crate::app::i18n::text(ui, "gui-narration-bind-phrase")
         } else {
-            "Bind paragraph"
+            crate::app::i18n::text(ui, "gui-narration-bind-paragraph")
         };
         let anchor = anchor_for(paragraph, &index.script[ordinal], selection);
         let has_targets = index.targets.iter().any(|target| target.scene == paragraph.scene);
@@ -200,7 +204,13 @@ impl EditorBuffer {
                     });
                 }
             }
-            if ui.add(Button::ghost("Voiceover…").with_size(eparts::Size::Sm)).clicked() {
+            if ui
+                .add(
+                    Button::ghost(crate::app::i18n::text(ui, "gui-toolbar-voiceover"))
+                        .with_size(eparts::Size::Sm),
+                )
+                .clicked()
+            {
                 commands.push_back(
                     Command::OpenParagraphTakes {
                         epoch,
@@ -226,7 +236,10 @@ impl EditorBuffer {
             if linked.peek().is_none() {
                 return;
             }
-            let response = ui.add(Button::ghost("Bound cues").with_size(eparts::Size::Sm));
+            let response = ui.add(
+                Button::ghost(crate::app::i18n::text(ui, "gui-narration-bound-cues"))
+                    .with_size(eparts::Size::Sm),
+            );
             egui::Popup::menu(&response).show(|ui| {
                 for target in linked {
                     let Some(marker) = target.marker.as_deref() else {
@@ -241,11 +254,23 @@ impl EditorBuffer {
                     ui.label(format!("{} · {}", target.label, edge_label(key.edge())));
                     ui.label(phrase);
                     ui.horizontal(|ui| {
-                        if ui.add(Button::ghost("Show source")).clicked() {
+                        if ui
+                            .add(Button::ghost(crate::app::i18n::text(
+                                ui,
+                                "gui-action-show-source",
+                            )))
+                            .clicked()
+                        {
                             commands.push_back(Command::ScrollToLine(target.line, 0).into());
                             ui.close();
                         }
-                        if ui.add(Button::ghost("Review cue")).clicked() {
+                        if ui
+                            .add(Button::ghost(crate::app::i18n::text(
+                                ui,
+                                "gui-narration-review-cue",
+                            )))
+                            .clicked()
+                        {
                             commands.push_back(
                                 Command::ReviewNarrationCue {
                                     epoch,
@@ -281,7 +306,7 @@ impl EditorBuffer {
             ui.ctx(),
             |ui| {
                 ui.set_width(360.0);
-                ui.heading("Bind narration timing");
+                ui.heading(crate::app::i18n::text(ui, "gui-narration-bind-timing"));
                 ui.label(binding.anchor.phrase.as_deref().unwrap_or(&binding.anchor.paragraph));
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut binding.anchor.edge, AnchorEdge::Start, "Start");
@@ -338,7 +363,9 @@ impl EditorBuffer {
                         }
                     }
                 });
-                close |= ui.add(Button::ghost("Cancel")).clicked();
+                close |= ui
+                    .add(Button::ghost(crate::app::i18n::text(ui, "gui-action-cancel")))
+                    .clicked();
             },
         );
         if !close && !modal.should_close() {
@@ -370,10 +397,15 @@ impl EditorBuffer {
                 let mut draft: String =
                     ui.data_mut(|data| data.get_temp(draft_id)).unwrap_or_default();
                 ui.add(
-                    egui::TextEdit::multiline(&mut draft).desired_rows(3).hint_text("Narration"),
+                    egui::TextEdit::multiline(&mut draft)
+                        .desired_rows(3)
+                        .hint_text(crate::app::i18n::text(ui, "gui-narration-title")),
                 );
                 if ui
-                    .add_enabled(!draft.trim().is_empty(), Button::ghost("Insert paragraph"))
+                    .add_enabled(
+                        !draft.trim().is_empty(),
+                        Button::ghost(crate::app::i18n::text(ui, "gui-narration-insert-paragraph")),
+                    )
                     .clicked()
                 {
                     let (range, text) =

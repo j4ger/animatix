@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 
 use egui::{CollapsingHeader, ComboBox, Context, RichText, ScrollArea, TextEdit, Ui};
 
+use crate::app::i18n::{StatusText, current_language, render, text, text_for};
+
 use super::NarrationTakes;
 use super::history::TakeSummary;
 use super::worker::{ImportTiming, LocalAlignment, Operation, Provider};
@@ -34,9 +36,9 @@ enum VoiceProvider {
 impl VoiceProvider {
     fn label(self) -> &'static str {
         match self {
-            Self::Edge => "Edge TTS (online)",
-            Self::Qwen => "Qwen3-TTS (local)",
-            Self::Local => "Custom provider (local)",
+            Self::Edge => "gui-narration-provider-edge",
+            Self::Qwen => "gui-narration-provider-qwen",
+            Self::Local => "gui-narration-provider-local",
         }
     }
 
@@ -103,7 +105,7 @@ impl NarrationTakes {
         }
         let mut open = self.open;
         let mut action = None;
-        egui::Window::new("Voiceover")
+        egui::Window::new(text_for(current_language(ctx), "gui-narration-voiceover-title"))
             .id(egui::Id::unique("narration_takes"))
             .open(&mut open)
             .auto_sized()
@@ -115,13 +117,15 @@ impl NarrationTakes {
                 ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
                 self.controls(ui, &mut action);
                 self.history_ui(ui, &mut action);
-                if let Some(error) = self.history_error.as_ref().or(self.feedback.as_ref()) {
-                    let summary = if error.contains('\n') || error.len() > 150 {
-                        "Voiceover needs attention."
-                    } else {
-                        error
-                    };
-                    ui.colored_label(ui.visuals().error_fg_color, summary).on_hover_text(error);
+                let detail =
+                    self.history_error.as_deref().map(std::borrow::Cow::Borrowed).or_else(|| {
+                        self.feedback
+                            .as_ref()
+                            .map(|message| message.display(current_language(ui.ctx())))
+                    });
+                if let Some(detail) = detail {
+                    let summary = text(ui, "gui-narration-needs-attention");
+                    ui.colored_label(ui.visuals().error_fg_color, summary).on_hover_text(detail);
                 }
             });
         if !open {
@@ -133,7 +137,7 @@ impl NarrationTakes {
     fn controls(&mut self, ui: &mut Ui, action: &mut Option<Action>) {
         let Some(target) = self.target.as_ref() else {
             if self.feedback.is_none() && self.history_error.is_none() {
-                ui.weak("Write a narration paragraph in Script view.");
+                ui.weak(text(ui, "gui-narration-write-paragraph"));
             }
             return;
         };
@@ -144,7 +148,10 @@ impl NarrationTakes {
                     .paragraphs
                     .iter()
                     .find(|paragraph| self.selected.as_deref() == Some(paragraph.id().as_str()))
-                    .map_or("Select a paragraph", |paragraph| paragraph.text.as_str()),
+                    .map_or_else(
+                        || text(ui, "gui-narration-choose-paragraph"),
+                        |paragraph| paragraph.text.clone(),
+                    ),
             )
             .show_ui(ui, |ui| {
                 for paragraph in &target.paragraphs {
@@ -162,25 +169,37 @@ impl NarrationTakes {
         ui.horizontal(|ui| {
             if let Some((capture, _, _)) = &self.capture {
                 let label = capture.elapsed().map_or_else(
-                    || "Stop".into(),
-                    |elapsed| format!("Stop · {:.1}s", elapsed.as_secs_f32()),
+                    || text(ui, "gui-narration-stop-recording"),
+                    |elapsed| {
+                        render(
+                            ui,
+                            "gui-narration-stop-timed",
+                            &[("duration", format!("{:.1}", elapsed.as_secs_f32()))],
+                        )
+                    },
                 );
                 if ui.add_enabled(!capture.stopping, eparts::Button::primary(label)).clicked() {
                     *action = Some(Action::StopRecording);
                 }
             } else if let Some((job, _)) = &self.job {
                 ui.spinner();
-                ui.label(job.status);
-            } else if ui.add_enabled(enabled, eparts::Button::primary("Record")).clicked() {
+                ui.label(text(ui, job.status));
+            } else if ui
+                .add_enabled(
+                    enabled,
+                    eparts::Button::primary(crate::app::i18n::text(ui, "gui-narration-record")),
+                )
+                .clicked()
+            {
                 *action = Some(Action::Record);
             }
-            ui.menu_button("More", |ui| {
+            ui.menu_button(crate::app::i18n::text(ui, "gui-narration-more"), |ui| {
                 for (item, label) in [
-                    (Advanced::Import, "Import audio…"),
-                    (Advanced::Synthesize, "Generate voiceover…"),
-                    (Advanced::Alignment, "Speech alignment settings…"),
+                    (Advanced::Import, "gui-narration-audio-import-menu"),
+                    (Advanced::Synthesize, "gui-narration-generate-menu"),
+                    (Advanced::Alignment, "gui-narration-align-menu"),
                 ] {
-                    if ui.add_enabled(!busy, egui::Button::new(label)).clicked() {
+                    if ui.add_enabled(!busy, egui::Button::new(text(ui, label))).clicked() {
                         self.inputs.advanced = Some(item);
                         ui.close();
                     }
@@ -190,11 +209,11 @@ impl NarrationTakes {
         if !busy && let Some(advanced) = self.inputs.advanced {
             ui.horizontal(|ui| {
                 ui.strong(match advanced {
-                    Advanced::Import => "Import audio",
-                    Advanced::Synthesize => "Generate voiceover",
-                    Advanced::Alignment => "Speech alignment settings",
+                    Advanced::Import => text(ui, "gui-narration-audio-import"),
+                    Advanced::Synthesize => text(ui, "gui-narration-generate"),
+                    Advanced::Alignment => text(ui, "gui-narration-align-settings"),
                 });
-                if ui.small_button("Close").clicked() {
+                if ui.small_button(text(ui, "gui-narration-close-controls")).clicked() {
                     self.inputs.advanced = None;
                 }
             });
@@ -204,7 +223,7 @@ impl NarrationTakes {
                 Advanced::Alignment => {
                     self.inputs.alignment_ui(ui);
                     ui.horizontal(|ui| {
-                        ui.label("Python");
+                        ui.label(crate::app::i18n::text(ui, "gui-narration-python"));
                         ui.add(
                             TextEdit::singleline(&mut self.inputs.python)
                                 .hint_text(if cfg!(windows) { "python" } else { "python3" }),
@@ -255,13 +274,13 @@ impl NarrationTakes {
         let timing = self.inputs.import_timing();
         if let Some(take) = pending {
             ui.horizontal_wrapped(|ui| {
-                ui.label("Recording saved · awaiting alignment");
+                ui.label(crate::app::i18n::text(ui, "gui-narration-awaiting-alignment"));
                 if !busy {
                     if matches!(timing, ImportTiming::Missing) {
-                        if ui.small_button("Set up speech alignment").clicked() {
+                        if ui.small_button(text(ui, "gui-narration-align-setup")).clicked() {
                             self.inputs.advanced = Some(Advanced::Alignment);
                         }
-                    } else if ui.small_button("Retry alignment").clicked() {
+                    } else if ui.small_button(text(ui, "gui-narration-align-retry")).clicked() {
                         *action = Some(Action::Start(
                             Operation::Import {
                                 audio: None,
@@ -273,39 +292,48 @@ impl NarrationTakes {
                 }
             });
         }
-        CollapsingHeader::new(format!("History ({})", takes.len() + unmatched.len()))
-            .id_salt("voiceover_history")
-            .show(ui, |ui| {
-                ScrollArea::vertical().max_height(270.0).show(ui, |ui| {
-                    if self.audition.is_some() && ui.small_button("Stop playback").clicked() {
-                        *action = Some(Action::StopListening);
-                    }
-                    for (index, take) in takes.iter().enumerate() {
-                        let matches = binding.is_some_and(|binding| binding.text == take.text);
-                        let current = self.active.contains(&take.id);
-                        take_row(ui, take, takes.len() - index, current, action);
-                        if !busy && matches && !current {
-                            if take.aligned && ui.small_button("Use this take").clicked() {
-                                *action =
-                                    Some(Action::Start(Operation::Use, Some(take.id.clone())));
-                            }
-                            if recoverable(take)
-                                && pending.is_some_and(|pending| pending.id != take.id)
-                                && !matches!(timing, ImportTiming::Missing)
-                                && ui.small_button("Retry alignment").clicked()
-                            {
-                                *action = Some(Action::Start(
-                                    Operation::Import {
-                                        audio: None,
-                                        timing: self.inputs.import_timing(),
-                                    },
-                                    Some(take.id.clone()),
-                                ));
-                            }
+        CollapsingHeader::new(render(
+            ui,
+            "gui-narration-history",
+            &[("count", (takes.len() + unmatched.len()).to_string())],
+        ))
+        .id_salt("voiceover_history")
+        .show(ui, |ui| {
+            ScrollArea::vertical().max_height(270.0).show(ui, |ui| {
+                if self.audition.is_some()
+                    && ui.small_button(text(ui, "gui-narration-stop-playback")).clicked()
+                {
+                    *action = Some(Action::StopListening);
+                }
+                for (index, take) in takes.iter().enumerate() {
+                    let matches = binding.is_some_and(|binding| binding.text == take.text);
+                    let current = self.active.contains(&take.id);
+                    take_row(ui, take, takes.len() - index, current, action);
+                    if !busy && matches && !current {
+                        if take.aligned
+                            && ui.small_button(text(ui, "gui-narration-use-take")).clicked()
+                        {
+                            *action = Some(Action::Start(Operation::Use, Some(take.id.clone())));
+                        }
+                        if recoverable(take)
+                            && pending.is_some_and(|pending| pending.id != take.id)
+                            && !matches!(timing, ImportTiming::Missing)
+                            && ui.small_button(text(ui, "gui-narration-align-retry")).clicked()
+                        {
+                            *action = Some(Action::Start(
+                                Operation::Import {
+                                    audio: None,
+                                    timing: self.inputs.import_timing(),
+                                },
+                                Some(take.id.clone()),
+                            ));
                         }
                     }
-                    if !unmatched.is_empty() {
-                        CollapsingHeader::new("Unmatched recordings").show(ui, |ui| {
+                }
+                if !unmatched.is_empty() {
+                    CollapsingHeader::new(text(ui, "gui-narration-unmatched"))
+                        .id_salt("voiceover_unmatched")
+                        .show(ui, |ui| {
                             for (index, take) in unmatched.iter().enumerate() {
                                 if let Some(scene) = &take.scene {
                                     ui.weak(scene);
@@ -319,9 +347,9 @@ impl NarrationTakes {
                                 );
                             }
                         });
-                    }
-                });
+                }
             });
+        });
     }
 }
 
@@ -335,29 +363,37 @@ fn take_row(
     ui.push_id(&take.id, |ui| {
         ui.horizontal_wrapped(|ui| {
             let label = match take.kind.as_str() {
-                "imported" => "Imported",
-                "synthesized" => "Generated",
-                _ => "Take",
+                "imported" => text(ui, "gui-narration-take-imported"),
+                "synthesized" => text(ui, "gui-narration-take-generated"),
+                _ => text(ui, "gui-narration-take"),
             };
-            ui.label(format!("{label} {number} · {:.1}s", take.seconds));
+            ui.label(render(
+                ui,
+                "gui-narration-take-duration",
+                &[
+                    ("kind", label),
+                    ("number", number.to_string()),
+                    ("duration", format!("{:.1}", take.seconds)),
+                ],
+            ));
             if current {
-                ui.strong("In use");
+                ui.strong(text(ui, "gui-narration-in-use"));
             }
             if take.status == "interrupted" {
-                ui.label("Interrupted");
+                ui.label(crate::app::i18n::text(ui, "gui-narration-interrupted"));
             }
-            if ui.small_button("Play").clicked() {
+            if ui.small_button(text(ui, "gui-narration-play-take")).clicked() {
                 *action = Some(Action::Listen(take.id.clone()));
             }
         });
         ui.label(RichText::new(&take.text).weak());
         if let Some(issue) = &take.issue {
             let message = if take.status == "interrupted" {
-                "Captured audio saved"
+                text(ui, "gui-narration-capture-saved")
             } else if take.aligned {
-                "Saved to history · scene not updated"
+                text(ui, "gui-narration-take-scene-stale")
             } else {
-                "Saved to history · alignment needed"
+                text(ui, "gui-narration-take-align-pending")
             };
             ui.label(RichText::new(message).weak()).on_hover_text(issue);
         }
@@ -365,19 +401,23 @@ fn take_row(
 }
 
 impl Inputs {
-    fn synthesis_ui(&mut self, ui: &mut Ui) -> Option<Result<Operation, String>> {
+    fn synthesis_ui(&mut self, ui: &mut Ui) -> Option<Result<Operation, StatusText>> {
         ui.horizontal_wrapped(|ui| {
-            ui.label("Voice provider");
+            ui.label(crate::app::i18n::text(ui, "gui-narration-provider"));
             let previous = self.provider;
             ComboBox::from_id_salt("narration_provider")
-                .selected_text(self.provider.label())
+                .selected_text(text(ui, self.provider.label()))
                 .show_ui(ui, |ui| {
                     for provider in [
                         VoiceProvider::Edge,
                         VoiceProvider::Qwen,
                         VoiceProvider::Local,
                     ] {
-                        ui.selectable_value(&mut self.provider, provider, provider.label());
+                        ui.selectable_value(
+                            &mut self.provider,
+                            provider,
+                            text(ui, provider.label()),
+                        );
                     }
                 });
             if self.provider != previous {
@@ -385,52 +425,53 @@ impl Inputs {
             }
         });
         ui.horizontal_wrapped(|ui| {
-            ui.label("Voice");
+            ui.label(crate::app::i18n::text(ui, "gui-narration-voice"));
             ui.add(TextEdit::singleline(&mut self.voice).desired_width(215.0));
-            ui.label("Rate");
+            ui.label(crate::app::i18n::text(ui, "gui-narration-rate"));
             ui.add(TextEdit::singleline(&mut self.rate).desired_width(60.0).hint_text("+0%"));
         });
         match self.provider {
             VoiceProvider::Edge => {
-                ui.label("Sends the selected paragraph to Edge TTS.");
+                ui.label(crate::app::i18n::text(ui, "gui-narration-edge-help"));
             },
             VoiceProvider::Qwen => {
-                path_ui(ui, "Qwen model folder", &mut self.qwen_model, &[], true);
+                path_ui(ui, "gui-narration-path-qwen", &mut self.qwen_model, &[], true);
                 self.alignment_ui(ui);
             },
             VoiceProvider::Local => {
-                path_ui(ui, "Provider executable", &mut self.provider_program, &[], false);
-                ui.label("Provider arguments, one per line");
+                path_ui(ui, "gui-narration-path-provider", &mut self.provider_program, &[], false);
+                ui.label(crate::app::i18n::text(ui, "gui-narration-provider-args"));
                 ui.add(
                     TextEdit::multiline(&mut self.provider_arguments)
                         .desired_rows(3)
                         .desired_width(400.0),
                 );
                 ui.horizontal_wrapped(|ui| {
-                    ui.label("Provider revision");
+                    ui.label(crate::app::i18n::text(ui, "gui-narration-provider-revision"));
                     ui.add(TextEdit::singleline(&mut self.provider_revision).desired_width(150.0));
                 });
             },
         }
-        ui.add(eparts::Button::primary("Generate voiceover"))
+        ui.add(eparts::Button::primary(crate::app::i18n::text(ui, "gui-narration-generate")))
             .clicked()
             .then(|| self.synthesis_request())
     }
 
-    fn synthesis_request(&self) -> Result<Operation, String> {
+    fn synthesis_request(&self) -> Result<Operation, StatusText> {
         if self.voice.trim().is_empty() {
-            return Err("Enter a voice name for the selected provider.".into());
+            return Err(StatusText::message("gui-narration-voice-required", []));
         }
         let provider = match self.provider {
             VoiceProvider::Edge => Provider::Edge,
             VoiceProvider::Qwen => Provider::Qwen {
-                model: path(&self.qwen_model).ok_or("Choose a local Qwen model folder.")?,
+                model: path(&self.qwen_model)
+                    .ok_or(StatusText::message("gui-narration-qwen-required", []))?,
                 alignment: self.alignment()?,
             },
             VoiceProvider::Local => {
                 let program = self.provider_program.trim();
                 if program.is_empty() {
-                    return Err("Choose a local provider executable.".into());
+                    return Err(StatusText::message("gui-narration-program-required", []));
                 }
                 Provider::Local {
                     executable: OsString::from(program),
@@ -455,48 +496,56 @@ impl Inputs {
         self.alignment().map_or(ImportTiming::Missing, ImportTiming::Align)
     }
 
-    fn import_ui(&mut self, ui: &mut Ui, folder: &Path) -> Option<Result<Operation, String>> {
+    fn import_ui(&mut self, ui: &mut Ui, folder: &Path) -> Option<Result<Operation, StatusText>> {
         path_ui(
             ui,
-            "Audio",
+            "gui-narration-path-audio",
             &mut self.recording,
             &["wav", "mp3", "m4a", "flac", "ogg", "opus", "aac"],
             false,
         );
-        path_ui(ui, "Timing file (optional)", &mut self.timing, &["json"], false);
-        ui.add_enabled(path(&self.recording).is_some(), eparts::Button::primary("Import"))
-            .clicked()
-            .then(|| {
-                let audio = folder.join(path(&self.recording).ok_or("Choose an audio file.")?);
-                if !audio.is_file() {
-                    return Err("Choose an existing audio file.".into());
-                }
-                let timing = path(&self.timing)
-                    .map(|path| folder.join(path))
-                    .or_else(|| {
-                        let sidecar = audio.with_extension("speech.json");
-                        sidecar.is_file().then_some(sidecar)
-                    })
-                    .map_or_else(|| self.import_timing(), ImportTiming::Sidecar);
-                self.recording.clear();
-                self.timing.clear();
-                Ok(Operation::Import {
-                    audio: Some(audio),
-                    timing,
+        path_ui(ui, "gui-narration-path-timing", &mut self.timing, &["json"], false);
+        ui.add_enabled(
+            path(&self.recording).is_some(),
+            eparts::Button::primary(crate::app::i18n::text(ui, "gui-action-import")),
+        )
+        .clicked()
+        .then(|| {
+            let audio = folder.join(
+                path(&self.recording)
+                    .ok_or(StatusText::message("gui-narration-audio-required", []))?,
+            );
+            if !audio.is_file() {
+                return Err(StatusText::message("gui-narration-audio-exists", []));
+            }
+            let timing = path(&self.timing)
+                .map(|path| folder.join(path))
+                .or_else(|| {
+                    let sidecar = audio.with_extension("speech.json");
+                    sidecar.is_file().then_some(sidecar)
                 })
+                .map_or_else(|| self.import_timing(), ImportTiming::Sidecar);
+            self.recording.clear();
+            self.timing.clear();
+            Ok(Operation::Import {
+                audio: Some(audio),
+                timing,
             })
+        })
     }
 
     fn alignment_ui(&mut self, ui: &mut Ui) {
-        path_ui(ui, "SenseVoice ONNX model", &mut self.alignment_model, &["onnx"], false);
-        path_ui(ui, "SenseVoice tokens", &mut self.alignment_tokens, &["txt"], false);
-        path_ui(ui, "Lexicon (optional)", &mut self.alignment_lexicon, &["json"], false);
+        path_ui(ui, "gui-narration-path-sensevoice", &mut self.alignment_model, &["onnx"], false);
+        path_ui(ui, "gui-narration-path-tokens", &mut self.alignment_tokens, &["txt"], false);
+        path_ui(ui, "gui-narration-path-lexicon", &mut self.alignment_lexicon, &["json"], false);
     }
 
-    fn alignment(&self) -> Result<LocalAlignment, String> {
+    fn alignment(&self) -> Result<LocalAlignment, StatusText> {
         Ok(LocalAlignment {
-            model: path(&self.alignment_model).ok_or("Choose a local SenseVoice ONNX model.")?,
-            tokens: path(&self.alignment_tokens).ok_or("Choose the SenseVoice token file.")?,
+            model: path(&self.alignment_model)
+                .ok_or(StatusText::message("gui-narration-model-required", []))?,
+            tokens: path(&self.alignment_tokens)
+                .ok_or(StatusText::message("gui-narration-tokens-required", []))?,
             lexicon: path(&self.alignment_lexicon),
         })
     }
@@ -504,23 +553,28 @@ impl Inputs {
 
 fn path_ui(
     ui: &mut Ui,
-    label: &str,
+    label_id: &str,
     value: &mut String,
     extensions: &[&str],
     folder: bool,
 ) -> bool {
     let mut picked = false;
-    ui.push_id(label, |ui| {
+    let label = text(ui, label_id);
+    ui.push_id(label_id, |ui| {
         ui.horizontal_wrapped(|ui| {
-            ui.label(label);
+            ui.label(&label);
             ui.add(TextEdit::singleline(value).desired_width(250.0));
-            if ui.button("Browse…").on_hover_text(label).clicked() {
-                let mut dialog = rfd::FileDialog::new().set_title(label);
+            if ui
+                .button(crate::app::i18n::text(ui, "gui-action-browse"))
+                .on_hover_text(&label)
+                .clicked()
+            {
+                let mut dialog = rfd::FileDialog::new().set_title(&label);
                 if let Some(directory) = path(value).as_deref().and_then(Path::parent) {
                     dialog = dialog.set_directory(directory);
                 }
                 if !extensions.is_empty() {
-                    dialog = dialog.add_filter(label, extensions);
+                    dialog = dialog.add_filter(&label, extensions);
                 }
                 if let Some(selected) = if folder {
                     dialog.pick_folder()

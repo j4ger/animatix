@@ -1,3 +1,7 @@
+import { registerHooks } from "node:module";
+import { fileURLToPath } from "node:url";
+import { compileLabels } from "./fluent-labels.mjs";
+
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
@@ -8,6 +12,31 @@ import { bundleEngine } from "./bundle-engine.mjs";
 import { configureRuntime, createRuntimePlayer, decodedWasmResponse, fetchOverlayFont, fetchPreparedAssets, fetchMissingModules, loadIntegrityModule, runtimeBackend, runtimeBackendGeneration } from "../embed/src/player/runtime.js";
 import { cancellationError, dispatchPlayerError, playerError } from "../embed/src/player/errors.js";
 import { selectFontFaces } from "../embed/src/player/font-selection.js";
+
+// The embed build compiles static Fluent resources before bundling. Use the
+// same compiler when this suite imports unbundled player modules.
+registerHooks({
+  load(url, context, nextLoad) {
+    if (!url.endsWith(".ftl")) return nextLoad(url, context);
+    const labels = compileLabels(fileURLToPath(url));
+    return {
+      format: "module",
+      shortCircuit: true,
+      source: "export default " + JSON.stringify(labels),
+    };
+  },
+});
+
+test("standalone player labels and graphics failure explanation use the embed language", async () => {
+  const { playerLabels } = await import("../embed/src/player/labels.js");
+  const zh = playerLabels("zh-Hans");
+  assert.equal(zh.playback, "播放控制");
+  assert.equal(zh.timeline, "时间轴");
+  assert.equal(zh.play, "播放");
+  assert.equal(zh.retry, "重试");
+  assert.equal(zh.graphicsUnavailable, "此浏览器无法启动 WebGPU 或 WebGL2。");
+  assert.equal(playerLabels("fr").graphicsUnavailable, "This browser could not start WebGPU or WebGL2.");
+});
 
 async function loadPlaybackClass() {
   const saved = new Map();

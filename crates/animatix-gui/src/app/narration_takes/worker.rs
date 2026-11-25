@@ -12,6 +12,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::app::i18n::StatusText;
+
 use super::assets::{self, Pair};
 use super::bindings::Binding;
 use super::history::{History, Mix, Take};
@@ -91,9 +93,9 @@ pub(super) enum Operation {
 impl Operation {
     fn status(&self) -> &'static str {
         match self {
-            Self::Synthesize { .. } => "Generating voiceover…",
-            Self::Import { .. } => "Aligning recording…",
-            Self::Use => "Updating voiceover…",
+            Self::Synthesize { .. } => "gui-narration-generating",
+            Self::Import { .. } => "gui-narration-aligning",
+            Self::Use => "gui-narration-updating",
         }
     }
 }
@@ -116,13 +118,13 @@ pub(super) struct Finished {
 
 pub(super) struct Job {
     cancel: Arc<AtomicBool>,
-    result: Receiver<Result<Finished, String>>,
+    result: Receiver<Result<Finished, StatusText>>,
     thread: Option<JoinHandle<()>>,
     pub status: &'static str,
 }
 
 impl Job {
-    pub fn start(request: Request, ctx: egui::Context) -> Result<Self, String> {
+    pub fn start(request: Request, ctx: egui::Context) -> Result<Self, StatusText> {
         let status = request.operation.status();
         let cancel = Arc::new(AtomicBool::new(false));
         let worker_cancel = Arc::clone(&cancel);
@@ -133,7 +135,9 @@ impl Job {
                 let _ = send.send(run(request, &worker_cancel));
                 ctx.request_repaint();
             })
-            .map_err(|error| format!("Could not start narration worker: {error}"))?;
+            .map_err(|error| {
+                StatusText::message("gui-narration-worker-start", [("detail", error.to_string())])
+            })?;
         Ok(Self {
             cancel,
             result,
@@ -150,13 +154,15 @@ impl Job {
         self.cancel.load(Ordering::Relaxed)
     }
 
-    pub fn poll(&self) -> Option<Result<Finished, String>> {
+    pub fn poll(&self) -> Option<Result<Finished, StatusText>> {
         match self.result.try_recv() {
-            Ok(_) if self.cancelling() => Some(Err("Narration job cancelled.".into())),
+            Ok(_) if self.cancelling() => {
+                Some(Err(StatusText::message("gui-narration-job-cancelled", [])))
+            },
             Ok(result) => Some(result),
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
-                Some(Err("The narration worker stopped unexpectedly.".into()))
+                Some(Err(StatusText::message("gui-narration-worker-stopped", [])))
             },
         }
     }
@@ -171,29 +177,33 @@ impl Drop for Job {
     }
 }
 
-fn run(request: Request, cancel: &AtomicBool) -> Result<Finished, String> {
+fn run(request: Request, cancel: &AtomicBool) -> Result<Finished, StatusText> {
     let outcome = run_update(&request, cancel);
     if let Err(error) = &outcome {
-        tracing::debug!(%error, take = request.take.id, "Voiceover update did not finish");
-        if let Err(error) = request.history.issue(&request.take.id, Some(error)) {
+        tracing::debug!(
+            error = error.canonical(),
+            take = request.take.id,
+            "Voiceover update did not finish"
+        );
+        if let Err(error) = request.history.issue(&request.take.id, Some(error.canonical())) {
             tracing::warn!(%error, "Could not save voiceover issue");
         }
     }
     outcome
 }
 
-fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, String> {
-    let scratch = tempfile::tempdir().map_err(|error| error.to_string())?;
+fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, StatusText> {
+    let scratch = tempfile::tempdir().map_err(narration_detail)?;
     for (name, contents) in TOOLS {
-        fs::write(scratch.path().join(name), contents).map_err(|error| error.to_string())?;
+        fs::write(scratch.path().join(name), contents).map_err(narration_detail)?;
     }
     let manifest = scratch.path().join("script.json");
     fs::write(
         &manifest,
         serde_json::to_vec(&serde_json::json!({ "sentences": request.paragraphs }))
-            .map_err(|error| error.to_string())?,
+            .map_err(narration_detail)?,
     )
-    .map_err(|error| error.to_string())?;
+    .map_err(narration_detail)?;
     let prefix = scratch.path().join("chapter");
     let cache = scratch.path().join("chapter.takes");
 
@@ -208,30 +218,28 @@ fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, String
     };
     prepare(&cli, scratch.path())?;
 
-    let base_hashes =
-        original.map_err(|error| format!("Could not read the current narration: {error}"))?;
+    let base_hashes = original.map_err(|error| {
+        StatusText::message("gui-narration-read-current", [("detail", error.to_string())])
+    })?;
     let base = stage_baseline(request, &cache, base_hashes.as_ref())?;
     let candidate = cache.join("candidates").join(&request.take.id);
     request
         .history
         .candidate(&request.take.id, &request.selector, &candidate)
-        .map_err(|error| error.to_string())?;
+        .map_err(narration_detail)?;
     let bindings_path = scratch.path().join("bindings.json");
     let selectors: HashMap<_, _> = request
         .bindings
         .iter()
         .map(|binding| (&binding.id, &binding.selector))
         .collect();
-    let takes = request.history.takes().map_err(|error| error.to_string())?;
+    let takes = request.history.takes().map_err(narration_detail)?;
     let bindings: HashMap<_, _> = takes
         .iter()
         .filter_map(|take| selectors.get(&take.paragraph).map(|selector| (&take.id, *selector)))
         .collect();
-    fs::write(
-        &bindings_path,
-        serde_json::to_vec(&bindings).map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
+    fs::write(&bindings_path, serde_json::to_vec(&bindings).map_err(narration_detail)?)
+        .map_err(narration_detail)?;
     let mut cmd = cli.command("adopt", false);
     cmd.arg("--candidate")
         .arg(candidate.join("take.json"))
@@ -248,20 +256,19 @@ fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, String
         .as_ref()
         .map(assets::fingerprint)
         .transpose()
-        .map_err(|error| error.to_string())?
+        .map_err(narration_detail)?
         != base_hashes
     {
-        return Err("The narration changed while this take was processing.".into());
+        return Err(StatusText::message("gui-narration-worker-stale", []));
     }
-    let layout =
-        fs::read(output.audio.with_file_name("state.json")).map_err(|error| error.to_string())?;
+    let layout = fs::read(output.audio.with_file_name("state.json")).map_err(narration_detail)?;
     let (pair, (audio_digest, transcript_digest)) =
         assets::publish(&request.folder, &request.name, &(output.audio, output.transcript))
-            .map_err(|error| error.to_string())?;
+            .map_err(narration_detail)?;
     let relative = |path: &Path| {
         path.strip_prefix(&request.folder)
             .map(Path::to_path_buf)
-            .map_err(|error| error.to_string())
+            .map_err(narration_detail)
     };
     let mut mix = Mix {
         audio_digest,
@@ -269,8 +276,7 @@ fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, String
         layout,
         parts: HashMap::new(),
     };
-    let state: serde_json::Value =
-        serde_json::from_slice(&mix.layout).map_err(|error| error.to_string())?;
+    let state: serde_json::Value = serde_json::from_slice(&mix.layout).map_err(narration_detail)?;
     if let Some(takes) = state["chapter"]["takes"].as_object() {
         mix.parts.extend(takes.iter().filter_map(|(selector, take)| {
             take["candidate"].as_str().map(|id| (selector.clone(), id.to_owned()))
@@ -279,11 +285,8 @@ fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, String
     request
         .history
         .store_mix(&relative(&pair.0)?, &relative(&pair.1)?, &mix)
-        .map_err(|error| error.to_string())?;
-    request
-        .history
-        .issue(&request.take.id, None)
-        .map_err(|error| error.to_string())?;
+        .map_err(narration_detail)?;
+    request.history.issue(&request.take.id, None).map_err(narration_detail)?;
     Ok(Finished {
         adopted: Adopted {
             audio: pair.0,
@@ -293,7 +296,7 @@ fn run_update(request: &Request, cancel: &AtomicBool) -> Result<Finished, String
     })
 }
 
-fn prepare(cli: &Cli<'_>, scratch: &Path) -> Result<(), String> {
+fn prepare(cli: &Cli<'_>, scratch: &Path) -> Result<(), StatusText> {
     let request = cli.request;
     let mut cmd = match &request.operation {
         Operation::Use => return Ok(()),
@@ -311,15 +314,9 @@ fn prepare(cli: &Cli<'_>, scratch: &Path) -> Result<(), String> {
             let raw = scratch.join("original.wav");
             if let Some(audio) = audio {
                 cli.decode(audio, &raw)?;
-                request
-                    .history
-                    .import_wave(&request.take, &raw)
-                    .map_err(|error| error.to_string())?;
+                request.history.import_wave(&request.take, &raw).map_err(narration_detail)?;
             } else {
-                request
-                    .history
-                    .raw_wave(&request.take.id, &raw)
-                    .map_err(|error| error.to_string())?;
+                request.history.raw_wave(&request.take.id, &raw).map_err(narration_detail)?;
             }
             let mut cmd = cli.command("import", false);
             cmd.arg("--audio").arg(&raw);
@@ -329,7 +326,7 @@ fn prepare(cli: &Cli<'_>, scratch: &Path) -> Result<(), String> {
                 },
                 ImportTiming::Align(alignment) => alignment.add_args(&mut cmd, false),
                 ImportTiming::Missing => {
-                    return Err("Configure local speech alignment to use this recording.".into());
+                    return Err(StatusText::message("gui-narration-alignment-required", []));
                 },
             }
             cmd
@@ -341,19 +338,19 @@ fn prepare(cli: &Cli<'_>, scratch: &Path) -> Result<(), String> {
         request
             .history
             .import_wave(&request.take, &output.candidate.with_file_name("take.wav"))
-            .map_err(|error| error.to_string())?;
+            .map_err(narration_detail)?;
     }
     request
         .history
         .store_alignment(&request.take.id, &output.candidate)
-        .map_err(|error| error.to_string())
+        .map_err(narration_detail)
 }
 
 fn stage_baseline(
     request: &Request,
     cache: &Path,
     hashes: Option<&(String, String)>,
-) -> Result<Option<Pair>, String> {
+) -> Result<Option<Pair>, StatusText> {
     let Some((original, hashes)) = request.base.as_ref().zip(hashes) else {
         return Ok(None);
     };
@@ -362,19 +359,19 @@ fn stage_baseline(
         original.0.strip_prefix(&request.folder),
         original.1.strip_prefix(&request.folder),
     ) {
-        request.history.mix(audio, transcript).map_err(|error| error.to_string())?
+        request.history.mix(audio, transcript).map_err(narration_detail)?
     } else {
         None
     };
     if let Some(mix) =
         local.filter(|mix| mix.audio_digest == hashes.0 && mix.transcript_digest == hashes.1)
     {
-        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+        fs::create_dir_all(&directory).map_err(narration_detail)?;
         let audio = directory.join("chapter.wav");
         let transcript = directory.join("chapter.speech.json");
-        fs::copy(&original.0, &audio).map_err(|error| error.to_string())?;
-        fs::copy(&original.1, &transcript).map_err(|error| error.to_string())?;
-        fs::write(directory.join("state.json"), mix.layout).map_err(|error| error.to_string())?;
+        fs::copy(&original.0, &audio).map_err(narration_detail)?;
+        fs::copy(&original.1, &transcript).map_err(narration_detail)?;
+        fs::write(directory.join("state.json"), mix.layout).map_err(narration_detail)?;
         Ok(Some((audio, transcript)))
     } else {
         Ok(Some(original.clone()))
@@ -420,12 +417,12 @@ impl Cli<'_> {
         cmd
     }
 
-    fn decode(&self, audio: &Path, raw: &Path) -> Result<(), String> {
+    fn decode(&self, audio: &Path, raw: &Path) -> Result<(), StatusText> {
         if hound::WavReader::open(audio).is_ok_and(|wave| {
             wave.spec().bits_per_sample == 16
                 && wave.spec().sample_format == hound::SampleFormat::Int
         }) {
-            fs::copy(audio, raw).map_err(|error| error.to_string())?;
+            fs::copy(audio, raw).map_err(narration_detail)?;
             return Ok(());
         }
         let ffmpeg = crate::app::audio::packaged_ffmpeg().unwrap_or_else(|| "ffmpeg".into());
@@ -438,37 +435,47 @@ impl Cli<'_> {
         Ok(())
     }
 
-    fn run<T: for<'de> Deserialize<'de>>(&self, cmd: Command) -> Result<T, String> {
+    fn run<T: for<'de> Deserialize<'de>>(&self, cmd: Command) -> Result<T, StatusText> {
         let output = self.run_process(cmd)?;
         let json = output.lines().rev().find(|line| !line.trim().is_empty()).unwrap_or_default();
-        serde_json::from_str(json)
-            .map_err(|error| format!("Invalid narration tool response: {error}"))
+        serde_json::from_str(json).map_err(|error| {
+            StatusText::message("gui-narration-tool-response", [("detail", error.to_string())])
+        })
     }
 
-    fn run_process(&self, mut cmd: Command) -> Result<String, String> {
+    fn run_process(&self, mut cmd: Command) -> Result<String, StatusText> {
         if self.cancel.load(Ordering::Relaxed) {
-            return Err("Narration job cancelled.".into());
+            return Err(StatusText::message("gui-narration-job-cancelled", []));
         }
 
-        let mut out = tempfile::tempfile().map_err(|error| error.to_string())?;
-        let mut err = tempfile::tempfile().map_err(|error| error.to_string())?;
-        cmd.stdout(out.try_clone().map_err(|error| error.to_string())?)
-            .stderr(err.try_clone().map_err(|error| error.to_string())?);
+        let mut out = tempfile::tempfile().map_err(narration_detail)?;
+        let mut err = tempfile::tempfile().map_err(narration_detail)?;
+        cmd.stdout(out.try_clone().map_err(narration_detail)?)
+            .stderr(err.try_clone().map_err(narration_detail)?);
         configure_process(&mut cmd);
         let mut child = cmd.spawn().map_err(|error| {
-            format!("Could not start {}: {error}", cmd.get_program().to_string_lossy())
+            StatusText::message(
+                "gui-narration-tool-start",
+                [
+                    ("program", cmd.get_program().to_string_lossy().to_string()),
+                    ("detail", error.to_string()),
+                ],
+            )
         })?;
         let status = loop {
             if self.cancel.load(Ordering::Relaxed) {
                 terminate(&mut child);
-                return Err("Narration job cancelled.".into());
+                return Err(StatusText::message("gui-narration-job-cancelled", []));
             }
             match child.try_wait() {
                 Ok(Some(status)) => break status,
                 Ok(None) => thread::sleep(Duration::from_millis(40)),
                 Err(error) => {
                     terminate(&mut child);
-                    return Err(format!("Could not wait for narration tools: {error}"));
+                    return Err(StatusText::message(
+                        "gui-narration-tool-wait",
+                        [("detail", error.to_string())],
+                    ));
                 },
             }
         };
@@ -482,7 +489,10 @@ impl Cli<'_> {
                 failure.trim()
             };
             let shortened = details.chars().take(4000).collect::<String>();
-            return Err(format!("Narration tools exited with {status}. {shortened}"));
+            return Err(StatusText::message(
+                "gui-narration-tool-exit",
+                [("status", status.to_string()), ("detail", shortened)],
+            ));
         }
         Ok(output)
     }
@@ -541,12 +551,16 @@ fn provider_arg(cmd: &mut Command, value: impl AsRef<OsStr>) {
     cmd.arg(prefixed);
 }
 
-fn read_tail(file: &mut File, limit: u64) -> Result<String, String> {
-    let length = file.metadata().map_err(|error| error.to_string())?.len();
+fn narration_detail(error: impl std::fmt::Display) -> StatusText {
+    StatusText::message("gui-narration-worker-detail", [("detail", error.to_string())])
+}
+
+fn read_tail(file: &mut File, limit: u64) -> Result<String, StatusText> {
+    let length = file.metadata().map_err(narration_detail)?.len();
     file.seek(SeekFrom::Start(length.saturating_sub(limit)))
-        .map_err(|error| error.to_string())?;
+        .map_err(narration_detail)?;
     let mut bytes = Vec::new();
-    file.take(limit).read_to_end(&mut bytes).map_err(|error| error.to_string())?;
+    file.take(limit).read_to_end(&mut bytes).map_err(narration_detail)?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 

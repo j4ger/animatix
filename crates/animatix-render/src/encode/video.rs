@@ -5,6 +5,7 @@
 //! - Adaptive thread count computation
 //! - Single-timeline and multi-scene composition video encoding
 
+use super::ExportWarning;
 use std::ffi::CString;
 
 use animatix::composition::Composition;
@@ -286,10 +287,14 @@ fn audio_segments(source: &VideoSource<'_>) -> Vec<AudioSegment> {
     }
 }
 
-fn warn_caption_cutoffs(source: &VideoSource<'_>, duration_s: f64, warn: impl Fn(String) + Copy) {
+fn warn_caption_cutoffs(
+    source: &VideoSource<'_>,
+    duration_s: f64,
+    warn: impl Fn(ExportWarning) + Copy,
+) {
     match source {
         VideoSource::Timeline(timeline) => {
-            warn_caption_cutoff(timeline.caption_end_seconds(), duration_s, "", warn);
+            warn_caption_cutoff(timeline.caption_end_seconds(), duration_s, None, warn);
         },
         VideoSource::Composition(composition, _) => {
             for (name, start) in &composition.scene_start_times {
@@ -301,7 +306,7 @@ fn warn_caption_cutoffs(source: &VideoSource<'_>, duration_s: f64, warn: impl Fn
                     warn_caption_cutoff(
                         start + caption_end,
                         (start + scene.duration_s).min(duration_s),
-                        &format!(" in scene '{name}'"),
+                        Some(name),
                         warn,
                     );
                 }
@@ -310,11 +315,18 @@ fn warn_caption_cutoffs(source: &VideoSource<'_>, duration_s: f64, warn: impl Fn
     }
 }
 
-fn warn_caption_cutoff(end_s: f64, cutoff_s: f64, context: &str, warn: impl Fn(String)) {
+fn warn_caption_cutoff(
+    end_s: f64,
+    cutoff_s: f64,
+    scene: Option<&str>,
+    warn: impl Fn(ExportWarning),
+) {
     if end_s > cutoff_s + 0.001 {
-        warn(format!(
-            "Export will cut off captions{context} at {cutoff_s:.3}s; the last caption ends at {end_s:.3}s."
-        ));
+        warn(ExportWarning::CaptionsCutOff {
+            scene: scene.map(str::to_owned),
+            cutoff_s,
+            end_s,
+        });
     }
 }
 

@@ -329,6 +329,36 @@ input types, applicability and runtime flags come from the existing schemas.
 Keep explanations and alias rows outside generated markers. An authoring `Any`
 is not narrowed by the separately displayed runtime representation.
 
+### Interface catalogs
+
+The GUI embeds Fluent catalogs from `crates/animatix-i18n/locales`. Astro reads
+its interface catalogs at build time. The site and standalone player use
+`web/embed/src/locales` for player controls and graphics messages that have
+identical meanings in both. The site sends formatted labels to browser scripts
+and includes Fluent patterns for messages that take values available only in
+the browser.
+
+Use stable IDs for messages and attributes, and pass authored names, timecodes
+and source positions as values. Keep the canonical text on compiler diagnostics
+for build reports and protocol consumers. Mark a new localized explanation at
+the producer so distinct messages can still share a diagnostic code.
+`npm --prefix web/app test` checks catalog syntax, duplicates, keys, argument
+and attribute parity, and English fallback for both frontends. The same suite
+runs in the `site-build` gate.
+
+Use this coverage map when reviewing a locale change.
+
+| Surface | Translate at display | Preserve as source or detail |
+| --- | --- | --- |
+| Parser diagnostics | Expected/found wording, grammar labels, rule explanations | AMX tokens, authored names, coordinates and the canonical CLI/LSP diagnostic |
+| File and export | Action messages, format controls, progress and failure summaries | Paths, format names, numeric timecodes, backend and OS error details |
+| Narration | Recording and history controls, alignment, binding instructions, worker summaries | Script text, voice IDs, historical issue text, subprocess stderr and provider responses |
+| Site and stand-alone player | Navigation, controls and playback errors | AMX examples, URLs, SDK event data, unclassified legacy error details |
+
+`python3 tools/quality/localization-audit.py` scans known display calls for
+literal copy and lists its explicit exclusions. Review generated values and
+diagnostic producers separately when adding a display path.
+
 ### Environment boundaries
 
 Enter each shell from a clean terminal, not from another dev shell or an active

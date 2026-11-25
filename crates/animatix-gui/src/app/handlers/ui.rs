@@ -1,104 +1,44 @@
 use std::path::PathBuf;
 
-use crate::app::WorkspaceTab;
 use crate::app::commands::{Effect, UndoEntry};
 use crate::app::components::toast::Toast;
 use crate::app::stores::{DocumentStore, ExportStore, PreviewStore, UiStore};
 
-/// Show the Inspector tab, or hide the detail region when it is already the
-/// active, visible tab.
+/// Toggle the on-demand Inspector. An unpinned Inspector overlays the preview;
+/// a pinned Inspector remains in the dock until explicitly closed.
 pub fn handle_show_inspector(ui_store: &mut UiStore) -> Vec<Effect> {
-    toggle_detail_tab(ui_store, WorkspaceTab::Inspector);
+    use crate::app::{panels::CompactDrawer, persistence};
+    let view = &mut ui_store.view;
+    if !view.compact && persistence::detail_visible(&view.tree) {
+        persistence::set_detail_visible(&mut view.tree, false);
+    } else if view.compact_drawer == Some(CompactDrawer::Detail) {
+        view.compact_drawer = None;
+        if let Some(restore) = view.compact_restore.as_mut() {
+            restore.detail_visible = false;
+        }
+    } else {
+        view.compact_drawer = Some(CompactDrawer::Detail);
+    }
     vec![]
 }
 
-/// Show the Code tab, or hide the detail region when it is already active.
 pub fn handle_show_code(ui_store: &mut UiStore) -> Vec<Effect> {
-    toggle_detail_tab(ui_store, WorkspaceTab::Code);
-    vec![]
+    use crate::app::LayoutPreset;
+    let next = match ui_store.view.layout_preset {
+        LayoutPreset::Code => LayoutPreset::Animate,
+        LayoutPreset::Animate => LayoutPreset::Code,
+    };
+    handle_apply_layout(ui_store, next)
 }
 
-/// Show the Curves tab, or hide the bottom region when it is already active.
 pub fn handle_show_curves(ui_store: &mut UiStore) -> Vec<Effect> {
-    toggle_bottom_tab(ui_store, WorkspaceTab::Curves);
+    crate::app::persistence::toggle_curve_comparison(&mut ui_store.view.tree);
     vec![]
 }
 
-/// Show the Timeline tab (never hides the bottom region).
 pub fn handle_show_timeline(ui_store: &mut UiStore) -> Vec<Effect> {
-    show_bottom_tab(ui_store, WorkspaceTab::Timeline);
+    crate::app::persistence::show_timeline(&mut ui_store.view.tree);
     vec![]
-}
-
-fn toggle_detail_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
-    // ── Compact mode: the detail region is an overlay drawer ──
-    // The dock stays hidden; toggling the currently-drawn tab closes the
-    // drawer, any other tab switches the drawer's tab. The active tab lives on
-    // the dock tree, so this preserves the user's choice across a resize.
-    if ui_store.view.compact {
-        let drawer_open =
-            ui_store.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail);
-        let active = crate::app::persistence::active_detail_tab(&ui_store.view.tree);
-        if drawer_open && active == Some(tab) {
-            ui_store.view.compact_drawer = None;
-            return;
-        }
-        let selected = crate::app::persistence::set_active_detail_tab(&mut ui_store.view.tree, tab);
-        if !selected {
-            // Layout predates the detail region; rebuild and retry once.
-            ui_store.view.tree = crate::app::persistence::default_tree();
-            crate::app::persistence::set_active_detail_tab(&mut ui_store.view.tree, tab);
-        }
-        // Keep the dock hidden — the drawer is the only detail surface.
-        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
-        ui_store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
-        return;
-    }
-
-    // Visibility is read from the tree so it cannot drift from the docked
-    // state (the tree is what a user drag can mutate between frames).
-    let already_active = crate::app::persistence::detail_visible(&ui_store.view.tree)
-        && crate::app::persistence::active_detail_tab(&ui_store.view.tree) == Some(tab);
-
-    if already_active {
-        crate::app::persistence::set_detail_visible(&mut ui_store.view.tree, false);
-        return;
-    }
-
-    if !crate::app::persistence::activate_detail_tab(&mut ui_store.view.tree, tab) {
-        // Layout predates the detail region; rebuild then activate.
-        ui_store.view.tree = crate::app::persistence::default_tree();
-        crate::app::persistence::activate_detail_tab(&mut ui_store.view.tree, tab);
-    }
-}
-
-/// Toggle the bottom region: pressing the active tab hides the region, any
-/// other tab shows and activates it. Visibility is read from the tree so it
-/// cannot drift from the docked state.
-fn toggle_bottom_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
-    let already_active = crate::app::persistence::bottom_visible(&ui_store.view.tree)
-        && crate::app::persistence::active_bottom_tab(&ui_store.view.tree) == Some(tab);
-
-    if already_active {
-        crate::app::persistence::set_bottom_visible(&mut ui_store.view.tree, false);
-        return;
-    }
-
-    show_bottom_tab(ui_store, tab);
-}
-
-fn show_bottom_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
-    if !crate::app::persistence::activate_bottom_tab(&mut ui_store.view.tree, tab) {
-        // Layout predates the Curves pane (or the bottom tab group); rebuild
-        // from the preset, which contains it, then activate.
-        let (w, h) = ui_store.view.layout_size;
-        ui_store.view.tree =
-            crate::app::persistence::build_tree_for(ui_store.view.layout_preset, w, h);
-        if ui_store.view.compact {
-            crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
-        }
-        crate::app::persistence::activate_bottom_tab(&mut ui_store.view.tree, tab);
-    }
 }
 
 /// Apply a named layout preset to the current tree.
@@ -115,11 +55,15 @@ pub fn handle_apply_layout(
     // state first so widening later reflects *this* preset's intent, not the
     // layout that was on screen when compact mode began.
     if ui_store.view.compact {
-        ui_store.view.compact_restore =
-            Some(crate::app::persistence::capture_compact_restore(&ui_store.view.tree));
+        let mut restore = crate::app::persistence::capture_compact_restore(&ui_store.view.tree);
+        if let Some(prior) = ui_store.view.compact_restore {
+            restore.detail_visible = prior.detail_visible;
+        }
+        ui_store.view.compact_restore = Some(restore);
         crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
     }
     ui_store.view.layout_preset = preset;
+    ui_store.view.preview_fullscreen = false;
     vec![]
 }
 
@@ -136,6 +80,8 @@ pub fn handle_reset_layout(ui_store: &mut UiStore) -> Vec<Effect> {
         crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
     }
     ui_store.view.layout_preset = crate::app::LayoutPreset::Animate;
+    ui_store.view.preview_fullscreen = false;
+    ui_store.view.compact_drawer = None;
     vec![]
 }
 
@@ -163,7 +109,11 @@ pub fn handle_undo(
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
     if document_store.history.undo_stack.is_empty() {
-        ui_store.toasts.push(Toast::info("Nothing to undo"));
+        ui_store.toasts.push(Toast::info(
+            crate::app::i18n::StatusText::message("gui-status-no-undo", [])
+                .display(ui_store.view.language)
+                .into_owned(),
+        ));
         return vec![];
     }
     if let Some(entry) = document_store.history.undo_stack.pop_back() {
@@ -190,8 +140,13 @@ pub fn handle_undo(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
         );
-        preview_store.preview.status = format!("Undo: {}", entry.label);
-        ui_store.toasts.push(Toast::info(format!("Undo: {}", entry.label)));
+        preview_store.preview.status = crate::app::i18n::StatusText::message(
+            "gui-status-undo",
+            [("action", entry.label.to_string())],
+        );
+        ui_store.toasts.push(Toast::info(
+            preview_store.preview.status.display(ui_store.view.language).into_owned(),
+        ));
     }
     vec![]
 }
@@ -202,7 +157,11 @@ pub fn handle_redo(
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
     if document_store.history.redo_stack.is_empty() {
-        ui_store.toasts.push(Toast::info("Nothing to redo"));
+        ui_store.toasts.push(Toast::info(
+            crate::app::i18n::StatusText::message("gui-status-no-redo", [])
+                .display(ui_store.view.language)
+                .into_owned(),
+        ));
         return vec![];
     }
     if let Some(entry) = document_store.history.redo_stack.pop_back() {
@@ -229,8 +188,13 @@ pub fn handle_redo(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
         );
-        preview_store.preview.status = format!("Redo: {}", entry.label);
-        ui_store.toasts.push(Toast::info(format!("Redo: {}", entry.label)));
+        preview_store.preview.status = crate::app::i18n::StatusText::message(
+            "gui-status-redo",
+            [("action", entry.label.to_string())],
+        );
+        ui_store.toasts.push(Toast::info(
+            preview_store.preview.status.display(ui_store.view.language).into_owned(),
+        ));
     }
     vec![]
 }
@@ -251,7 +215,8 @@ pub fn handle_zoom_to_selection(
     document_store: &DocumentStore,
 ) -> Vec<Effect> {
     if ui_store.selection.selected_actors.is_empty() {
-        preview_store.preview.status = "No selection to zoom to".to_string();
+        preview_store.preview.status =
+            crate::app::i18n::StatusText::message("gui-status-zoom-no-selection", []);
         return vec![];
     }
 
@@ -273,7 +238,8 @@ pub fn handle_zoom_to_selection(
     }
 
     if !has_any {
-        preview_store.preview.status = "No spatial data for selection".to_string();
+        preview_store.preview.status =
+            crate::app::i18n::StatusText::message("gui-status-zoom-no-spatial-data", []);
         return vec![];
     }
 
@@ -293,7 +259,10 @@ pub fn handle_zoom_to_selection(
 
     preview_store.preview.viewport.preview_zoom = zoom;
     preview_store.preview.viewport.preview_pan = egui::Vec2::new(center_x, center_y);
-    preview_store.preview.status = format!("Zoomed to selection ({:.0}%)", zoom * 100.0);
+    preview_store.preview.status = crate::app::i18n::StatusText::message(
+        "gui-status-zoom-selection",
+        [("percent", format!("{:.0}", zoom * 100.0))],
+    );
     vec![Effect::Repaint]
 }
 
@@ -305,7 +274,7 @@ pub fn handle_zoom_to_all(
     let scene_h = document_store.source.document.scene_dimensions.height as f32;
     preview_store.preview.viewport.preview_zoom = 1.0;
     preview_store.preview.viewport.preview_pan = egui::Vec2::new(scene_w / 2.0, scene_h / 2.0);
-    preview_store.preview.status = "Zoom to fit".to_string();
+    preview_store.preview.status = crate::app::i18n::StatusText::message("gui-status-zoom-fit", []);
     vec![Effect::Repaint]
 }
 
@@ -337,109 +306,31 @@ fn suggest_export_filename(export_store: &ExportStore, document_store: &Document
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::test_support::ui_store;
+    use crate::app::{WorkspaceTab, test_support::ui_store};
 
     #[test]
-    fn show_curves_activates_the_bottom_tab_and_toggles_off_on_repeat() {
+    fn curve_comparison_does_not_replace_the_inline_timeline() {
+        use crate::app::persistence::pane_visible;
         let mut ui_store = ui_store();
-        assert_eq!(
-            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
-            Some(WorkspaceTab::Timeline)
-        );
-
-        let _ = handle_show_curves(&mut ui_store);
-        assert_eq!(
-            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
-            Some(WorkspaceTab::Curves)
-        );
-        assert!(crate::app::persistence::bottom_visible(&ui_store.view.tree));
-
-        // Pressing the active Curves tab again hides the region.
-        let _ = handle_show_curves(&mut ui_store);
-        assert!(!crate::app::persistence::bottom_visible(&ui_store.view.tree));
-
-        // The Timeline action always shows it again.
-        let _ = handle_show_timeline(&mut ui_store);
-        assert!(crate::app::persistence::bottom_visible(&ui_store.view.tree));
-        assert_eq!(
-            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
-            Some(WorkspaceTab::Timeline)
-        );
-    }
-
-    #[test]
-    fn show_curves_migrates_a_layout_missing_the_curves_pane() {
-        let mut ui_store = ui_store();
-        // Simulate a pre-Curves persisted tree: drop the Curves pane and make
-        // the Timeline a direct root child.
-        let curves = ui_store.view.tree.tiles.find_pane(&WorkspaceTab::Curves).unwrap();
-        let _ = ui_store.view.tree.tiles.remove(curves);
-
-        let _ = handle_show_curves(&mut ui_store);
-
+        assert!(ui_store.view.tree.tiles.find_pane(&WorkspaceTab::Curves).is_none());
+        handle_show_curves(&mut ui_store);
         assert!(ui_store.view.tree.tiles.find_pane(&WorkspaceTab::Curves).is_some());
-        assert_eq!(
-            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
-            Some(WorkspaceTab::Curves)
-        );
+        handle_show_curves(&mut ui_store);
+        assert!(ui_store.view.tree.tiles.find_pane(&WorkspaceTab::Curves).is_none());
+        assert!(pane_visible(&ui_store.view.tree, WorkspaceTab::Timeline));
     }
 
     #[test]
-    fn compact_inspector_toggle_opens_and_closes_the_drawer_without_docking() {
+    fn inspector_overlay_and_source_editor_are_independent() {
+        use crate::app::{panels::CompactDrawer, persistence};
         let mut ui_store = ui_store();
-        ui_store.set_compact(true);
-        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
-
-        // First toggle opens the drawer without showing the docked column.
-        let _ = handle_show_inspector(&mut ui_store);
-        assert_eq!(ui_store.view.compact_drawer, Some(crate::app::panels::CompactDrawer::Detail));
-        assert!(
-            !crate::app::persistence::detail_visible(&ui_store.view.tree),
-            "compact mode never docks the detail region"
-        );
-
-        // Switching the drawer tab keeps it open.
-        let _ = handle_show_code(&mut ui_store);
-        assert_eq!(ui_store.view.compact_drawer, Some(crate::app::panels::CompactDrawer::Detail));
-        assert_eq!(
-            crate::app::persistence::active_detail_tab(&ui_store.view.tree),
-            Some(WorkspaceTab::Code)
-        );
-
-        // Toggling the drawn tab again closes the drawer.
-        let _ = handle_show_code(&mut ui_store);
+        handle_show_inspector(&mut ui_store);
+        assert_eq!(ui_store.view.compact_drawer, Some(CompactDrawer::Detail));
+        assert!(!persistence::detail_visible(&ui_store.view.tree));
+        handle_show_code(&mut ui_store);
+        assert!(persistence::pane_visible(&ui_store.view.tree, WorkspaceTab::Code));
+        assert_eq!(ui_store.view.compact_drawer, Some(CompactDrawer::Detail));
+        handle_show_inspector(&mut ui_store);
         assert!(ui_store.view.compact_drawer.is_none());
-    }
-
-    #[test]
-    fn compact_layout_preset_does_not_unhide_the_detail_dock() {
-        let mut ui_store = ui_store();
-        ui_store.set_compact(true);
-        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
-
-        let _ = handle_apply_layout(&mut ui_store, crate::app::LayoutPreset::Code);
-
-        assert!(
-            !crate::app::persistence::detail_visible(&ui_store.view.tree),
-            "a preset must not re-dock the detail region while compact"
-        );
-        assert_eq!(
-            crate::app::persistence::active_detail_tab(&ui_store.view.tree),
-            Some(WorkspaceTab::Code),
-            "the preset still selects the detail tab for the drawer"
-        );
-
-        // Widening restores what this preset asked for (Code docks the detail).
-        let mut restore = ui_store.view.compact_restore.take();
-        crate::app::persistence::reconcile_compact(
-            &mut ui_store.view.tree,
-            true,
-            false,
-            &mut restore,
-        );
-        assert!(
-            crate::app::persistence::detail_visible(&ui_store.view.tree),
-            "widening after a preset restores that preset's docked layout"
-        );
     }
 }

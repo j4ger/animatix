@@ -2,8 +2,7 @@
 
 use super::*;
 
-pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
-    let t = eparts::theme(ui);
+pub(super) fn explorer_filter_ui(ui: &mut egui::Ui) -> String {
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     // ── Filter input ────────────────────────────────────────────────────────
     let filter_id = egui::Id::unique(EXPLORER_FILTER_ID);
@@ -13,7 +12,7 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
         ui.add_space(sp.base.space_2);
         let field_w = (ui.available_width() - sp.base.space_2).max(40.0);
         let response = TextField::new(&mut filter)
-            .placeholder("Filter files…")
+            .placeholder(&crate::app::i18n::text(ui, "gui-explorer-filter"))
             .cleanable(true)
             .desired_width(field_w)
             .show(ui);
@@ -28,6 +27,12 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
     });
     ui.add_space(sp.base.space_2);
 
+    filter
+}
+
+pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui, filter: &str) {
+    let t = eparts::theme(ui);
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let filter_lower = filter.to_lowercase();
     let has_filter = !filter_lower.is_empty();
 
@@ -81,7 +86,7 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
     };
 
     // ── Render visible tree entries ─────────────────────────────────────────
-    egui::ScrollArea::vertical().show(ui, |ui| {
+    ui.scope(|ui| {
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
         for (i, entry) in ctx.file_tree.iter().enumerate() {
             if !show[i] {

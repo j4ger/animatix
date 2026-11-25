@@ -24,11 +24,13 @@ pub fn handle_select_scene(
             preview_store.preview.playback.clamp_time();
             preview_store.preview.playback.is_playing = false;
             preview_store.preview_dirty = true;
-            return vec![Effect::Status(format!(
-                "Scene {} • t = {:.2}s / {:.2}s",
-                scene,
-                preview_store.preview.playback.current_time_s,
-                preview_store.preview.playback.duration_s
+            return vec![Effect::Status(crate::app::i18n::StatusText::message(
+                "gui-playback-selected-scene",
+                [
+                    ("scene", scene),
+                    ("time", format!("{:.2}", preview_store.preview.playback.current_time_s)),
+                    ("duration", format!("{:.2}", preview_store.preview.playback.duration_s)),
+                ],
             ))];
         }
     }

@@ -19,26 +19,11 @@ mod metrics {
     pub const LEFT_MIN: f32 = 200.0;
     pub const LEFT_MAX: f32 = 360.0;
 
-    pub const DETAIL_INSPECTOR_RATIO: f32 = 0.21;
-    pub const DETAIL_INSPECTOR_MIN: f32 = 260.0;
-    pub const DETAIL_INSPECTOR_MAX: f32 = 420.0;
-
-    pub const DETAIL_CODE_RATIO: f32 = 0.38;
-    pub const DETAIL_CODE_MIN: f32 = 420.0;
-    pub const DETAIL_CODE_MAX: f32 = 720.0;
-
     pub const PREVIEW_MIN: f32 = 360.0;
-
-    pub const BOTTOM_RATIO: f32 = 0.25;
-    pub const BOTTOM_MIN: f32 = 180.0;
-    pub const BOTTOM_MAX: f32 = 420.0;
 }
 
 /// Vertical chrome outside the dock area: toolbar + status bar.
 const VERTICAL_CHROME: f32 = crate::app::design_tokens::spatial::toolbar::HEIGHT + 30.0;
-
-/// Narrowest the sidebar may be squeezed before the preview starts giving ground.
-const RAIL_MIN: f32 = 48.0;
 
 /// Window width (logical px) below which the workspace downgrades to the compact
 /// layout: a sidebar icon rail instead of the tab bar + content, and the detail
@@ -47,8 +32,7 @@ pub(super) const COMPACT_BREAKPOINT: f32 = 1000.0;
 
 /// Docked pane visibility captured when compact mode engages, restored when the
 /// window widens again. Preserving it (rather than forcing panes visible) keeps
-/// explicit user choices — a closed detail column, a Focus layout — intact
-/// across a resize round-trip.
+/// the user's pinned Inspector across a resize round-trip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CompactRestore {
     pub sidebar_visible: bool,

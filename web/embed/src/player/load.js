@@ -8,12 +8,9 @@ const {
 } = core;
 import { AmxPlayerView } from "./view.js";
 import { loadRuntime, fetchSource } from "./runtime.js";
-import { dispatchPlayerError, playerError } from "./errors.js";
+import { dispatchPlayerError, isGraphicsBackendError, playerError } from "./errors.js";
 import { findTimelineSnap, renderTimelineMarks } from "./timeline.js";
-const CONTROL_LABELS = {
-  en: { playback: "Playback controls", play: "Play", pause: "Pause", replay: "Replay", timeline: "Timeline", speed: "Playback speed" },
-  zh: { playback: "播放控制", play: "播放", pause: "暂停", replay: "重播", timeline: "时间轴", speed: "播放速度" },
-};
+import { playerLabels } from "./labels.js";
 
 export class AmxPlayerLoad extends AmxPlayerView {
   _maybeStartLoading() {
@@ -178,7 +175,10 @@ export class AmxPlayerLoad extends AmxPlayerView {
       const normalized = playerError(err, "resource");
       this._settleVarsWaiters?.(normalized);
       console.error(`amx-player: failed to load scene "${src}":`, normalized);
-      const message = `Failed to load scene: ${normalized.message}`;
+      const labels = playerLabels(this.lang);
+      const message = normalized.kind === "capability" && isGraphicsBackendError(normalized.message)
+        ? labels.graphicsUnavailable
+        : labels.loadFailed + " " + normalized.message;
       this._showVeil(message, true);
       dispatchPlayerError(this, src, normalized);
     } finally {
@@ -189,7 +189,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
   }
 
   _buildControls() {
-    const labels = CONTROL_LABELS[/^zh(?:-|$)/i.test(this.lang) ? "zh" : "en"];
+    const labels = playerLabels(this.lang);
     const strip = document.createElement("div");
     strip.className = "strip amx-transport";
     strip.tabIndex = 0;

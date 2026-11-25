@@ -1,16 +1,15 @@
 import {bindRecording, closeRecording, loadPlayer, loadPlayerModule, resetPlayer, showPlaybackFailure} from './scene';
-import {readableError} from '../lib/errors';
+import {diagnosticsFrom, readableError} from '../lib/errors';
 import {sourceCues} from '../lib/insertion-steps';
 import {draftSelection, takeEditorTransfer, transferEditor, type EditorDraft} from '../lib/editor-transfer';
-import {currentUi} from '../lib/ui';
+import {clientUi} from '../lib/client-ui';
 import {bindTimeline} from '../lib/timeline';
 import {bindSourceEditor, type SourceKeyframe} from '../lib/source-highlight';
 import {numericDefault, withOverride} from '../lib/overrides';
 import {withSharedLayout} from '../lib/portable-source';
 import sharedLayout from '../../../content/templates/layout.amx?raw';
 
-const labels = currentUi();
-const {t} = labels;
+const t = clientUi();
 const scenes = new WeakMap<HTMLElement, ReturnType<typeof bindEditableScene>>();
 
 export function editableScene(sample: HTMLElement) {
@@ -138,7 +137,7 @@ function bindEditableScene(sample: HTMLElement) {
     timeline.paint(seconds);
     clock.value = seconds.toFixed(2) + 's';
     controls.toggleAttribute('data-playing', playing);
-    controlText.textContent = problem ? labels.retry : playing ? labels.pause : seconds >= duration ? labels.replay : labels.play;
+    controlText.textContent = problem ? t('web-client-retry') : playing ? t('web-client-pause') : seconds >= duration ? t('web-client-replay') : t('web-client-play');
     if (!panel.hidden) markCurrentCell();
   }
 
@@ -194,15 +193,15 @@ function bindEditableScene(sample: HTMLElement) {
   }
 
   function showDiagnostics(error: unknown) {
-    status.textContent = (workspace ? t('Not built:', '编译失败：') + ' ' : '') + readableError(error);
+    status.textContent = (workspace ? t('web-client-editor-build-failed') + ' ' : '') + readableError(error, t);
     if (!diagnostics) return;
-    for (const item of (error as {diagnostics?: {line?: number; message?: string; code?: string}[]}).diagnostics ?? []) {
+    for (const item of diagnosticsFrom(error)) {
       const line = item.line;
       if (!line) continue;
       const button = document.createElement('button');
       button.className = 'diagnostic';
       button.type = 'button';
-      button.textContent = `${labels.line(line)} · ${item.message ?? item.code ?? ''}`;
+      button.textContent = `${t('web-client-line', {line: String(line)})} · ${item.message ?? item.code ?? ''}`;
       button.addEventListener('click', () => selectLine(line));
       diagnostics.append(button);
     }
@@ -230,7 +229,7 @@ function bindEditableScene(sample: HTMLElement) {
     highlight.setVisible(open);
     sample.toggleAttribute('data-source-open', open);
     inspect.setAttribute('aria-expanded', String(open));
-    inspect.querySelector('span')!.textContent = open ? labels.hideSource : labels.viewSource;
+    inspect.querySelector('span')!.textContent = open ? t('web-client-hide-source') : t('web-client-view-source');
     if (!interactive) return;
     if (open) {
       highlight.sync();
@@ -366,7 +365,7 @@ function bindEditableScene(sample: HTMLElement) {
   }
 
   function sourceError(error: unknown) {
-    const message = t('Could not load source.', '无法加载源码。') + ' ' + readableError(error);
+    const message = t('web-client-editor-source-failed') + ' ' + readableError(error, t);
     shell.querySelector('.scene-status')!.textContent = message;
     if (!id) problem = true;
     paint();
@@ -381,7 +380,7 @@ function bindEditableScene(sample: HTMLElement) {
     id = scene.id;
     shell.dataset.source = scene.path;
     shell.dataset.title = scene.title;
-    mount.setAttribute('aria-label', labels.playback(scene.title));
+    mount.setAttribute('aria-label', t('web-client-playback', {title: scene.title}));
     filename.textContent = `${id}.amx`;
     original = scene.source;
     compiled = canonical = scene.canonical;
@@ -427,7 +426,7 @@ function bindEditableScene(sample: HTMLElement) {
   });
   slider.addEventListener('change', revealCurrentCell);
   reset.addEventListener('click', () => {
-    if (workspace && hasUnsaved() && !confirm(t('Restore the original source?', '要恢复原始源码吗？'))) return;
+    if (workspace && hasUnsaved() && !confirm(t('web-client-editor-confirm-reset'))) return;
     cancelQueuedBuild();
     editor.value = original;
     editor.scrollTop = 0;
@@ -457,7 +456,7 @@ function bindEditableScene(sample: HTMLElement) {
         }
       });
     } catch (error) {
-      presetStatus.textContent = readableError(error);
+      presetStatus.textContent = readableError(error, t);
       updateControls();
     }
   });

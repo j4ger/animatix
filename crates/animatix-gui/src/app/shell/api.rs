@@ -11,6 +11,15 @@ impl GuiShell {
 
     fn handle_view_action(&mut self, view: ViewAction) -> Vec<Effect> {
         match view {
+            ViewAction::TogglePreviewFullscreen => {
+                self.ui_store.view.preview_fullscreen = !self.ui_store.view.preview_fullscreen;
+                vec![]
+            },
+            ViewAction::UnpinInspector => {
+                crate::app::persistence::set_detail_visible(&mut self.ui_store.view.tree, false);
+                self.ui_store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
+                vec![]
+            },
             ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
             ViewAction::ShowCode => ui::handle_show_code(&mut self.ui_store),
             ViewAction::ShowCurves => ui::handle_show_curves(&mut self.ui_store),
@@ -27,30 +36,44 @@ impl GuiShell {
                 let path = crate::app::document::default_file_path();
                 match std::fs::write(&path, "#0s\n") {
                     Ok(()) => self.handle_command(Command::OpenFile(path)),
-                    Err(err) => vec![Effect::Toast(crate::app::components::toast::Toast::error(
-                        format!("Failed to create scene: {err}"),
-                    ))],
+                    Err(err) => vec![Effect::Notice(
+                        crate::app::components::toast::ToastLevel::Error,
+                        crate::app::i18n::StatusText::message(
+                            "gui-file-new-scene-failed",
+                            [("detail", err.to_string())],
+                        ),
+                    )],
                 }
             },
             ViewAction::NewProject(template) => {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
-                        "Save changes before creating a project?",
+                        crate::app::i18n::StatusText::message("gui-unsaved-project", []),
                         ShellAction::View(ViewAction::NewProject(template)),
                     );
                     return vec![];
                 }
                 let Some(directory) = rfd::FileDialog::new()
-                    .set_title("Choose a new or empty project folder")
+                    .set_title(crate::app::i18n::text_for(
+                        self.ui_store.view.language,
+                        "gui-project-choose-folder",
+                    ))
                     .pick_folder()
                 else {
                     return vec![];
                 };
                 match template.create(&directory) {
                     Ok(scene) => self.handle_command(Command::OpenFile(scene)),
-                    Err(err) => vec![Effect::Toast(crate::app::components::toast::Toast::error(
-                        format!("Could not create a project in {}: {err}", directory.display()),
-                    ))],
+                    Err(err) => vec![Effect::Notice(
+                        crate::app::components::toast::ToastLevel::Error,
+                        crate::app::i18n::StatusText::message(
+                            "gui-file-new-project-failed",
+                            [
+                                ("path", directory.display().to_string()),
+                                ("detail", err.to_string()),
+                            ],
+                        ),
+                    )],
                 }
             },
             ViewAction::SaveAsDialog => {
@@ -105,10 +128,10 @@ impl GuiShell {
                     || self.document_store.snapshot_is_stale()
                     || self.preview_store.has_pending_rebuild()
                 {
-                    vec![Effect::Status(
-                        "Export unavailable: wait for a successful build of the current source"
-                            .into(),
-                    )]
+                    vec![Effect::Status(crate::app::i18n::StatusText::message(
+                        "gui-export-unavailable",
+                        [],
+                    ))]
                 } else {
                     ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
                 }

@@ -19,7 +19,10 @@ export function contracts(suite, depth = 'critical') {
     { path: '/showcase/move-the-basis/', action: 'load', players: 1, editSource: {duration: 24, stamp: 3}, recording: true },
     { path: '/showcase/ripple-and-cascade/', action: 'load', players: 1, preset: true, recording: true },
     { path: '/showcase/ripple-and-cascade/?check=webgl2', action: 'load', players: 1, backend: 'webgl2', recording: true },
-    { path: '/showcase/ripple-and-cascade/?check=recording', action: 'recording', players: 0, recording: true },
+    { path: '/showcase/ripple-and-cascade/?check=recording', action: 'recording', players: 0, recording: true, locale: 'en' },
+    { path: '/zh/showcase/ripple-and-cascade/?check=recording', action: 'recording', players: 0, recording: true, locale: 'zh-Hans' },
+    { path: '/zh/docs/?check=direct-player', action: 'direct-embed', players: 1 },
+    { path: '/zh/docs/?check=direct-player-failure', action: 'direct-embed', players: 1, forceGraphicsFailure: true },
     { path: '/playground/?scene=first-move', action: 'edit', players: 1, motion: true },
   ];
   if (depth === 'deep') {
@@ -44,5 +47,5 @@ export function siteBase(value = '/') {
   return value.replace(/\/$/, '');
 }
 export function withBase(contract, prefix) {
-  return {...contract,path:prefix+contract.path,links:contract.links?.map(path=>prefix+path)};
+  return {...contract,base:prefix,path:prefix+contract.path,links:contract.links?.map(path=>prefix+path)};
 }

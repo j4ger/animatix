@@ -1,5 +1,5 @@
 import {editableScene} from './editable-scene';
-import {currentUi} from '../lib/ui';
+import {clientUi} from '../lib/client-ui';
 
 const story = document.querySelector<HTMLElement>('.journey')!;
 const film = story.querySelector<HTMLElement>('.film')!;
@@ -8,7 +8,7 @@ const scene = editableScene(sample);
 const sections = [...story.querySelectorAll<HTMLElement>('[data-amx-cue]')];
 const names = sections.map(section => section.dataset.amxCue!);
 const cueStatus = sample.querySelector<HTMLElement>('[data-cue-status]')!;
-const {t} = currentUi();
+const t = clientUi();
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const narrow = matchMedia('(max-width: 740px)');
 let scrollStops: number[] = [];
@@ -29,10 +29,7 @@ function updateCues() {
   }
   const missing = names.filter(name => !times.has(name));
   cues = missing.length ? [] : names.map(name => times.get(name)!);
-  cueStatus.textContent = missing.length ? t(
-    `Scroll sync paused. Missing time anchors are ${missing.join(', ')}.`,
-    `滚动同步已暂停。缺少锚点 ${missing.join('、')}。`,
-  ) : '';
+  cueStatus.textContent = missing.length ? t('web-client-missing-cues', {cues: missing.join(document.documentElement.lang === 'zh-Hans' ? '、' : ', ')}) : '';
   scheduleScroll();
 }
 

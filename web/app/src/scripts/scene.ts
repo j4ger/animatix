@@ -1,10 +1,10 @@
-import {readableError} from '../lib/errors';
+import {playbackError, readableError} from '../lib/errors';
 import {withTimeout} from '../lib/requests';
-import {currentUi} from '../lib/ui';
+import {clientUi} from '../lib/client-ui';
 import type {SourceHighlighter} from '../lib/source-highlight';
 import type {TimelineMarker} from '../../../embed/src/player/timeline.js';
 
-const {t} = currentUi();
+const t = clientUi();
 
 type Player = HTMLElement & {
   readonly time: number;
@@ -23,7 +23,7 @@ const imports = new Map<string, Promise<{highlightSource?: SourceHighlighter}>>(
 export function loadPlayerModule(module: string) {
   let pending = imports.get(module);
   if (!pending) {
-    const imported = withTimeout(import(/* @vite-ignore */ module), 15000, t('Player loading timed out.', '播放器加载超时。'));
+    const imported = withTimeout(import(/* @vite-ignore */ module), 15000, t('web-client-player-import-timeout'));
     pending = imported.catch(error => { imports.delete(module); throw error; });
     imports.set(module, pending);
   }
@@ -58,11 +58,7 @@ export function closeRecording(shell: HTMLElement) {
 export function showPlaybackFailure(shell: HTMLElement, error: unknown) {
   const fallback = shell.querySelector<HTMLElement>('.scene-fallback');
   if (fallback) fallback.hidden = false;
-  shell.querySelector('.scene-status')!.textContent = t('Live playback unavailable.', '实时播放暂不可用。') + ' ' + readableError(error);
-}
-
-function playbackError(event: Event): Error {
-  return new Error((event as CustomEvent).detail?.message || t('The runtime could not open this scene.', '运行时无法打开这个场景。'));
+  shell.querySelector('.scene-status')!.textContent = t('web-client-player-unavailable') + ' ' + readableError(error, t);
 }
 
 async function createPlayer(shell: HTMLElement): Promise<Player> {
@@ -75,24 +71,26 @@ async function createPlayer(shell: HTMLElement): Promise<Player> {
   const listeners = new AbortController();
   let player: Player | undefined;
   surface.setAttribute('aria-busy', 'true');
-  status.textContent = t('Loading live playback…', '正在加载实时预览…');
+  status.textContent = t('web-client-player-loading');
   try {
     await loadPlayerModule(shell.dataset.module!);
-    await withTimeout(customElements.whenDefined('amx-player'), 15000, t('Player registration timed out.', '播放器注册超时。'));
+    await withTimeout(customElements.whenDefined('amx-player'), 15000, t('web-client-player-registration-timeout'));
 
     player = document.createElement('amx-player') as Player;
     player.setAttribute('src', shell.dataset.source!);
-    player.setAttribute('title', shell.dataset.title || t('Animation preview', '动画预览'));
+    player.setAttribute('title', shell.dataset.title || t('web-client-player-preview'));
     player.lang = document.documentElement.lang;
     player.setAttribute('aspect', shell.dataset.aspect!);
     for (const flag of ['sealed', 'no-veil', 'eager']) player.setAttribute(flag, '');
     const ready = new Promise<void>((resolve, reject) => {
       const options = {once: true, signal: listeners.signal};
       player!.addEventListener('amxready', () => resolve(), options);
-      player!.addEventListener('amxerror', event => reject(playbackError(event)), options);
+      player!.addEventListener('amxerror', event => {
+        reject(playbackError((event as CustomEvent<unknown>).detail, t('web-client-player-scene-error')));
+      }, options);
     });
     mount.append(player);
-    await withTimeout(ready, 60000, t('Live playback took too long to start.', '实时播放启动超时。'));
+    await withTimeout(ready, 60000, t('web-client-player-ready-timeout'));
 
     shell.querySelector<HTMLElement>('.scene-placeholder')!.hidden = true;
     status.textContent = '';
@@ -124,13 +122,13 @@ export function bindRecording(shell: HTMLElement) {
       recording.hidden = false;
       video.focus({preventScroll: true});
       video.play().catch(() => {
-        if (!recording.hidden && !video.error) status.textContent = t('Press play in the video controls to start the recording.', '点击视频控件上的播放按钮即可观看。');
+        if (!recording.hidden && !video.error) status.textContent = t('web-client-player-recording-play-help');
       });
   });
   video.addEventListener('error', () => {
       if (recording.hidden) return;
       video.removeAttribute('src');
-      status.textContent = t('The recording could not load. Try live playback again or download the scene source.', '无法加载录制视频。可以重试实时播放，或下载场景源码。');
+      status.textContent = t('web-client-player-recording-failed');
   });
   new IntersectionObserver(([entry]) => {
     if (!entry.isIntersecting) video.pause();

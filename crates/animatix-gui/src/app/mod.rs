@@ -7,7 +7,7 @@ pub(crate) mod document;
 mod drawers;
 mod file_tree;
 pub(crate) mod handlers;
-mod i18n;
+pub(crate) mod i18n;
 pub(crate) mod icons;
 pub(crate) mod interaction;
 mod layout_preset;
@@ -31,9 +31,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use animatix::timeline::SceneDimensions;
-use animatix_syntax::diagnostics::{
-    Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
-};
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use directories::ProjectDirs;
 use egui::{Color32, Vec2};
 use file_tree::{build_file_tree, workspace_root_for};
@@ -75,8 +73,7 @@ pub use runtime::run_gui;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkspaceTab {
     Sidebar,
-    /// Source code editor. Shares the right "detail" tab group with the
-    /// Inspector; named `Editor` in layouts persisted before the rename.
+    /// The shared source editor, historically saved as `Editor`.
     #[serde(alias = "Editor")]
     Code,
     Preview,
@@ -89,16 +86,12 @@ pub enum WorkspaceTab {
 
 /// Named workspace layouts (design doc §9.2).
 ///
-/// A preset adjusts region proportions and which detail tab is active on the
-/// existing tree, so it never discards a user's custom arrangement; only
-/// "Reset layout" rebuilds from scratch. `Focus` additionally hides the
-/// surrounding regions.
+/// A preset adjusts visibility and proportions without restoring old dock tabs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LayoutPreset {
+    #[serde(alias = "Inspect", alias = "Focus")]
     Animate,
     Code,
-    Inspect,
-    Focus,
 }
 
 #[derive(Debug, Clone)]
@@ -162,7 +155,7 @@ pub(crate) struct PreviewPaneState {
     pub viewport: ViewportState,
     pub guides: GuideState,
     pub snap: SnapState,
-    pub status: String,
+    pub status: i18n::StatusText,
     pub status_severity: StatusSeverity,
     pub error: Option<String>,
     pub dimensions: SceneDimensions,

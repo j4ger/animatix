@@ -200,8 +200,10 @@ mod code;
 mod display;
 mod format;
 mod model;
+mod presentation;
 #[cfg(test)]
 mod tests;
 
 pub use format::*;
 pub use model::*;
+pub use presentation::{DiagnosticPresentation, ParseExpectation, ParsePresentation};

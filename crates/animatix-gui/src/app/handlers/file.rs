@@ -1,10 +1,8 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use animatix_syntax::diagnostics::diagnostics_phase_summary;
-
 use crate::app::commands::Effect;
-use crate::app::components::toast::Toast;
+use crate::app::components::toast::{Toast, ToastLevel};
 use crate::app::document::DocumentSession;
 use crate::app::document::load_worker::{LoadResponse, LoadToken, LoadWorker};
 use crate::app::document::plugins::DocumentPluginManager;
@@ -14,15 +12,21 @@ use crate::app::document::timeline_diff::{
 };
 use crate::app::document::version::SourceEpoch;
 use crate::app::file_tree::build_file_tree;
+use crate::app::i18n::StatusText;
 use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
 use crate::app::utils::has_source_load_failure;
+
+mod status;
+
+use status::append_diagnostics;
+pub(crate) use status::opened_status;
 
 /// Sync preview playback state from document metadata.
 pub(crate) fn sync_preview_from_document(
     document_store: &DocumentStore,
     preview_store: &mut PreviewStore,
-    mut status: String,
+    mut status: StatusText,
     reset_time: bool,
     stop_playback: bool,
 ) {
@@ -52,7 +56,7 @@ pub(crate) fn sync_preview_from_document(
         preview_store.preview.playback.clamp_time();
     }
     if preview_store.preview.playback.validate_review_loop() {
-        status.push_str(" • review loop cleared: interval no longer fits");
+        status.append(" • ", StatusText::message("gui-file-loop-cleared", []));
     }
     if stop_playback {
         preview_store.preview.playback.is_playing = false;
@@ -95,9 +99,9 @@ pub fn handle_open_file_response(
     // A load started on a clean document must not overwrite edits made while
     // the worker was running.
     if document_store.source.is_dirty() {
-        preview_store.preview.set_status_error(format!(
-            "Open canceled • document changed while loading {}",
-            response.path.display()
+        preview_store.preview.set_status_error(StatusText::message(
+            "gui-file-open-canceled",
+            [("path", response.path.display().to_string())],
         ));
         preview_store.preview_dirty = true;
         return vec![];
@@ -130,10 +134,12 @@ pub fn handle_open_file(
 ) -> Vec<Effect> {
     // Refuse to open if there are unsaved changes.
     if document_store.source.is_dirty() {
-        preview_store.preview.status = "Save changes before opening another file".to_string();
-        return vec![Effect::Toast(Toast::warning(
-            "Save changes before opening another file",
-        ))];
+        preview_store.preview.status =
+            crate::app::i18n::StatusText::message("gui-status-save-before-opening", []);
+        return vec![Effect::Notice(
+            ToastLevel::Warning,
+            StatusText::message("gui-status-save-before-opening", []),
+        )];
     }
     let plugin_workspace_root = crate::app::file_tree::workspace_root_for(&path);
     plugin_manager.set_document(path.clone(), plugin_workspace_root.clone());
@@ -165,9 +171,10 @@ fn report_open_error(
     error: &crate::error::GuiError,
 ) -> Vec<Effect> {
     preview_store.preview.error = Some(error.to_string());
-    preview_store
-        .preview
-        .set_status_error(format!("Open failed • {}", path.display()));
+    preview_store.preview.set_status_error(StatusText::message(
+        "gui-file-open-failed",
+        [("path", path.display().to_string())],
+    ));
     preview_store.preview_dirty = true;
     vec![]
 }
@@ -212,22 +219,15 @@ fn apply_loaded_document(
     document_store.clear_snapshots();
     document_store
         .publish_rebuild_result(document_store.source.document.last_rebuild_error.is_none());
-    let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
-        format!(
-            "Opened {} • parse/load error • {}",
-            document_store.source.document.file_path.display(),
-            diagnostics_phase_summary(&document_store.source.document.diagnostics)
-        )
-    } else {
-        document_store.document_status(format!(
-            "Opened {}",
-            document_store.source.document.file_path.display()
-        ))
-    };
+    let status = opened_status(&document_store.source.document);
     let error = document_store.source.document.last_rebuild_error.clone();
     sync_preview_from_document(document_store, preview_store, status, true, true);
     preview_store.preview.error = error;
-    ui_store.toasts.push(Toast::info(format!("Opened {}", path.display())));
+    ui_store.toasts.push(Toast::info(
+        StatusText::message("gui-file-opened", [("path", path.display().to_string())])
+            .display(ui_store.view.language)
+            .into_owned(),
+    ));
     let plugin_issues = plugin_manager.snapshot().issues;
     if !plugin_issues.is_empty() {
         let message = plugin_issues
@@ -241,7 +241,11 @@ fn apply_loaded_document(
             })
             .collect::<Vec<_>>()
             .join("; ");
-        ui_store.toasts.push(Toast::warning(format!("Plugin load issue: {message}")));
+        ui_store.toasts.push(Toast::warning(
+            StatusText::message("gui-file-plugin-load", [("detail", message)])
+                .display(ui_store.view.language)
+                .into_owned(),
+        ));
     }
     ui_store.view.welcome_open = false;
     save_app_state(&path);
@@ -262,15 +266,15 @@ pub fn handle_switch_workspace(
             &document_store.source.document.file_path,
             &workspace_store.expanded_dirs,
         );
-        vec![Effect::Status(format!(
-            "Switched workspace to {}",
-            path.display()
+        vec![Effect::Status(StatusText::message(
+            "gui-file-workspace",
+            [("path", path.display().to_string())],
         ))]
     } else {
-        vec![Effect::Toast(Toast::error(format!(
-            "Not a valid directory: {}",
-            path.display()
-        )))]
+        vec![Effect::Notice(
+            ToastLevel::Error,
+            StatusText::message("gui-file-invalid-folder", [("path", path.display().to_string())]),
+        )]
     }
 }
 
@@ -311,12 +315,21 @@ pub fn handle_save(
     let path = document_store.source.file_path().to_path_buf();
     match save_document(document_store) {
         Ok(()) => vec![
-            Effect::Status(format!("Saved {}", path.display())),
-            Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
+            Effect::Status(StatusText::message(
+                "gui-file-saved",
+                [("path", path.display().to_string())],
+            )),
+            Effect::Notice(
+                ToastLevel::Success,
+                StatusText::message("gui-file-saved", [("path", path.display().to_string())]),
+            ),
         ],
         Err(err) => {
             tracing::warn!("Save failed: {}", err);
-            vec![Effect::Toast(Toast::error(format!("Save failed: {}", err)))]
+            vec![Effect::Notice(
+                ToastLevel::Error,
+                StatusText::message("gui-status-save-failed", [("detail", err)]),
+            )]
         },
     }
 }
@@ -339,9 +352,10 @@ pub fn handle_save_as(
         match crate::app::narration_takes::SaveAsNarration::prepare(&previous_path, &path, &text) {
             Ok(narration) => narration,
             Err(error) => {
-                return vec![Effect::Toast(Toast::error(format!(
-                    "Save As failed: {error}"
-                )))];
+                return vec![Effect::Notice(
+                    ToastLevel::Error,
+                    StatusText::message("gui-file-save-as-failed", [("detail", error.to_string())]),
+                )];
             },
         };
     document_store.source.document.file_path = path.clone();
@@ -362,8 +376,14 @@ pub fn handle_save_as(
                 &path,
             );
             vec![
-                Effect::Status(format!("Saved {}", path.display())),
-                Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
+                Effect::Status(StatusText::message(
+                    "gui-file-saved",
+                    [("path", path.display().to_string())],
+                )),
+                Effect::Notice(
+                    ToastLevel::Success,
+                    StatusText::message("gui-file-saved", [("path", path.display().to_string())]),
+                ),
             ]
         },
         Err(err) => {
@@ -371,10 +391,10 @@ pub fn handle_save_as(
             // to the previous path; only the failure toast should escape.
             document_store.source.document.file_path = previous_path;
             tracing::warn!("Save As failed: {}", err);
-            vec![Effect::Toast(Toast::error(format!(
-                "Save As failed: {}",
-                err
-            )))]
+            vec![Effect::Notice(
+                ToastLevel::Error,
+                StatusText::message("gui-file-save-as-failed", [("detail", err.to_string())]),
+            )]
         },
     }
 }
@@ -449,11 +469,17 @@ pub fn handle_reload(
                 &document_store.source.document.file_path,
                 &workspace_store.expanded_dirs,
             );
-            vec![Effect::Status(format!("Reloaded {}", path.display()))]
+            vec![Effect::Status(StatusText::message(
+                "gui-file-reloaded",
+                [("path", path.display().to_string())],
+            ))]
         },
         Err(e) => {
             tracing::warn!("Reload failed: {}", e);
-            vec![Effect::Toast(Toast::error(format!("Reload failed: {}", e)))]
+            vec![Effect::Notice(
+                ToastLevel::Error,
+                StatusText::message("gui-file-reload-failed", [("detail", e.to_string())]),
+            )]
         },
     }
 }
@@ -468,30 +494,29 @@ fn rebuild_succeeded_with_diff(
 ) -> Vec<Effect> {
     document_store.publish_rebuild_result(true);
     document_store.source.media_changed = false;
-    let mut status = if document_store.source.document.diagnostics.is_empty() {
-        format!(
-            "Built timeline • {:.2}s total duration",
-            document_store.source.document.duration_s.max(0.1)
-        )
-    } else {
-        format!(
-            "Built timeline • {:.2}s total duration • {}",
-            document_store.source.document.duration_s.max(0.1),
-            diagnostics_phase_summary(&document_store.source.document.diagnostics)
-        )
-    };
+    let duration = format!("{:.2}", document_store.source.document.duration_s.max(0.1));
+    let mut status =
+        StatusText::message("gui-file-built-duration", [("duration", duration.clone())]);
+    append_diagnostics(&mut status, &document_store.source.document.diagnostics);
     if let Some(scene) = removed_active_scene {
-        status.push_str(&format!(" • scene '{scene}' removed"));
+        status.append(" • ", StatusText::message("gui-file-scene-removed", [("scene", scene)]));
     }
     if !removed_selected_actors.is_empty() {
-        status.push_str(&format!(" • removed {}", removed_selected_actors.join(", ")));
+        status.append(
+            " • ",
+            StatusText::message(
+                "gui-file-actors-removed",
+                [("actors", removed_selected_actors.join(", "))],
+            ),
+        );
     }
     sync_preview_from_document(document_store, preview_store, status, false, false);
     if preview_store.quiet_rebuild.take() != Some(document_store.source.epoch()) {
-        ui_store.toasts.push(Toast::success(format!(
-            "Built timeline • {:.2}s",
-            document_store.source.document.duration_s.max(0.1)
-        )));
+        ui_store.toasts.push(Toast::success(
+            StatusText::message("gui-file-built", [("duration", duration)])
+                .display(ui_store.view.language)
+                .into_owned(),
+        ));
     }
     vec![]
 }
@@ -568,24 +593,23 @@ pub(crate) fn rebuild_failed(
         preview_store.preview.playback.pause_points_s = last_good.pause_points_s();
     }
 
-    let mut status = if has_source_load_failure(&document_store.source.document.diagnostics) {
-        format!(
-            "Rebuild blocked • parse/load error • {}",
-            diagnostics_phase_summary(&document_store.source.document.diagnostics)
-        )
-    } else {
-        "Rebuild blocked".to_string()
-    };
-
+    let mut status = StatusText::message("gui-file-rebuild-blocked", []);
+    if has_source_load_failure(&document_store.source.document.diagnostics) {
+        status.append(" • ", StatusText::message("gui-file-parse-load", []));
+        append_diagnostics(&mut status, &document_store.source.document.diagnostics);
+    }
     if document_store.showing_last_good() {
-        status.push_str(" \u{2022} showing last good build");
+        status.append(" • ", StatusText::message("gui-file-last-good", []));
     }
 
     preview_store.preview.playback.clamp_time();
     preview_store.preview.set_status_error(status);
     preview_store.preview.error = Some(error.to_string());
     preview_store.preview_dirty = true;
-    ui_store.toasts.push(Toast::error("Rebuild failed"));
+    ui_store.toasts.push(Toast::error(crate::app::i18n::text_for(
+        ui_store.view.language,
+        "gui-status-rebuild-failed",
+    )));
     vec![]
 }
 
@@ -599,7 +623,8 @@ pub fn handle_rebuild(
 ) -> Vec<Effect> {
     document_store.source.invalidate_cache();
     preview_store.rebuild_in_progress = true;
-    preview_store.preview.status = "Building timeline…".to_string();
+    preview_store.preview.status =
+        crate::app::i18n::StatusText::message("gui-status-building-timeline", []);
     preview_store.preview_dirty = true;
 
     let (previous, previous_time, selected_actors, selected_keyframes, active_scene) =
@@ -644,15 +669,17 @@ pub fn handle_rebuild_submit(
 ) -> Option<RebuildToken> {
     document_store.source.invalidate_cache();
     preview_store.rebuild_in_progress = true;
-    preview_store.preview.status = "Building timeline…".to_string();
+    preview_store.preview.status =
+        crate::app::i18n::StatusText::message("gui-status-building-timeline", []);
     preview_store.preview_dirty = true;
     match worker.submit(&document_store.source) {
         Ok(token) => Some(token),
         Err(err) => {
             preview_store.rebuild_in_progress = false;
-            preview_store
-                .preview
-                .set_status_error(format!("Rebuild failed to start: {err}"));
+            preview_store.preview.set_status_error(StatusText::message(
+                "gui-file-rebuild-start",
+                [("detail", err.to_string())],
+            ));
             None
         },
     }
@@ -912,7 +939,7 @@ mod tests {
         assert!(!ui_store.selection.selected_actors.contains("graph"));
         assert!(ui_store.selection.selected_keyframes.is_empty());
         assert_eq!(
-            preview_store.preview.status,
+            preview_store.preview.status.canonical(),
             "Built timeline • 0.10s total duration • scene 'Diagram' removed • removed graph"
         );
         assert!(effects.is_empty());

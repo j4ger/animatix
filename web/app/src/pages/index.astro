@@ -20,12 +20,12 @@ const {t, examples} = ui(language);
           : <><span>用代码写</span><em>讲解动画</em></>}
       </h1>
       <p>
-        <span>{t('Script what happens at each key moment.', '像写剧本一样，写下每个关键时刻的画面。')}</span>
-        <span>{t('Set the duration and easing. Animatix fills in the frames.', '你定时长和缓动，Animatix 补齐中间的动作。')}</span>
+        <span>{t('web-script-what-happens-at-each-key-moment')}</span>
+        <span>{t('web-set-the-duration-and-easing-animatix-fills-in-the-frames')}</span>
       </p>
     </div>
-    <EditableScene id={insertionId} source={sceneSource(insertionId)} title={t('Insertion sort', '插入排序')} autoplay
-      posterAlt={t('Where does 3 fit? The 3 hovers beside the sorted row of 2, 4 and 5.', '数字 3 悬在已经排好序的 2、4、5 旁边。')}/>
+    <EditableScene id={insertionId} source={sceneSource(insertionId)} title={t('web-insertion-sort')} autoplay
+      posterAlt={t('web-home-insertion-poster')}/>
   </section>
   <section id="examples" class="project-section" aria-labelledby="examples-title">
     <h2 id="examples-title">{examples}</h2>

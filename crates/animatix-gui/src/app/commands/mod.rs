@@ -13,7 +13,9 @@ pub enum Effect {
     /// Push a toast notification to the UI overlay.
     Toast(crate::app::components::toast::Toast),
     /// Update the status bar text.
-    Status(String),
+    Status(crate::app::i18n::StatusText),
+    /// Push a transient, localized notice.
+    Notice(crate::app::components::toast::ToastLevel, crate::app::i18n::StatusText),
     /// Request a preview repaint on the next frame.
     Repaint,
     /// Scroll the source editor to a specific line.
@@ -97,6 +99,8 @@ pub enum Command {
 #[derive(Debug, Clone)]
 pub enum ViewAction {
     ShowInspector,
+    UnpinInspector,
+    TogglePreviewFullscreen,
     ShowCode,
     /// Show the bottom Curves tab (or hide the bottom region when it is
     /// already the active tab).

@@ -1,5 +1,6 @@
 //! Timeline tree hierarchy rendering: actor selection and row expansion.
 
+use crate::app::i18n::{render, text};
 use std::collections::HashSet;
 
 use animatix::timeline::Timeline;
@@ -166,11 +167,14 @@ fn render_property_expand_toggle(
             theme.palette.text.muted
         },
     );
-    let prop_toggle_resp = prop_toggle_resp.on_hover_text(if layout.prop_expanded {
-        "Hide properties"
-    } else {
-        "Show properties"
-    });
+    let prop_toggle_resp = prop_toggle_resp.on_hover_text(text(
+        ui,
+        if layout.prop_expanded {
+            "gui-timeline-hide-properties"
+        } else {
+            "gui-timeline-show-properties"
+        },
+    ));
     if prop_toggle_resp.clicked() {
         if layout.prop_expanded {
             expanded_properties.remove(actor_label);
@@ -338,9 +342,9 @@ pub(crate) fn render_property_row_header(
             return false;
         }
         let tooltip = if open {
-            format!("Hide {prop_name} curve")
+            render(ui, "gui-timeline-hide-curve", &[("property", prop_name.to_string())])
         } else {
-            format!("Show {prop_name} curve")
+            render(ui, "gui-timeline-show-curve", &[("property", prop_name.to_string())])
         };
         let response = ui.interact(
             button_rect,

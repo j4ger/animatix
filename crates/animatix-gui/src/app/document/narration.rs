@@ -113,12 +113,12 @@ pub(crate) enum VoiceoverStatus {
 }
 
 impl VoiceoverStatus {
-    pub fn label(self) -> &'static str {
+    pub(crate) fn message_id(self) -> &'static str {
         match self {
-            Self::Missing => "Needs voiceover",
-            Self::Pending => "Recording saved · awaiting alignment",
-            Self::Previous => "Script changed · using previous voiceover",
-            Self::Current => "Voiceover up to date",
+            Self::Missing => "gui-narration-voiceover-missing",
+            Self::Pending => "gui-narration-awaiting-alignment",
+            Self::Previous => "gui-narration-voiceover-previous",
+            Self::Current => "gui-narration-voiceover-current",
         }
     }
 }

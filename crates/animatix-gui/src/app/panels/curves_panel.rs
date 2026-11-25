@@ -1,10 +1,10 @@
 //! Read-only compiled animation curves. All authored changes belong in code.
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command};
-use crate::app::components::layout;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::i18n::{render, text};
 use crate::app::panels::curve_plot::{self, Axis, CurveChannel};
 use animatix::timeline::{EntityId, Timeline};
 use egui::{Pos2, Sense, Stroke, Vec2};
@@ -26,11 +26,11 @@ pub(crate) struct CurvesContext<'a> {
 pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let Some(timeline) = ctx.timeline else {
-        layout::empty_state(
+        crate::app::i18n::empty_state(
             ui,
             egui_phosphor::regular::CHART_LINE,
-            "Read-only curve review",
-            "Open a scene to inspect compiled animation curves",
+            "gui-curves-empty",
+            "gui-curves-empty-help",
         );
         return;
     };
@@ -41,11 +41,11 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         .filter_map(|name| timeline.get_entity_id(name).map(|id| (name.as_str(), id)))
         .collect();
     let Some((actor, _)) = tracks.first() else {
-        layout::empty_state(
+        crate::app::i18n::empty_state(
             ui,
             egui_phosphor::regular::CURSOR_CLICK,
-            "Select an actor to review curves",
-            "Use the preview or scene browser. Edit animation in code.",
+            "gui-curves-select-object",
+            "gui-curves-select-help",
         );
         return;
     };
@@ -73,7 +73,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         painter.text(
             plot.center(),
             egui::Align2::CENTER_CENTER,
-            "No visible keyframed curves · changes are made in code",
+            text(ui, "gui-curves-none"),
             TextRole::BodyS.font_id(),
             theme.palette.text.muted,
         );
@@ -93,8 +93,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                 .into(),
         );
     }
-    ruler_response
-        .on_hover_text("Scene-local seconds · drag to seek preview. Curves are read-only.");
+    ruler_response.on_hover_text(crate::app::i18n::text(ui, "gui-curves-seek-help"));
     let painter = painter.with_clip_rect(plot.intersect(ui.clip_rect()));
     curve_plot::draw_value_grid(&painter, &axis, theme);
     let current = ctx.preview.playback.current_time_s() - ctx.scene_offset_s;
@@ -103,9 +102,22 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         for (index, (time, value)) in curve.points.iter().enumerate() {
             let position = axis.point(*time, *value);
             painter.circle_filled(position, 3.0, curve.color);
-            ui.interact(egui::Rect::from_center_size(position, Vec2::splat(10.0)).intersect(plot),
-                ui.scope_id().with(("review_point", &curve.label, index)), Sense::hover())
-                .on_hover_text(format!("{} · {}\n{time:.3}s scene / {:.3}s global · {value:.3}\nRead-only · edit the DSL to change this curve", curve.actor, curve.base_label, time + ctx.scene_offset_s));
+            ui.interact(
+                egui::Rect::from_center_size(position, Vec2::splat(10.0)).intersect(plot),
+                ui.scope_id().with(("review_point", &curve.label, index)),
+                Sense::hover(),
+            )
+            .on_hover_text(render(
+                ui,
+                "gui-curves-point",
+                &[
+                    ("actor", curve.actor.to_string()),
+                    ("property", curve.base_label.to_string()),
+                    ("local", format!("{time:.3}")),
+                    ("global", format!("{:.3}", time + ctx.scene_offset_s)),
+                    ("value", format!("{value:.3}")),
+                ],
+            ));
         }
     }
 }

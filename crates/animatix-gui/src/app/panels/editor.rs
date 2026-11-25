@@ -20,6 +20,33 @@ pub(crate) struct EditorContext<'a> {
     pub commands: &'a mut ActionQueue,
 }
 
+fn source_projection_menu(editor: &mut EditorBuffer, ui: &mut egui::Ui) {
+    let current = editor.source_view();
+    let name = SourceView::ALL
+        .iter()
+        .find(|(view, _)| *view == current)
+        .map(|(_, id)| crate::app::i18n::text(ui, id))
+        .unwrap_or_else(|| crate::app::i18n::text(ui, "gui-source-view-full"));
+    let menu = ui.add(
+        eparts::Button::ghost(crate::app::i18n::render(
+            ui,
+            "gui-editor-source-view",
+            &[("view", name)],
+        ))
+        .with_icon(egui_phosphor::regular::CARET_DOWN)
+        .with_size(eparts::Size::Sm)
+        .with_tooltip(crate::app::i18n::text(ui, "gui-editor-source-view-help")),
+    );
+    egui::Popup::menu(&menu).show(|ui| {
+        for (view, id) in SourceView::ALL {
+            if ui.selectable_label(current == view, crate::app::i18n::text(ui, id)).clicked() {
+                editor.set_source_view(view);
+                ui.close();
+            }
+        }
+    });
+}
+
 pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let sp = spatial(ui);
@@ -36,15 +63,20 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     .color(theme.palette.accent.primary),
             );
             ui.label(
-                egui::RichText::new(if ctx.editor.source_view() == SourceView::Script {
-                    "Narration"
-                } else {
-                    "Editor"
-                })
+                egui::RichText::new(crate::app::i18n::text(
+                    ui,
+                    if ctx.editor.source_view() == SourceView::Script {
+                        "gui-narration-title"
+                    } else {
+                        "gui-editor-title"
+                    },
+                ))
                 .size(TextRole::Body.size())
                 .strong()
                 .color(theme.palette.text.primary),
             );
+
+            source_projection_menu(ctx.editor, ui);
 
             // Diagnostics status pill
             let error_count = ctx
@@ -61,16 +93,20 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                 .count();
 
             if error_count > 0 {
-                let text = if error_count == 1 {
-                    "1 error".to_string()
-                } else {
-                    format!("{error_count} errors")
-                };
+                let text = crate::app::i18n::with_arg(
+                    crate::app::i18n::current_language(ui.ctx()),
+                    "gui-diagnostic-error-count",
+                    "count",
+                    error_count,
+                );
                 let btn = eparts::Button::ghost(text)
                     .with_icon(egui_phosphor::regular::WARNING_CIRCLE)
                     .icon_color(theme.palette.status.error)
                     .with_size(eparts::Size::Sm);
-                if ui.add(btn).on_hover_text("Click to jump to first error").clicked()
+                if ui
+                    .add(btn)
+                    .on_hover_text(crate::app::i18n::text(ui, "gui-editor-first-error"))
+                    .clicked()
                     && let Some(err) = ctx.diagnostics.iter().find(|d| {
                         d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
                     })
@@ -80,16 +116,20 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     ctx.editor.focus_diagnostic(line, col);
                 }
             } else if warning_count > 0 {
-                let text = if warning_count == 1 {
-                    "1 warning".to_string()
-                } else {
-                    format!("{warning_count} warnings")
-                };
+                let text = crate::app::i18n::with_arg(
+                    crate::app::i18n::current_language(ui.ctx()),
+                    "gui-diagnostic-warning-count",
+                    "count",
+                    warning_count,
+                );
                 let btn = eparts::Button::ghost(text)
                     .with_icon(egui_phosphor::regular::WARNING)
                     .icon_color(theme.palette.status.warning)
                     .with_size(eparts::Size::Sm);
-                if ui.add(btn).on_hover_text("Click to jump to first warning").clicked()
+                if ui
+                    .add(btn)
+                    .on_hover_text(crate::app::i18n::text(ui, "gui-editor-first-warning"))
+                    .clicked()
                     && let Some(warn) = ctx.diagnostics.iter().find(|d| {
                         d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Warning
                     })
@@ -109,7 +149,7 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                         ctx.editor.source_view() == SourceView::Full,
                         eparts::Button::icon(egui_phosphor::regular::MAGIC_WAND)
                             .with_size(eparts::Size::Sm)
-                            .with_tooltip("Format source code"),
+                            .with_tooltip(crate::app::i18n::text(ui, "gui-editor-format-source")),
                     )
                     .clicked()
                 {
@@ -129,25 +169,13 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         );
         ui.add_space(sp.base.space_2);
 
-        let views = SourceView::ALL;
-        let mut active = views
-            .iter()
-            .position(|&(view, _)| view == ctx.editor.source_view())
-            .expect("all source projections have a tab");
-        let labels = views.map(|(_, label)| label);
-        use egui_phosphor::regular as icons;
-        if eparts::TabBar::new(ui.scope_id().with("source_views"), &mut active, &labels)
-            .with_icons(&[icons::FILE_TEXT, icons::TEXT_ALIGN_LEFT, icons::CODE])
-            .show(ui)
-            .changed()
-        {
-            ctx.editor.set_source_view(views[active].0);
-        }
-        ui.add_space(sp.base.space_2);
         if ctx.editor.source_view() == SourceView::Full
             && let Some((scene, marker)) = ctx.editor.cursor_narration_marker()
             && ui
-                .add(eparts::Button::ghost("Show phrase").with_size(eparts::Size::Sm))
+                .add(
+                    eparts::Button::ghost(crate::app::i18n::text(ui, "gui-editor-show-phrase"))
+                        .with_size(eparts::Size::Sm),
+                )
                 .clicked()
         {
             ctx.commands.push_back(

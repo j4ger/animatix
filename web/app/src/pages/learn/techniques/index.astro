@@ -4,16 +4,16 @@ import LearningIndex from '../../../components/LearningIndex.astro';
 import {pageUrl} from '../../../lib/content';
 import {techniques} from '../../../lib/techniques';
 import {techniqueCopy} from '../../../lib/catalog-zh';
-import {pageLanguage} from '../../../lib/language';
+import {choose, pageLanguage} from '../../../lib/language';
 import {ui} from '../../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
 const {t} = ui(language);
-const title = t('Animation techniques', '动画技法');
-const description = t('Open a scene to see the technique in motion and edit its AMX source.', '打开示例，查看动画效果并直接修改 AMX 源码。');
+const title = t('web-animation-techniques');
+const description = t('web-open-a-scene-to-see-the-technique-in-motion-and-edit-its-amx-source');
 const items = techniques.map(entry => ({
   href: pageUrl(language, `learn/techniques/${entry.id}/`),
-  title: t(entry.title, techniqueCopy[entry.id].title),
-  goal: t(entry.goal, techniqueCopy[entry.id].goal),
+  title: choose(language, entry.title, techniqueCopy[entry.id].title),
+  goal: choose(language, entry.goal, techniqueCopy[entry.id].goal),
 }));
 ---
 <Page {title} {description}>

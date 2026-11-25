@@ -6,6 +6,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "actor".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Actor declaration".to_string()),
+            detail_message: Some(CompletionDetail::ActorDeclaration),
             documentation: Some("Declare a new actor with type and properties".to_string()),
             insert_text: Some("${1:label}: ${2:Text}, ${3:content}: \"${4:}\"".to_string()),
         },
@@ -13,6 +14,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "keyframe".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Keyframe block".to_string()),
+            detail_message: Some(CompletionDetail::KeyframeBlock),
             documentation: Some("Create a keyframe at a specific time".to_string()),
             insert_text: Some("# ${1:0s}\n${2:}".to_string()),
         },
@@ -20,6 +22,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "relkeyframe".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Relative keyframe".to_string()),
+            detail_message: Some(CompletionDetail::RelativeKeyframe),
             documentation: Some("Create a relative keyframe offset".to_string()),
             insert_text: Some("#+ ${1:1s}\n${2:}".to_string()),
         },
@@ -27,6 +30,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "cue".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Named time anchor".to_string()),
+            detail_message: Some(CompletionDetail::NamedTimeAnchor),
             documentation: Some("Name the time header above for page-driven playback".to_string()),
             insert_text: Some("#cue:${1:name}".to_string()),
         },
@@ -34,6 +38,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "component".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Component definition".to_string()),
+            detail_message: Some(CompletionDetail::ComponentDefinition),
             documentation: Some("Define a reusable component".to_string()),
             insert_text: Some("component ${1:Name}(${2:params}) {\n    ${3:}\n}".to_string()),
         },
@@ -41,6 +46,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "if".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Conditional block".to_string()),
+            detail_message: Some(CompletionDetail::ConditionalBlock),
             documentation: Some("Conditional statement".to_string()),
             insert_text: Some("if ${1:condition} {\n    ${2:}\n}".to_string()),
         },
@@ -48,6 +54,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "for".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Loop block".to_string()),
+            detail_message: Some(CompletionDetail::LoopBlock),
             documentation: Some("Iterate over items".to_string()),
             insert_text: Some("for ${1:item} in ${2:items} {\n    ${3:}\n}".to_string()),
         },
@@ -55,6 +62,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "always".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Always block".to_string()),
+            detail_message: Some(CompletionDetail::AlwaysBlock),
             documentation: Some("Reactive block that runs continuously".to_string()),
             insert_text: Some("always {\n    ${1:}\n}".to_string()),
         },
@@ -62,6 +70,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "sequence".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Sequence block".to_string()),
+            detail_message: Some(CompletionDetail::SequenceBlock),
             documentation: Some("Compose calls and assignments in sequence".to_string()),
             insert_text: Some("sequence {\n    ${1:}\n}".to_string()),
         },
@@ -69,6 +78,7 @@ pub(super) fn snippet_completions() -> Vec<CompletionItem> {
             label: "stagger".to_string(),
             kind: CompletionKind::Snippet,
             detail: Some("Stagger block".to_string()),
+            detail_message: Some(CompletionDetail::StaggerBlock),
             documentation: Some("Offset child plans by a shared interval".to_string()),
             insert_text: Some("stagger [${1:150ms}] {\n    ${2:}\n}".to_string()),
         },
@@ -91,6 +101,7 @@ pub(super) fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> 
                 label: kw.clone(),
                 kind: CompletionKind::Keyword,
                 detail: Some("Keyword".to_string()),
+                detail_message: Some(CompletionDetail::Keyword),
                 documentation: Some(doc.to_string()),
                 insert_text: None,
             }
@@ -113,7 +124,7 @@ pub(super) fn type_completions(
             _ => true,
         })
         .map(|ty| {
-            let (detail, doc) = manifest
+            let (detail, doc, detail_message) = manifest
                 .primitives
                 .iter()
                 .find(|primitive| primitive.type_name == *ty)
@@ -121,15 +132,21 @@ pub(super) fn type_completions(
                     (
                         primitive.category.label().to_string(),
                         format!("{} ({})", primitive.display_name, primitive.category.label()),
+                        None,
                     )
                 })
                 .unwrap_or_else(|| {
-                    ("Type".to_string(), symbols.doc_of(ty).unwrap_or("Unknown type.").to_string())
+                    (
+                        "Type".to_string(),
+                        symbols.doc_of(ty).unwrap_or("Unknown type.").to_string(),
+                        Some(CompletionDetail::Type),
+                    )
                 });
             CompletionItem {
                 label: ty.clone(),
                 kind: CompletionKind::Type,
                 detail: Some(detail),
+                detail_message,
                 documentation: Some(doc),
                 insert_text: None,
             }
@@ -143,17 +160,27 @@ pub(super) fn label_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
         .labels
         .iter()
         .map(|(name, info)| {
-            let detail = match info.kind {
-                LabelKind::Actor => info.ty.as_ref().map(|t| format!("Actor: {}", t)),
-                LabelKind::Let => Some("Variable".to_string()),
-                LabelKind::For => Some("Loop variable".to_string()),
-                LabelKind::Always => Some("Always block".to_string()),
-                LabelKind::Component => Some("Component".to_string()),
+            let (detail, detail_message) = match info.kind {
+                LabelKind::Actor => (
+                    info.ty.as_ref().map(|t| format!("Actor: {}", t)),
+                    info.ty.clone().map(CompletionDetail::Actor),
+                ),
+                LabelKind::Let => (Some("Variable".to_string()), Some(CompletionDetail::Variable)),
+                LabelKind::For => {
+                    (Some("Loop variable".to_string()), Some(CompletionDetail::LoopVariable))
+                },
+                LabelKind::Always => {
+                    (Some("Always block".to_string()), Some(CompletionDetail::AlwaysBlock))
+                },
+                LabelKind::Component => {
+                    (Some("Component".to_string()), Some(CompletionDetail::Component))
+                },
             };
             CompletionItem {
                 label: name.clone(),
                 kind: CompletionKind::Label,
                 detail,
+                detail_message,
                 documentation: None,
                 insert_text: None,
             }

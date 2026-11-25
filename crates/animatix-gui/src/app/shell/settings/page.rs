@@ -1,10 +1,8 @@
 //! In-app settings route. The workbench state is retained while it is hidden.
 
 use super::*;
-use crate::app::i18n::current_language;
 use egui::{Align, Frame, Layout, Margin, Rect, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
-type CopyPair = (&'static str, &'static str);
 const MAX_FORM_WIDTH: f32 = 760.0;
 const NAV_WIDTH: f32 = 176.0;
 const NAV_GAP: f32 = 36.0;
@@ -29,22 +27,15 @@ impl Section {
         Self::Shortcuts,
     ];
 
-    fn title(self, ui: &Ui) -> &'static str {
-        let (en, zh) = match self {
-            Self::Appearance => ("Appearance & language", "外观与语言"),
-            Self::Editor => ("Editing", "编辑"),
-            Self::Timeline => ("Preview & timeline", "预览与时间轴"),
-            Self::Recovery => ("Save & recovery", "保存与恢复"),
-            Self::Shortcuts => ("Keyboard shortcuts", "快捷键"),
+    fn title(self, ui: &Ui) -> String {
+        let id = match self {
+            Self::Appearance => "gui-settings-section-appearance",
+            Self::Editor => "gui-settings-section-editor",
+            Self::Timeline => "gui-settings-section-timeline",
+            Self::Recovery => "gui-settings-section-recovery",
+            Self::Shortcuts => "gui-settings-section-shortcuts",
         };
-        copy(ui, en, zh)
-    }
-}
-
-pub(super) fn copy(ui: &Ui, en: &'static str, zh: &'static str) -> &'static str {
-    match current_language(ui.ctx()) {
-        Language::English => en,
-        Language::SimplifiedChinese => zh,
+        text(ui, id)
     }
 }
 
@@ -74,7 +65,7 @@ impl GuiShell {
                     .inner_margin(Margin::symmetric(24, 18)),
             )
             .show(ui, |ui| {
-                let back = copy(ui, "Back to workbench", "返回工作台");
+                let back = text(ui, "gui-settings-back");
                 if ui
                     .add(Button::ghost(back).with_icon(egui_phosphor::regular::ARROW_LEFT))
                     .clicked()
@@ -100,7 +91,7 @@ impl GuiShell {
                             ui.set_width(NAV_WIDTH);
                             ui.set_max_width(NAV_WIDTH);
                             ui.label(
-                                RichText::new(copy(ui, "Settings", "设置"))
+                                RichText::new(text(ui, "gui-settings-title"))
                                     .font(TextRole::Heading.font_id()),
                             );
                             ui.add_space(17.0);
@@ -113,7 +104,7 @@ impl GuiShell {
                                         egui::Role::ListItem,
                                         true,
                                         section == choice,
-                                        label,
+                                        &label,
                                     )
                                 });
                                 if section == choice || response.hovered() {
@@ -154,7 +145,7 @@ impl GuiShell {
                             let label = section.title(ui);
                             ui.horizontal_wrapped(|ui| {
                                 ui.label(
-                                    RichText::new(copy(ui, "Settings", "设置"))
+                                    RichText::new(text(ui, "gui-settings-title"))
                                         .font(TextRole::Heading.font_id()),
                                 );
                                 ui.add_space(12.0);
@@ -228,13 +219,13 @@ impl GuiShell {
 pub(super) fn row(
     ui: &mut Ui,
     id: &str,
-    title: CopyPair,
-    description: Option<CopyPair>,
+    key: &str,
+    has_description: bool,
     control: impl FnOnce(&mut Ui),
 ) {
-    let title = copy(ui, title.0, title.1);
-    let description = description.map(|(en, zh)| copy(ui, en, zh));
-    row_labels(ui, id, title, description, control);
+    let title = text(ui, key);
+    let description = has_description.then(|| text(ui, &format!("{key}.description")));
+    row_labels(ui, id, &title, description.as_deref(), control);
 }
 
 pub(super) fn row_labels(

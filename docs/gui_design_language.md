@@ -95,21 +95,22 @@ an unlabeled icon alone.
 | Preview | Playback, selection and view navigation; no object transforms |
 | Timeline | Scene ranges, authored markers, audio/transcript review and loops |
 | Inspector | Read sampled values and locate eligible declarations |
-| Outline, assets and library | Browse and inspect; no implicit insertion or reordering |
+| Project | Browse files, referenced assets and components |
+| Outline | Browse scenes and select authored objects |
 | Curves | Inspect derived tracks; no property or keyframe writes |
 
-The header gives **Write**, **Review**, **Inspect** and **Focus** equal
-placement. Compact windows put these presets in a layout menu that shows the
-active mode. Inspector and Code share the detail region, and Timeline and Curves
-share the bottom region. Focus hides the surrounding panels. The compact sidebar
-rail stays available for opening drawers. Presets adjust the existing `egui_tiles`
-layout.
+The header gives **Write** and **Review** equal placement. Compact windows
+put these modes in a layout menu that identifies the active mode. The source
+editor sits beside the preview in Write. Inspector opens on demand and can
+be pinned on the right. Fullscreen belongs to the preview. The compact sidebar
+rail opens the Project and Outline drawers. The bottom region houses the
+Timeline heading and tools. The command palette opens an optional tab for
+comparing curves.
 
-Use a recessed rounded track for workspace modes, sidebar views and source
-projections. The selected segment has a raised face and a subtle shadow. Use
-flat, underlined choices for secondary sidebar navigation. Dock tabs carry a
-leading icon and a short selection mark. Keep the entire row height clickable
-and preserve tab dragging. Small menus and modal windows use distinct shadow
+Use a recessed rounded track for workspace modes and sidebar views. The
+selected segment has a raised face and a subtle shadow. Comparison tabs show
+selection with a highlight. Retain the entire row height as a click target.
+Small menus and modal windows use distinct shadow
 depths and progressively larger corner radii. A rounded matte frames the preview
 while the rendered scene and its ruler coordinates retain their rectangular bounds.
 
@@ -122,7 +123,7 @@ Region allocation uses `clamp(ratio × available, min, max)`, with a tile-size
 floor so panels cannot collapse into slivers. User-resized dimensions should
 survive within those bounds; Reset layout restores defaults. Compact windows use
 overlay drawers; widening must restore the user's prior visibility choices. Test this
-round-trip with both an open detail panel and Focus mode. Preset labels live in
+round-trip with a pinned Inspector and while returning from Preview fullscreen. Preset labels live in
 [`layout_preset.rs`](../crates/animatix-gui/src/app/layout_preset.rs); sizing,
 persistence and migration live in
 [`persistence/`](../crates/animatix-gui/src/app/persistence/).
@@ -164,7 +165,7 @@ Use the shared [`anim` helpers](../crates/eparts/src/widget/anim.rs), not scatte
 transitions use `NORMAL`/`STANDARD`; durations longer than `SLOW` need an explicit
 reason. Selection changes and playhead scrubbing take effect immediately. The segmented
 control moves its highlight to the new tab over 200 ms. Its position follows tab
-geometry during resizes. Hover fades and dock-tab marks settle over 100 ms.
+geometry during resizes. Hover and selection highlights settle over 100 ms.
 Content stays in place while switching sidebar views. Dialogs enter over 200 ms
 and dismiss over 100 ms, including when dismissed partway through entry.
 

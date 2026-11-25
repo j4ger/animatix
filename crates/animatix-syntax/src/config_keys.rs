@@ -13,7 +13,7 @@
 //! is one row here plus the code that applies it.
 
 use crate::ast::{Expr, Property, Stmt};
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, DiagnosticPresentation};
 
 /// The top-level canvas declaration, if present. Inspects the authored values
 /// directly so resource discovery and timeline builds use the same dimensions.
@@ -28,16 +28,24 @@ pub fn configured_canvas_size(
             continue;
         };
         for property in settings {
-            let message = match property.name.as_str() {
-                "resolution" => removed_resolution_message(),
-                "canvas_size" if seen => "Declare 'canvas_size' only once per document.",
+            let (message, presentation) = match property.name.as_str() {
+                "resolution" => {
+                    (removed_resolution_message(), DiagnosticPresentation::RemovedResolution)
+                },
+                "canvas_size" if seen => (
+                    "Declare 'canvas_size' only once per document.",
+                    DiagnosticPresentation::DuplicateCanvasSize,
+                ),
                 "canvas_size" => {
                     seen = true;
                     size = canvas_size_literal(&property.value);
                     if size.is_some() {
                         continue;
                     }
-                    "'canvas_size' expects two positive integer literals (width, height)."
+                    (
+                        "'canvas_size' expects two positive integer literals (width, height).",
+                        DiagnosticPresentation::InvalidCanvasSize,
+                    )
                 },
                 _ => continue,
             };
@@ -47,6 +55,7 @@ pub fn configured_canvas_size(
                     DiagnosticPhase::Build,
                     message,
                 )
+                .with_presentation(presentation)
                 .with_subject(&property.name)
                 .with_ast_span(*span)
                 .with_byte_span(property.value_span),
@@ -83,12 +92,12 @@ pub fn scene_canvas_diagnostic(property: &Property, scene: &str) -> Option<Diagn
             DiagnosticCode::InvalidConfigValue,
             DiagnosticPhase::Build,
             removed_resolution_message(),
-        ).with_subject("resolution"),
+        ).with_presentation(DiagnosticPresentation::RemovedResolution).with_subject("resolution"),
         "canvas_size" => Diagnostic::warning(
             DiagnosticCode::InvalidConfigValue,
             DiagnosticPhase::Build,
             format!("Config key 'canvas_size' in scene '{scene}' is composition-scoped and will be ignored; set it in the top-level config block instead."),
-        ).with_subject(scene),
+        ).with_presentation(DiagnosticPresentation::SceneCanvasSize).with_subject(scene),
         _ => return None,
     };
     Some(diagnostic.with_byte_span(property.value_span))

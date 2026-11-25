@@ -97,7 +97,10 @@ fn toggle_editor_sync_updates_flag_and_status() {
         let effects = playback::handle_toggle_editor_sync(&mut ui_store);
         assert_eq!(ui_store.editor_sync_enabled, expected, "initial sync={initial}");
         assert_eq!(effects.len(), 1);
-        assert!(matches!(&effects[0], Effect::Status(msg) if msg == message), "{effects:?}");
+        assert!(
+            matches!(&effects[0], Effect::Status(msg) if msg.canonical() == message),
+            "{effects:?}"
+        );
     }
 }
 

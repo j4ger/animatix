@@ -5,15 +5,16 @@ use super::*;
 /// Common literal values offered when the expected parameter is unknown.
 pub(super) fn value_completions() -> Vec<CompletionItem> {
     [
-        ("true", "Boolean"),
-        ("false", "Boolean"),
-        ("null", "Null value"),
+        ("true", "Boolean", CompletionDetail::Boolean),
+        ("false", "Boolean", CompletionDetail::Boolean),
+        ("null", "Null value", CompletionDetail::Null),
     ]
     .into_iter()
-    .map(|(label, detail)| CompletionItem {
+    .map(|(label, detail, detail_message)| CompletionItem {
         label: label.to_string(),
         kind: CompletionKind::Value,
         detail: Some(detail.to_string()),
+        detail_message: Some(detail_message),
         documentation: None,
         insert_text: None,
     })
@@ -88,6 +89,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: v.to_string(),
                 kind: CompletionKind::Value,
                 detail: Some("Boolean".to_string()),
+                detail_message: Some(CompletionDetail::Boolean),
                 documentation: None,
                 insert_text: None,
             }));
@@ -97,6 +99,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "(0, 0)".to_string(),
                 kind: CompletionKind::Snippet,
                 detail: Some("Vec2".to_string()),
+                detail_message: None,
                 documentation: Some("2D vector (x, y)".to_string()),
                 insert_text: Some("(${1:x}, ${2:y})".to_string()),
             });
@@ -106,6 +109,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "(0, 0, 0)".to_string(),
                 kind: CompletionKind::Snippet,
                 detail: Some("Vec3".to_string()),
+                detail_message: None,
                 documentation: Some("3D vector (x, y, z)".to_string()),
                 insert_text: Some("(${1:x}, ${2:y}, ${3:z})".to_string()),
             });
@@ -115,6 +119,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "(...)".to_string(),
                 kind: CompletionKind::Snippet,
                 detail: Some("Tuple".to_string()),
+                detail_message: Some(CompletionDetail::Tuple),
                 documentation: Some("Fixed-size heterogeneous tuple".to_string()),
                 insert_text: Some("(${1:value}, ${2:value})".to_string()),
             });
@@ -124,6 +129,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "scene".to_string(),
                 kind: CompletionKind::Value,
                 detail: Some("Scene".to_string()),
+                detail_message: Some(CompletionDetail::Scene),
                 documentation: Some("Scene reference".to_string()),
                 insert_text: None,
             });
@@ -133,6 +139,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "(0, 0, 0, 0)".to_string(),
                 kind: CompletionKind::Snippet,
                 detail: Some("Vec4".to_string()),
+                detail_message: None,
                 documentation: Some("4D vector (x, y, z, w)".to_string()),
                 insert_text: Some("(${1:x}, ${2:y}, ${3:z}, ${4:w})".to_string()),
             });
@@ -143,6 +150,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                     label: v.to_string(),
                     kind: CompletionKind::Value,
                     detail: Some("Color".to_string()),
+                    detail_message: Some(CompletionDetail::Color),
                     documentation: None,
                     insert_text: None,
                 }
@@ -152,6 +160,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "rgb(...)".to_string(),
                 kind: CompletionKind::Snippet,
                 detail: Some("Color".to_string()),
+                detail_message: Some(CompletionDetail::Color),
                 documentation: Some(
                     "RGB color with channels from 0 to 1: rgb(r, g, b)".to_string(),
                 ),
@@ -163,6 +172,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: "\"\"".to_string(),
                 kind: CompletionKind::Snippet,
                 detail: Some("String".to_string()),
+                detail_message: Some(CompletionDetail::String),
                 documentation: Some("String literal".to_string()),
                 insert_text: Some("\"${1:text}\"".to_string()),
             });
@@ -172,6 +182,7 @@ fn simple_type_completions(ty: &TypeAnnotation) -> Vec<CompletionItem> {
                 label: v.to_string(),
                 kind: CompletionKind::Value,
                 detail: Some("Number".to_string()),
+                detail_message: Some(CompletionDetail::Number),
                 documentation: None,
                 insert_text: None,
             }));
@@ -212,6 +223,7 @@ fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
                 label: v.to_string(),
                 kind: CompletionKind::Value,
                 detail: Some("Overflow".to_string()),
+                detail_message: Some(CompletionDetail::Overflow),
                 documentation: None,
                 insert_text: Some(format!("\"{}\"", v)),
             }));
@@ -221,6 +233,7 @@ fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
                 label: v.to_string(),
                 kind: CompletionKind::Value,
                 detail: Some("Alignment".to_string()),
+                detail_message: Some(CompletionDetail::Alignment),
                 documentation: None,
                 insert_text: Some(format!("\"{}\"", v)),
             }));
@@ -230,6 +243,7 @@ fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
                 label: v.to_string(),
                 kind: CompletionKind::Value,
                 detail: Some("Anchor".to_string()),
+                detail_message: Some(CompletionDetail::Anchor),
                 documentation: None,
                 insert_text: Some(format!("\"{}\"", v)),
             }));
@@ -252,6 +266,7 @@ fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
                     label: v.to_string(),
                     kind: CompletionKind::Value,
                     detail: Some("Anchor point".to_string()),
+                    detail_message: Some(CompletionDetail::AnchorPoint),
                     documentation: None,
                     insert_text: Some(format!("\"{}\"", v)),
                 }),
@@ -262,6 +277,7 @@ fn completions_for_property_name(name: &str) -> Vec<CompletionItem> {
                 label: format!("{}", v),
                 kind: CompletionKind::Value,
                 detail: Some("Number".to_string()),
+                detail_message: Some(CompletionDetail::Number),
                 documentation: None,
                 insert_text: None,
             }));
@@ -278,6 +294,7 @@ pub(super) fn enum_completions(values: &[String]) -> Vec<CompletionItem> {
             label: value.clone(),
             kind: CompletionKind::Value,
             detail: Some("Enum choice".into()),
+            detail_message: Some(CompletionDetail::EnumChoice),
             documentation: None,
             insert_text: None,
         })
@@ -289,6 +306,7 @@ fn hex_color_completion() -> CompletionItem {
         label: "hex_color(...)".to_string(),
         kind: CompletionKind::Snippet,
         detail: Some("Color".to_string()),
+        detail_message: Some(CompletionDetail::Color),
         documentation: Some(
             animatix_syntax::builtins::keyword_documentation("hex_color").to_string(),
         ),

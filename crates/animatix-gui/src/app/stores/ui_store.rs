@@ -8,6 +8,7 @@ use super::PreviewStore;
 use crate::app::commands::{ActionQueue, ShellAction};
 use crate::app::components::toast::ToastQueue;
 use crate::app::document::timeline_diff::KeyframeId;
+use crate::app::i18n::StatusText;
 use crate::app::panels::SidebarTab;
 use crate::app::preview::selection::SelectionState;
 
@@ -128,24 +129,17 @@ pub struct RecoveryPrompt {
     /// Document the sidecar belongs to; also the next autosave target.
     pub source_path: Option<PathBuf>,
     pub recovery_path: Option<PathBuf>,
-    pub message: String,
 }
 
 impl RecoveryPrompt {
     pub fn open(&mut self, source_path: PathBuf, recovery_path: PathBuf) {
         self.is_open = true;
-        self.message = format!(
-            "Animatix found unsaved changes from a previous session for \"{}\".\n\n\
-             Recover them into the editor, or discard the recovery file?",
-            source_path.display()
-        );
         self.source_path = Some(source_path);
         self.recovery_path = Some(recovery_path);
     }
 
     pub fn close(&mut self) {
         self.is_open = false;
-        self.message.clear();
         self.source_path = None;
         self.recovery_path = None;
     }
@@ -189,6 +183,7 @@ pub struct ViewStore {
     pub reduce_motion: bool,
     pub density: eparts::Density,
     pub layout_size: (f32, f32),
+    pub preview_fullscreen: bool,
     pub layout_preset: crate::app::LayoutPreset,
     /// True when the window is narrow enough for the compact layout (icon rail +
     /// overlay detail drawer); recomputed from `layout_size`.
@@ -231,6 +226,7 @@ impl ViewStore {
             reduce_motion: false,
             density: eparts::Density::Default,
             layout_size: (1440.0, 960.0),
+            preview_fullscreen: false,
             layout_preset: crate::app::LayoutPreset::Animate,
             compact: false,
             compact_restore: None,
@@ -311,7 +307,9 @@ impl UiStore {
     /// tree is reconciled separately (`persistence::reconcile_compact`).
     pub fn set_compact(&mut self, compact: bool) {
         self.view.compact = compact;
-        self.view.compact_drawer = None;
+        if self.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Sidebar) {
+            self.view.compact_drawer = None;
+        }
     }
 
     /// Capture UI state plus playback/timeline state for undo/redo.
@@ -344,22 +342,22 @@ impl UiStore {
 #[derive(Debug, Clone, Default)]
 pub struct UnsavedChangesDialog {
     pub is_open: bool,
-    pub message: String,
+    pub(crate) message: StatusText,
     pub pending_close: bool,
     pub pending_action: Option<ShellAction>,
 }
 
 impl UnsavedChangesDialog {
-    pub fn open(&mut self, message: impl Into<String>, action: ShellAction) {
+    pub(crate) fn open(&mut self, message: StatusText, action: ShellAction) {
         self.is_open = true;
-        self.message = message.into();
+        self.message = message;
         self.pending_action = Some(action);
         self.pending_close = false;
     }
 
     pub fn open_for_close(&mut self) {
         self.is_open = true;
-        self.message = "Save changes before closing?".into();
+        self.message = StatusText::message("gui-unsaved-close", []);
         self.pending_action = None;
         self.pending_close = true;
     }
@@ -431,13 +429,13 @@ mod tests {
     }
 
     #[test]
-    fn set_compact_tracks_flag_and_clears_drawer() {
+    fn compact_breakpoint_keeps_inspector_but_dismisses_navigator() {
         let mut store = ui_store();
         store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
 
         store.set_compact(true);
         assert!(store.view.compact);
-        assert!(store.view.compact_drawer.is_none(), "entering compact starts with no drawer");
+        assert_eq!(store.view.compact_drawer, Some(crate::app::panels::CompactDrawer::Detail));
 
         store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Sidebar);
         store.set_compact(false);
@@ -502,13 +500,11 @@ mod tests {
         prompt.open(PathBuf::from("/tmp/scene.amx"), PathBuf::from("/tmp/scene.amx.autosave"));
 
         assert!(prompt.is_open);
-        assert!(prompt.message.contains("scene.amx"));
         assert_eq!(prompt.source_path.as_deref(), Some(Path::new("/tmp/scene.amx")));
         assert_eq!(prompt.recovery_path.as_deref(), Some(Path::new("/tmp/scene.amx.autosave")));
 
         prompt.close();
         assert!(!prompt.is_open);
-        assert!(prompt.message.is_empty());
         assert!(prompt.source_path.is_none());
         assert!(prompt.recovery_path.is_none());
     }

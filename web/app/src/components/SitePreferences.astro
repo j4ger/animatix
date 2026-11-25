@@ -8,28 +8,28 @@ const {t} = ui(language);
 const path = Astro.props.homeLinks ? '' : sitePagePath(Astro.url.pathname, base);
 ---
 <div class="site-preferences" data-site-preferences
-     data-transfer-error={t('Could not keep the editor draft. Download it before switching language.', '无法保留草稿，请先下载源码再切换语言。')}>
+     data-transfer-error={t('web-preferences-draft-transfer-failed')}>
   <details>
-    <summary aria-label={t('Language', '语言')} title={t('Language', '语言 / Language')}>
+    <summary aria-label={t('web-preferences-language')} title={t('web-preferences-language-tooltip')}>
       <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25">
         <circle cx="8" cy="8" r="6.5"/>
         <ellipse cx="8" cy="8" rx="2.8" ry="6.5"/>
         <path d="M1.5 8h13"/>
       </svg>
     </summary>
-    <div class="preference-menu" role="group" aria-label={t('Language', '语言')}>
+    <div class="preference-menu" role="group" aria-label={t('web-preferences-language')}>
       <a href={pageUrl('en', path)} data-language="en" lang="en" aria-current={language === 'en' ? 'true' : undefined}>English</a>
       <a href={pageUrl('zh', path)} data-language="zh" lang="zh-Hans" aria-current={language === 'zh' ? 'true' : undefined}>简体中文</a>
     </div>
   </details>
   <details>
-    <summary aria-label={t('Color theme', '颜色主题')} title={t('Color theme', '颜色主题')}>
+    <summary aria-label={t('web-preferences-theme')} title={t('web-preferences-theme')}>
       <span aria-hidden="true" class="theme-symbol"></span>
     </summary>
-    <div class="preference-menu" role="group" aria-label={t('Color theme', '颜色主题')}>
-      <button type="button" data-theme-choice="auto" aria-pressed="true">{t('System', '跟随系统')}</button>
-      <button type="button" data-theme-choice="light" aria-pressed="false">{t('Light', '浅色')}</button>
-      <button type="button" data-theme-choice="dark" aria-pressed="false">{t('Dark', '深色')}</button>
+    <div class="preference-menu" role="group" aria-label={t('web-preferences-theme')}>
+      <button type="button" data-theme-choice="auto" aria-pressed="true">{t('web-system')}</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">{t('web-light')}</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">{t('web-dark')}</button>
     </div>
   </details>
 </div>

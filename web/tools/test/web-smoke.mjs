@@ -99,10 +99,11 @@ async function main(){
         const buffer=Buffer.from(data,'base64');writeFileSync(join(OUTPUT,`${n}-${name}.png`),buffer);return buffer;
       };
       // Configure the backend before the page initializes its preview.
-      const fault = contract.backend === 'webgl2' || contract.action === 'recording'
+      const forceGraphicsFailure = contract.action === 'recording' || contract.forceGraphicsFailure;
+      const fault = contract.backend === 'webgl2' || forceGraphicsFailure
         ? await cdp.send('Page.addScriptToEvaluateOnNewDocument', {source: `
           Object.defineProperty(navigator, 'gpu', {value: undefined});
-          ${contract.action === 'recording' ? `{
+          ${forceGraphicsFailure ? `{
             const getContext = HTMLCanvasElement.prototype.getContext;
             HTMLCanvasElement.prototype.getContext = function(kind, ...args) {
               return kind === 'webgl2' ? null : getContext.call(this, kind, ...args);

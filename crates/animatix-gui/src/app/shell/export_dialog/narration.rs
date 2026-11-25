@@ -11,7 +11,9 @@ use crate::app::stores::SourceStore;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AffectedParagraph {
-    pub title: String,
+    pub scene: Option<String>,
+    pub number: usize,
+    pub snippet: String,
     pub effect: &'static str,
 }
 
@@ -78,13 +80,12 @@ pub(super) fn affected_paragraphs(
             status,
             track.as_ref().zip(timing.as_ref()),
         ) {
-            let title = format!(
-                "{} {} · {}",
-                scene.unwrap_or("Paragraph"),
-                index + 1,
-                truncate_chars(&paragraph.text, 100)
-            );
-            affected.push(AffectedParagraph { title, effect });
+            affected.push(AffectedParagraph {
+                scene: scene.map(str::to_owned),
+                number: index + 1,
+                snippet: truncate_chars(&paragraph.text, 100),
+                effect,
+            });
         }
     }
     affected
@@ -109,7 +110,7 @@ fn effect_for(
                 duration,
                 audio: true,
                 ..
-            } if offset < duration => Some(status.label()),
+            } if offset < duration => Some(status.message_id()),
             _ => None,
         };
     }
@@ -154,9 +155,9 @@ fn effect_for(
         },
     };
     match (audio, captions) {
-        (true, true) => Some("Includes previous audio and subtitles"),
-        (true, false) => Some("Includes previous audio"),
-        (false, true) => Some("Includes previous subtitles"),
+        (true, true) => Some("gui-export-draft-audio-subtitles"),
+        (true, false) => Some("gui-export-draft-audio"),
+        (false, true) => Some("gui-export-draft-subtitles"),
         (false, false) => None,
     }
 }

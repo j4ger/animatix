@@ -1,5 +1,6 @@
 //! Read-only source-audio waveforms. Clicking seeks; no clip mutation is exposed.
 
+use crate::app::i18n::{render, text};
 use animatix::timeline::AudioSegment;
 use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke};
 
@@ -23,7 +24,7 @@ pub(crate) fn render_audio_track(
     painter.text(
         Pos2::new(rect.left() + 8.0, rect.center().y),
         Align2::LEFT_CENTER,
-        "Audio",
+        text(ui, "gui-timeline-audio"),
         FontId::proportional(12.0),
         theme.palette.text.muted,
     );
@@ -77,33 +78,53 @@ pub(crate) fn render_audio_track(
                         Stroke::new(1.0, theme.palette.accent.cyan),
                     );
                 }
-                "Source amplitude (before volume automation)".to_owned()
+                text(ui, "gui-timeline-waveform-amplitude")
             },
             WaveformState::Loading => {
-                paint_status(&painter, clip, "Loading waveform…", theme.palette.text.muted);
-                "Loading waveform in background".to_owned()
+                paint_status(
+                    &painter,
+                    clip,
+                    &text(ui, "gui-timeline-waveform-loading"),
+                    theme.palette.text.muted,
+                );
+                text(ui, "gui-timeline-waveform-loading-background")
             },
             WaveformState::Failed(error) => {
-                paint_status(&painter, clip, "Audio unavailable", theme.palette.status.warning);
-                format!("Waveform unavailable: {error}. Rebuild to retry.")
+                paint_status(
+                    &painter,
+                    clip,
+                    &text(ui, "gui-timeline-audio-unavailable"),
+                    theme.palette.status.warning,
+                );
+                render(ui, "gui-timeline-waveform-failed", &[("detail", error.to_string())])
             },
         };
         let duration_label =
             if segment.duration_s.is_some() || matches!(state, WaveformState::Ready(_)) {
-                format!("{duration:.3}s duration")
+                render(ui, "gui-timeline-audio-duration", &[("duration", format!("{duration:.3}"))])
             } else {
-                "duration unavailable until decoded".to_owned()
+                text(ui, "gui-timeline-audio-duration-pending")
             };
-        ui.interact(clip, id.with(index), Sense::hover()).on_hover_text(format!(
-            "{}\nStarts at {:.3}s · {}\n{}\nClick to seek; edit audio in source.",
-            segment.source, segment.start_time_s, duration_label, status,
+        ui.interact(clip, id.with(index), Sense::hover()).on_hover_text(render(
+            ui,
+            "gui-timeline-audio-clip",
+            &[
+                ("source", segment.source.to_string()),
+                ("start", format!("{:.3}", segment.start_time_s)),
+                ("duration", duration_label),
+                ("status", status),
+            ],
         ));
     }
     if visible.len() > 4 {
         painter.text(
             Pos2::new(rect.left() + 8.0, rect.bottom() - 2.0),
             Align2::LEFT_BOTTOM,
-            format!("+{} clips", visible.len() - 4),
+            render(
+                ui,
+                "gui-timeline-extra-audio-clips",
+                &[("count", (visible.len() - 4).to_string())],
+            ),
             FontId::proportional(9.0),
             theme.palette.text.muted,
         );

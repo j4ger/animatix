@@ -32,9 +32,9 @@ pub(crate) enum SourceView {
 
 impl SourceView {
     pub(crate) const ALL: [(Self, &'static str); 3] = [
-        (Self::Full, "Full source"),
-        (Self::Script, "Only script"),
-        (Self::Code, "Only code"),
+        (Self::Full, "gui-source-view-full"),
+        (Self::Script, "gui-source-view-script"),
+        (Self::Code, "gui-source-view-code"),
     ];
 }
 

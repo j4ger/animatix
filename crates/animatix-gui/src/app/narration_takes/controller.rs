@@ -18,6 +18,7 @@ use super::view::Action;
 use super::worker::{Finished, Job, ManifestParagraph, Operation, Request};
 use crate::app::GuiShell;
 use crate::app::commands::Command;
+use crate::app::i18n::StatusText;
 use crate::app::stores::SourceStore;
 
 pub(super) struct Origin {
@@ -111,7 +112,7 @@ impl NarrationTakes {
         self.target = match has_script.then(|| Target::open(source, self.scene.clone())) {
             Some(Ok(target)) => Some(target),
             Some(Err(error)) => {
-                self.feedback = Some(error);
+                self.feedback = Some(error.into());
                 None
             },
             None => None,
@@ -181,15 +182,24 @@ impl NarrationTakes {
         source: &SourceStore,
         operation: Operation,
         existing: Option<String>,
-    ) -> Result<(Request, Origin), String> {
+    ) -> Result<(Request, Origin), StatusText> {
         self.sync_session(source)?;
-        let target = self.target.as_ref().ok_or("Select a narration paragraph first.")?;
-        let selector = self.selected.clone().ok_or("Select a narration paragraph first.")?;
-        let session = self.session.as_mut().ok_or("Could not open voiceover history.")?;
+        let target = self
+            .target
+            .as_ref()
+            .ok_or_else(|| StatusText::message("gui-narration-select-first", []))?;
+        let selector = self
+            .selected
+            .clone()
+            .ok_or_else(|| StatusText::message("gui-narration-select-first", []))?;
+        let session = self
+            .session
+            .as_mut()
+            .ok_or_else(|| StatusText::message("gui-narration-open-history", []))?;
         let history = session.history_for_write()?;
         let binding = session
             .binding(self.scene.as_deref(), &selector)
-            .ok_or("The selected paragraph is no longer in the script.")?;
+            .ok_or_else(|| StatusText::message("gui-narration-paragraph-gone", []))?;
         let kind = match &operation {
             Operation::Synthesize { .. } => "synthesized",
             Operation::Import { audio: Some(_), .. } => "imported",
@@ -200,7 +210,7 @@ impl NarrationTakes {
                 take.id == *id && take.paragraph == binding.id && take.text == binding.text
             })
         }) {
-            return Err("This recording belongs to a different version of the script.".into());
+            return Err(StatusText::message("gui-narration-take-other-revision", []));
         }
         let take = Take {
             id: existing.unwrap_or_else(|| Uuid::new_v4().simple().to_string()),
@@ -247,7 +257,12 @@ impl NarrationTakes {
         ))
     }
 
-    fn start_job(&mut self, ctx: &Context, request: Request, origin: Origin) -> Result<(), String> {
+    fn start_job(
+        &mut self,
+        ctx: &Context,
+        request: Request,
+        origin: Origin,
+    ) -> Result<(), StatusText> {
         let job = Job::start(request, ctx.clone())?;
         self.job = Some((job, origin));
         Ok(())
@@ -313,16 +328,14 @@ impl GuiShell {
             state.start_job(ctx, request, origin)
         });
         if let Err(error) = &outcome
-            && let Err(write_error) = history.issue(&id, Some(error))
+            && let Err(write_error) = history.issue(&id, Some(error.canonical()))
         {
             tracing::warn!(%write_error, "Could not save the recording issue");
         }
         if was_current {
             state.history_revision = None;
             state.refresh();
-            if let Err(error) = outcome
-                && !state.takes.iter().any(|take| take.id == id && take.issue.is_some())
-            {
+            if let Err(error) = outcome {
                 state.feedback = Some(error);
             }
         }
@@ -345,15 +358,7 @@ impl GuiShell {
         state.refresh();
         match result {
             Ok(finished) => self.apply_narration(origin, finished),
-            Err(error)
-                if !state
-                    .takes
-                    .iter()
-                    .any(|take| take.id == origin.take.id && take.issue.is_some()) =>
-            {
-                state.feedback = Some(error);
-            },
-            Err(_) => {},
+            Err(error) => state.feedback = Some(error),
         }
     }
 
@@ -395,11 +400,11 @@ impl GuiShell {
                     self.preview_store.quiet_rebuild = Some(after);
                 }
             },
-            Err(error) => self.narration_takes.feedback = Some(error),
+            Err(error) => self.narration_takes.feedback = Some(error.into()),
         }
     }
 
-    fn narration_action(&mut self, ctx: &Context, action: Action) -> Result<(), String> {
+    fn narration_action(&mut self, ctx: &Context, action: Action) -> Result<(), StatusText> {
         let state = &mut self.narration_takes;
         let source = &self.document_store.source;
         match action {
@@ -429,7 +434,7 @@ impl GuiShell {
                         .session
                         .as_ref()
                         .and_then(|session| session.history.as_ref())
-                        .ok_or("Could not open voiceover history.")?;
+                        .ok_or_else(|| StatusText::message("gui-narration-open-history", []))?;
                     let wave = tempfile::NamedTempFile::new().map_err(|error| error.to_string())?;
                     history.raw_wave(&id, wave.path()).map_err(|error| error.to_string())?;
                     Audition::start(wave)?
@@ -461,15 +466,19 @@ pub(super) struct Audition {
 }
 
 impl Audition {
-    fn start(wave: tempfile::NamedTempFile) -> Result<Self, String> {
-        let file = File::open(wave.path())
-            .map_err(|error| format!("Could not open this recording: {error}"))?;
-        let decoded = Decoder::new(BufReader::new(file))
-            .map_err(|error| format!("Could not decode this recording: {error}"))?;
-        let (stream, handle) = OutputStream::try_default()
-            .map_err(|error| format!("Could not open audio output: {error}"))?;
-        let sink = Sink::try_new(&handle)
-            .map_err(|error| format!("Could not play this recording: {error}"))?;
+    fn start(wave: tempfile::NamedTempFile) -> Result<Self, StatusText> {
+        let file = File::open(wave.path()).map_err(|error| {
+            StatusText::message("gui-narration-audition-open", [("detail", error.to_string())])
+        })?;
+        let decoded = Decoder::new(BufReader::new(file)).map_err(|error| {
+            StatusText::message("gui-narration-audition-decode", [("detail", error.to_string())])
+        })?;
+        let (stream, handle) = OutputStream::try_default().map_err(|error| {
+            StatusText::message("gui-narration-audition-device", [("detail", error.to_string())])
+        })?;
+        let sink = Sink::try_new(&handle).map_err(|error| {
+            StatusText::message("gui-narration-audition-play", [("detail", error.to_string())])
+        })?;
         sink.append(decoded);
         Ok(Self {
             sink,

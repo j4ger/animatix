@@ -130,6 +130,44 @@ fn hex_color_rejects_invalid_literals_and_expressions_inside_always() {
     }
 }
 
+#[test]
+fn parser_presentation_does_not_change_canonical_errors_or_locations() {
+    use crate::diagnostics::{DiagnosticPresentation, ParsePresentation};
+
+    let (_, errors) = parse_source("#0s\nitem: Rect, opacity: )");
+    let error = errors.iter().find(|error| error.line == 2).expect("parse error");
+    assert_eq!(error.message, "expected expression, found ')'");
+    let diagnostic = error.to_diagnostic();
+    assert_eq!(diagnostic.message, "expected expression, found ')'\n  in actor declaration");
+    assert_eq!(diagnostic.location.line, Some(error.line));
+    assert_eq!(diagnostic.location.column, Some(error.column));
+    assert_eq!(diagnostic.location.span, Some(error.span.clone()));
+    assert!(matches!(
+        diagnostic.presentation,
+        Some(DiagnosticPresentation::Parse {
+            problem: ParsePresentation::Mismatch { .. },
+            ..
+        })
+    ));
+
+    let source = "always {\n  box.color = hex_color(\"#fff1d6\")\n}";
+    let (_, errors) = parse_source(source);
+    let custom = errors
+        .iter()
+        .find(|error| error.message.starts_with("Omit the leading"))
+        .expect("custom hex color error");
+    assert_eq!(
+        custom.message,
+        "Omit the leading '#' in hex_color. Write hex_color(\"fff1d6\")."
+    );
+    assert!(matches!(
+        &custom.to_diagnostic().presentation,
+        Some(DiagnosticPresentation::Parse {
+            problem: ParsePresentation::Rule { id, argument: Some(value) }, ..
+        }) if id == "diagnostic-parse-hex-suggestion" && value == "fff1d6"
+    ));
+}
+
 fn actor_parts(stmt: Stmt) -> (String, String, Vec<InlineItem>) {
     match stmt {
         Stmt::ActorDecl {

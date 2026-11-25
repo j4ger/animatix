@@ -1,5 +1,13 @@
 import {until} from './web-smoke-browser.mjs';
 import {assertPaint} from './web-smoke-pixels.mjs';
+const graphicsCopy = {
+  en: 'This browser could not start WebGPU or WebGL2.',
+  'zh-Hans': '此浏览器无法启动 WebGPU 或 WebGL2。',
+};
+const fallbackCopy = {
+  en: 'Live playback unavailable.',
+  'zh-Hans': '实时播放暂不可用。',
+};
 const players = `document.querySelectorAll('amx-player')`;
 export async function journey(cdp, contract, capture, record, checkErrors) {
   const diagnose = async label => {
@@ -29,7 +37,11 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
   }
   record({kind:'action',action:contract.action,pageTimeMs:await cdp.evaluate('performance.now()')});
   if (contract.action === 'recording') {
-    await recordingJourney(cdp, record);
+    await recordingJourney(cdp, contract.locale, record);
+    return;
+  }
+  if (contract.action === 'direct-embed') {
+    await directEmbedJourney(cdp, contract, record, checkErrors);
     return;
   }
   await until('expected players', async () => {
@@ -228,17 +240,27 @@ async function playReadyScene(cdp, {recording}) {
   await cdp.evaluate(`document.querySelector('.sample-play').click()`);
 }
 
-async function recordingJourney(cdp, record) {
+async function recordingJourney(cdp, locale, record) {
   async function failedWithPoster() {
     await until('graphics failure and recording choice', () => cdp.evaluate(`
-      document.querySelector('.scene-status').textContent.includes('could not start WebGPU or WebGL2') &&
       !document.querySelector('.scene-placeholder').hidden &&
       !document.querySelector('.scene-fallback').hidden &&
       !document.querySelector('amx-player') &&
       document.querySelector('[data-scene-preset]').disabled
     `));
   }
+  async function checkCopy() {
+    const copy = await cdp.evaluate(`({
+      lang: document.documentElement.lang,
+      message: document.querySelector('.scene-status').textContent.trim(),
+    })`);
+    const expected = fallbackCopy[locale] + ' ' + graphicsCopy[locale];
+    if (copy.lang !== locale || copy.message !== expected) {
+      throw Error('Unexpected ' + locale + ' graphics failure copy ' + JSON.stringify(copy));
+    }
+  }
   await failedWithPoster();
+  await checkCopy();
   const point = await cdp.evaluate(`(() => {
     const video = document.querySelector('video');
     if (video.hasAttribute('src') || performance.getEntriesByType('resource').some(entry =>
@@ -258,13 +280,65 @@ async function recordingJourney(cdp, record) {
     retry.click();
   })()`);
   await failedWithPoster();
+  await checkCopy();
   if (!await cdp.evaluate(`
     document.querySelector('.recording-panel').hidden && document.querySelector('video').paused &&
     document.activeElement === document.querySelector('.watch-recording')
   `)) {
     throw Error('Retry must pause the recording and return to the poster');
   }
-  record({kind:'recording-fallback', liveRetry:true});
+  record({kind:'recording-fallback', locale, liveRetry:true});
+}
+
+async function directEmbedJourney(cdp, {base = '', forceGraphicsFailure}, record, checkErrors) {
+  const module = JSON.stringify(base + '/runtime/amx-player.js');
+  const source = JSON.stringify(base + '/content/scenes/first-move.amx');
+  await cdp.evaluate(`(async () => {
+    await import(${module});
+    const player = document.createElement('amx-player');
+    player.lang = 'zh-Hans';
+    player.setAttribute('controls', '');
+    player.setAttribute('eager', '');
+    player.setAttribute('src', ${source});
+    player.addEventListener('amxerror', event => {
+      window.__directPlayerError = event.detail;
+    });
+    document.querySelector('main').prepend(player);
+  })()`);
+  const player = "document.querySelector('amx-player')";
+  if (forceGraphicsFailure) {
+    await until('direct player error veil', () => cdp.evaluate(`
+      window.__directPlayerError &&
+      !!${player}.shadowRoot?.querySelector('.veil.error .retry-btn')
+    `));
+    const failure = await cdp.evaluate(`({
+      kind: window.__directPlayerError.kind,
+      message: ${player}.shadowRoot.querySelector('.veil.error > div').textContent,
+      retry: ${player}.shadowRoot.querySelector('.retry-btn').textContent,
+    })`);
+    if (failure.kind !== 'capability') throw Error('Direct embed did not report a capability failure');
+    if (failure.message !== graphicsCopy['zh-Hans'] || failure.retry !== '重试') {
+      throw Error('Unexpected direct embed failure copy ' + JSON.stringify(failure));
+    }
+  } else {
+    await until('direct player ready', async () => {
+      await checkErrors();
+      return cdp.evaluate(`__smoke.ready.has(${player})`);
+    });
+    const controls = await cdp.evaluate(`({
+      region: ${player}.shadowRoot.querySelector('.amx-transport').getAttribute('aria-label'),
+      timeline: ${player}.shadowRoot.querySelector('.amx-timeline').getAttribute('aria-label'),
+      play: ${player}.shadowRoot.querySelector('.play-toggle').getAttribute('aria-label'),
+    })`);
+    if (controls.region !== '播放控制' || controls.timeline !== '时间轴' || controls.play !== '重播') {
+      throw Error('Unexpected Chinese resting controls in direct embed ' + JSON.stringify(controls));
+    }
+    await cdp.evaluate(`${player}.pause(); ${player}.seek(0);`);
+    await until('Chinese start control', () => cdp.evaluate(`
+      ${player}.shadowRoot.querySelector('.play-toggle')?.getAttribute('aria-label') === '播放'
+    `));
+  }
+  record({kind:'direct-embed', locale:'zh-Hans', graphicsFailure:Boolean(forceGraphicsFailure)});
 }
 
 async function presetJourney(cdp, capture, checkErrors, record) {

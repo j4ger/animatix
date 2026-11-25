@@ -82,30 +82,6 @@ fn autosave_prefs_defaults_are_stable() {
     assert_eq!(prefs.interval_s, 20.0);
 }
 
-#[test]
-fn detail_region_toggles_without_rebuilding() {
-    let mut tree = default_tree();
-    assert!(tree.tiles.find_pane(&WorkspaceTab::Inspector).is_some());
-    assert!(tree.tiles.find_pane(&WorkspaceTab::Code).is_some());
-    assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
-
-    // Hiding the detail region keeps every pane in the tree.
-    assert!(set_detail_visible(&mut tree, false));
-    let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector).unwrap();
-    let detail = tree.tiles.parent_of(inspector).unwrap();
-    assert!(!tree.is_visible(detail));
-
-    // Activating a tab shows the region again and switches the tab.
-    assert!(activate_detail_tab(&mut tree, WorkspaceTab::Code));
-    assert!(tree.is_visible(detail));
-    assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Code));
-
-    // Other panes survive untouched.
-    assert!(tree.tiles.find_pane(&WorkspaceTab::Timeline).is_some());
-    assert!(tree.tiles.find_pane(&WorkspaceTab::Preview).is_some());
-    assert!(tree.tiles.find_pane(&WorkspaceTab::Sidebar).is_some());
-}
-
 // ── Compact (narrow-window) downgrade ─────────────────────────────────
 
 #[test]
@@ -122,7 +98,8 @@ fn compact_decision_uses_the_breakpoint() {
 fn compact_entry_hides_detail_and_restores_on_exit() {
     let mut tree = default_tree();
     let mut restore = None;
-    assert!(detail_visible(&tree), "detail starts docked");
+    show_inspector(&mut tree);
+    assert!(detail_visible(&tree), "pinned inspector starts docked");
     assert!(pane_visible(&tree, WorkspaceTab::Sidebar));
 
     let entered = reconcile_compact(&mut tree, false, true, &mut restore);
@@ -130,8 +107,6 @@ fn compact_entry_hides_detail_and_restores_on_exit() {
     assert!(!detail_visible(&tree), "detail dock hidden while compact");
     assert!(pane_visible(&tree, WorkspaceTab::Sidebar), "rail stays visible");
     assert!(restore.is_some(), "entry captures state to restore");
-    // The dock is hidden, but the tab is still selectable (drawer reads it).
-    assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
 
     let exited = reconcile_compact(&mut tree, true, false, &mut restore);
     assert_eq!(exited, CompactTransition::Exited);
@@ -166,6 +141,7 @@ fn apply_compact_entry_reshapes_a_rebuilt_tree() {
     // A preset/reset while compact rebuilds the tree with the detail
     // visible; the migration path reshapes it without a transition.
     let mut tree = default_tree();
+    show_inspector(&mut tree);
     assert!(detail_visible(&tree));
     apply_compact_entry(&mut tree);
     assert!(!detail_visible(&tree));
@@ -197,13 +173,99 @@ fn enforce_compact_rail_gives_the_sidebar_a_fixed_width() {
     assert!((px[1] - (width - crate::app::panels::COMPACT_RAIL_WIDTH)).abs() < 0.01);
 }
 
+fn legacy_code_tree() -> Tree<WorkspaceTab> {
+    let mut tiles = Tiles::default();
+    let editor = tiles.insert_pane(WorkspaceTab::Code);
+    let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
+    let timeline = tiles.insert_pane(WorkspaceTab::Timeline);
+    let curves = tiles.insert_pane(WorkspaceTab::Curves);
+    let detail = tiles.insert_tab_tile(vec![editor, inspector]);
+    let bottom = tiles.insert_tab_tile(vec![timeline, curves]);
+    let root = tiles.insert_container(Linear::new(LinearDir::Vertical, vec![detail, bottom]));
+    let mut tree = Tree::new(egui::Id::unique("legacy-workspace"), root, tiles);
+    tree.make_active(|id, _| id == editor);
+    tree
+}
+
 #[test]
-fn set_active_detail_tab_does_not_show_the_region() {
-    let mut tree = default_tree();
-    set_detail_visible(&mut tree, false);
-    assert!(set_active_detail_tab(&mut tree, WorkspaceTab::Code));
-    assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Code));
-    assert!(!detail_visible(&tree), "selecting a tab must not unhide the dock");
-    // A pane outside the detail group is rejected.
-    assert!(!set_active_detail_tab(&mut tree, WorkspaceTab::Preview));
+fn legacy_code_tab_migrates_to_write_without_the_curves_tab() {
+    let mut saved = WorkspacePersistence {
+        tree: legacy_code_tree(),
+        layout_version: 0,
+        layout_preset: Some(LayoutPreset::Animate),
+        window_size: Some([1120.0, 820.0]),
+        window_maximized: Some(true),
+        settings: None,
+    };
+    let legacy = ron::to_string(&saved).unwrap().replace("Some(Animate)", "Some(Focus)");
+    saved = ron::from_str(&legacy).expect("old named preset should not drop the RON file");
+    migrate_workspace(&mut saved);
+    assert_eq!(saved.layout_preset, Some(LayoutPreset::Code));
+    assert_eq!(saved.window_size, Some([1120.0, 820.0]));
+    assert_eq!(saved.window_maximized, Some(true));
+    assert!(pane_visible(&saved.tree, WorkspaceTab::Code));
+    assert!(!detail_visible(&saved.tree));
+    assert!(saved.tree.tiles.find_pane(&WorkspaceTab::Curves).is_none());
+    assert!(pane_visible(&saved.tree, WorkspaceTab::Timeline));
+}
+
+#[test]
+fn legacy_write_layout_preserves_chinese_grid_and_shortcut_after_reopening() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("workspace_layout.ron");
+    let tree = ron::to_string(&legacy_code_tree()).unwrap();
+    let input = format!(
+        r#"(tree: {tree}, window_size: Some((1120.0, 820.0)), settings: Some((
+            interface_language: "zh-CN", rebuild_debounce_ms: 150, scrub_step_s: 0.05,
+            snap_fps: 60.0, undo_limit: 100, grid_size: 48.0,
+            shortcuts: {{"Save": (command: true, ctrl: false, shift: true, alt: false, key: "S")}},
+        )))"#
+    );
+    ron::from_str::<WorkspacePersistence>(&input).expect("decode the legacy RON fixture");
+    fs::write(&path, input).unwrap();
+
+    let first = load_workspace_persistence(&path).expect("load a pre-versioned dock");
+    fs::write(&path, ron::to_string(&first).unwrap()).unwrap();
+    let reopened = load_workspace_persistence(&path).expect("reload the migrated dock");
+
+    for saved in [first, reopened] {
+        assert_eq!(saved.layout_version, WORKSPACE_LAYOUT_VERSION);
+        assert_eq!(saved.layout_preset, Some(LayoutPreset::Code));
+        assert!(pane_visible(&saved.tree, WorkspaceTab::Code));
+        assert!(!detail_visible(&saved.tree));
+        assert_eq!(saved.window_size, Some([1120.0, 820.0]));
+        let settings = saved.settings.expect("preferences are preserved");
+        assert_eq!(settings.interface_language, "zh-CN");
+        assert_eq!(settings.grid_size, 48.0);
+        assert_eq!(
+            settings.shortcuts.get("Save"),
+            Some(&SavedShortcut {
+                command: true,
+                ctrl: false,
+                shift: true,
+                alt: false,
+                key: "S".into(),
+            }),
+        );
+    }
+}
+
+#[test]
+fn modern_saved_workspace_keeps_pin_and_editor_but_drops_optional_comparison() {
+    let mut tree = build_tree_for(LayoutPreset::Code, 1440.0, 960.0);
+    show_inspector(&mut tree);
+    toggle_curve_comparison(&mut tree);
+    let mut saved = WorkspacePersistence {
+        tree,
+        layout_version: WORKSPACE_LAYOUT_VERSION,
+        layout_preset: Some(LayoutPreset::Code),
+        window_size: None,
+        window_maximized: None,
+        settings: None,
+    };
+    migrate_workspace(&mut saved);
+    assert_eq!(saved.layout_preset, Some(LayoutPreset::Code));
+    assert!(detail_visible(&saved.tree));
+    assert!(pane_visible(&saved.tree, WorkspaceTab::Code));
+    assert!(saved.tree.tiles.find_pane(&WorkspaceTab::Curves).is_none());
 }

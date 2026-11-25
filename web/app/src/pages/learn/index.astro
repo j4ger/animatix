@@ -3,14 +3,14 @@ import Page from '../../layouts/Page.astro';
 import LearningIndex from '../../components/LearningIndex.astro';
 import {lessons, pageUrl} from '../../lib/content';
 import {lessonCopy} from '../../lib/catalog-zh';
-import {pageLanguage} from '../../lib/language';
+import {choose, pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
-const {t, tutorials} = ui(language);
+const {tutorials} = ui(language);
 const items = lessons.map(lesson => ({
   href: pageUrl(language, `learn/${lesson.id}/`),
-  title: t(lesson.title, lessonCopy[lesson.id].title),
-  goal: t(lesson.goal, lessonCopy[lesson.id].goal),
+  title: choose(language, lesson.title, lessonCopy[lesson.id].title),
+  goal: choose(language, lesson.goal, lessonCopy[lesson.id].goal),
 }));
 ---
 <Page title={tutorials}>

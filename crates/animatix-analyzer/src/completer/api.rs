@@ -105,12 +105,22 @@ fn member_completions(symbols: &SymbolTable, receiver: &str) -> Vec<CompletionIt
     use animatix_core::builtins::members::{ACTOR_GEOMETRY_MEMBERS, BOX_POINT_MEMBERS};
     use animatix_syntax::{ast::Expr, typing::Type};
     let ty = symbols.infer_expr_type(&Expr::Path(receiver.split('.').map(str::to_owned).collect()));
-    let (names, additional, detail) = match ty {
-        Type::Actor(_) | Type::Component(_) => {
-            (BOX_POINT_MEMBERS, ACTOR_GEOMETRY_MEMBERS, "Vec2 · read-only geometry")
+    let (names, additional, detail, detail_message) = match ty {
+        Type::Actor(_) | Type::Component(_) => (
+            BOX_POINT_MEMBERS,
+            ACTOR_GEOMETRY_MEMBERS,
+            "Vec2 · read-only geometry",
+            CompletionDetail::ReadOnlyGeometry,
+        ),
+        Type::List(_) | Type::Str => (
+            &["length"][..],
+            &[][..],
+            "Num · read-only length",
+            CompletionDetail::ReadOnlyLength,
+        ),
+        _ if receiver == "scene" => {
+            (BOX_POINT_MEMBERS, &[][..], "Vec2 · scene anchor", CompletionDetail::SceneAnchor)
         },
-        Type::List(_) | Type::Str => (&["length"][..], &[][..], "Num · read-only length"),
-        _ if receiver == "scene" => (BOX_POINT_MEMBERS, &[][..], "Vec2 · scene anchor"),
         _ => return Vec::new(),
     };
     names
@@ -120,6 +130,7 @@ fn member_completions(symbols: &SymbolTable, receiver: &str) -> Vec<CompletionIt
             label: (*name).into(),
             kind: CompletionKind::Property,
             detail: Some(detail.into()),
+            detail_message: Some(detail_message.clone()),
             documentation: None,
             insert_text: Some((*name).into()),
         })

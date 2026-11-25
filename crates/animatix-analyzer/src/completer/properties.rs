@@ -17,6 +17,7 @@ pub(super) fn property_completions(
                     label: param.name.clone(),
                     kind: CompletionKind::Property,
                     detail: Some(format!("{display} parameter")),
+                    detail_message: Some(CompletionDetail::EffectParameter(display.to_owned())),
                     documentation: None,
                     insert_text: Some(format!("{}: ", param.name)),
                 });
@@ -25,6 +26,7 @@ pub(super) fn property_completions(
                 label: "enabled".to_string(),
                 kind: CompletionKind::Property,
                 detail: Some(format!("{display} parameter")),
+                detail_message: Some(CompletionDetail::EffectParameter(display.to_owned())),
                 documentation: None,
                 insert_text: Some("enabled: ".to_string()),
             });
@@ -36,6 +38,9 @@ pub(super) fn property_completions(
                     label: param.name.to_string(),
                     kind: CompletionKind::Property,
                     detail: Some(format!("{} parameter", effect.display_name)),
+                    detail_message: Some(CompletionDetail::EffectParameter(
+                        effect.display_name.to_string(),
+                    )),
                     documentation: None,
                     insert_text: Some(format!("{}: ", param.name)),
                 });
@@ -44,6 +49,9 @@ pub(super) fn property_completions(
                 label: "enabled".to_string(),
                 kind: CompletionKind::Property,
                 detail: Some(format!("{} parameter", effect.display_name)),
+                detail_message: Some(CompletionDetail::EffectParameter(
+                    effect.display_name.to_string(),
+                )),
                 documentation: None,
                 insert_text: Some("enabled: ".to_string()),
             });
@@ -65,19 +73,23 @@ pub(super) fn property_completions(
                         (
                             format!("Extension property of {}", ty),
                             format!("Extension type: {:?}", property.ty),
+                            CompletionDetail::ExtensionProperty(ty.to_owned()),
                         )
                     });
-                let (detail, doc) =
-                    extension.map(|(detail, doc)| (detail, Some(doc))).unwrap_or_else(|| {
+                let (detail, doc, detail_message) = extension
+                    .map(|(detail, doc, message)| (detail, Some(doc), message))
+                    .unwrap_or_else(|| {
                         (
                             format!("Property of {}", ty),
                             property_documentation(prop).map(str::to_string),
+                            CompletionDetail::Property(ty.to_owned()),
                         )
                     });
                 items.push(CompletionItem {
                     label: prop.clone(),
                     kind: CompletionKind::Property,
                     detail: Some(detail),
+                    detail_message: Some(detail_message),
                     documentation: doc,
                     insert_text: Some(format!("{}: ", prop)),
                 });
@@ -95,6 +107,7 @@ pub(super) fn property_completions(
                 label: prop.to_string(),
                 kind: CompletionKind::Property,
                 detail: Some("Common property".to_string()),
+                detail_message: Some(CompletionDetail::CommonProperty),
                 documentation: doc.map(|s| s.to_string()),
                 insert_text: Some(format!("{}: ", prop)),
             });

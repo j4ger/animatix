@@ -38,6 +38,7 @@ fn span_takes_precedence_over_stale_line_columns() {
         phase: DiagnosticPhase::Build,
         code: DiagnosticCode::UndefinedLabel,
         message: "Undefined label: nope".to_string(),
+        presentation: None,
         location: animatix_syntax::diagnostics::DiagnosticLocation {
             line: Some(1),
             column: Some(1),
@@ -239,6 +240,7 @@ fn lint_config_does_not_suppress_errors() {
         expected: vec![],
         found: None,
         context: vec![],
+        presentation: None,
     }];
     let symbols = SymbolTable::build_from_ast(&[]);
     let config = LintConfig::from_source(source);

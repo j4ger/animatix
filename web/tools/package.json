@@ -7,6 +7,7 @@
     "build:embed": "node build-embed.mjs"
   },
   "dependencies": {
+    "@fluent/bundle": "0.19.1",
     "esbuild": "^0.24"
   }
 }

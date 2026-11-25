@@ -41,19 +41,22 @@ impl GuiShell {
             dialog::DialogSpec::new("find_replace", [460.0, 220.0]).with_min_size([400.0, 200.0]);
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
-            let close = dialog::title_row(ui, "Find & Replace");
+            let close = {
+                let title = crate::app::i18n::text(ui, "gui-find-replace-title");
+                dialog::title_row(ui, &title)
+            };
             ui.add_space(sp.base.space_3);
             ui.separator();
             ui.add_space(sp.base.space_3);
 
             ui.label(
-                egui::RichText::new("Find")
+                egui::RichText::new(crate::app::i18n::text(ui, "gui-find-query"))
                     .size(TextRole::BodyS.size())
                     .color(theme.palette.text.secondary),
             );
             let find_resp = TextField::new(&mut self.ui_store.find_query)
                 .desired_width(ui.available_width())
-                .placeholder("Search term…")
+                .placeholder(&crate::app::i18n::text(ui, "gui-find-placeholder"))
                 .cleanable(true)
                 .show(ui);
             // Reset the cursor-relative position whenever the query changes.
@@ -64,9 +67,18 @@ impl GuiShell {
             // Options
             ui.add_space(sp.base.space_2);
             ui.horizontal(|ui| {
-                ui.add(Checkbox::new(&mut self.ui_store.find_case_sensitive).label("Case"));
-                ui.add(Checkbox::new(&mut self.ui_store.find_whole_word).label("Word"));
-                ui.add(Checkbox::new(&mut self.ui_store.find_regex).label("Regex"));
+                ui.add(
+                    Checkbox::new(&mut self.ui_store.find_case_sensitive)
+                        .label(&crate::app::i18n::text(ui, "gui-find-match-case")),
+                );
+                ui.add(
+                    Checkbox::new(&mut self.ui_store.find_whole_word)
+                        .label(&crate::app::i18n::text(ui, "gui-find-match-word")),
+                );
+                ui.add(
+                    Checkbox::new(&mut self.ui_store.find_regex)
+                        .label(&crate::app::i18n::text(ui, "gui-find-match-regex")),
+                );
 
                 // Live match count / pattern error, right-aligned.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -83,20 +95,28 @@ impl GuiShell {
                             let count =
                                 re.find_iter(self.document_store.source.editor.text()).count();
                             ui.label(
-                                egui::RichText::new(format!("{count} match(es)"))
-                                    .size(TextRole::Caption.size())
-                                    .color(if count == 0 {
-                                        theme.palette.status.warning
-                                    } else {
-                                        theme.palette.text.muted
-                                    }),
+                                egui::RichText::new(crate::app::i18n::render(
+                                    ui,
+                                    "gui-find-match-count",
+                                    &[("count", count.to_string())],
+                                ))
+                                .size(TextRole::Caption.size())
+                                .color(if count == 0 {
+                                    theme.palette.status.warning
+                                } else {
+                                    theme.palette.text.muted
+                                }),
                             );
                         },
                         Err(err) => {
                             ui.label(
-                                egui::RichText::new(format!("Invalid pattern: {err}"))
-                                    .size(TextRole::Caption.size())
-                                    .color(theme.palette.status.error),
+                                egui::RichText::new(crate::app::i18n::render(
+                                    ui,
+                                    "gui-status-find-invalid",
+                                    &[("detail", err.to_string())],
+                                ))
+                                .size(TextRole::Caption.size())
+                                .color(theme.palette.status.error),
                             );
                         },
                     }
@@ -105,26 +125,31 @@ impl GuiShell {
             ui.add_space(sp.base.space_2);
 
             ui.label(
-                egui::RichText::new("Replace with")
+                egui::RichText::new(crate::app::i18n::text(ui, "gui-find-replacement"))
                     .size(TextRole::BodyS.size())
                     .color(theme.palette.text.secondary),
             );
             TextField::new(&mut self.ui_store.replace_query)
                 .desired_width(ui.available_width())
-                .placeholder("Replacement…")
+                .placeholder(&crate::app::i18n::text(ui, "gui-find-replacement-placeholder"))
                 .cleanable(true)
                 .show(ui);
             ui.add_space(sp.base.space_3);
 
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let replace_all =
-                        ui.add_sized([100.0, sp.base.row_m], Button::primary("Replace All"));
+                    let replace_all = ui.add_sized(
+                        [100.0, sp.base.row_m],
+                        Button::primary(crate::app::i18n::text(ui, "gui-find-replace-all")),
+                    );
                     if replace_all.clicked() {
                         self.perform_find_replace_all();
                     }
 
-                    let find_next = ui.add_sized([90.0, sp.base.row_m], Button::ghost("Find Next"));
+                    let find_next = ui.add_sized(
+                        [90.0, sp.base.row_m],
+                        Button::ghost(crate::app::i18n::text(ui, "gui-find-next")),
+                    );
                     if find_next.clicked() {
                         self.find_next_in_editor();
                     }
@@ -150,13 +175,17 @@ impl GuiShell {
 
     fn perform_find_replace_all(&mut self) {
         if self.ui_store.find_query.is_empty() {
-            self.preview_store.preview.status = "Find query is empty".to_string();
+            self.preview_store.preview.status =
+                crate::app::i18n::StatusText::message("gui-status-find-empty", []);
             return;
         }
         let re = match self.current_find_pattern() {
             Ok(re) => re,
             Err(err) => {
-                self.preview_store.preview.status = format!("Invalid pattern: {err}");
+                self.preview_store.preview.status = crate::app::i18n::StatusText::message(
+                    "gui-status-find-invalid",
+                    [("detail", err.to_string())],
+                );
                 return;
             },
         };
@@ -164,7 +193,8 @@ impl GuiShell {
         let text = self.document_store.source.editor.text().to_string();
         let count = re.find_iter(&text).count();
         if count == 0 {
-            self.preview_store.preview.status = "No matches found".to_string();
+            self.preview_store.preview.status =
+                crate::app::i18n::StatusText::message("gui-status-find-no-matches", []);
             return;
         }
 
@@ -187,18 +217,25 @@ impl GuiShell {
                 + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
         );
         self.ui_store.find_last_match = None;
-        self.preview_store.preview.status = format!("Replaced {} occurrence(s)", count);
+        self.preview_store.preview.status = crate::app::i18n::StatusText::message(
+            "gui-status-find-replaced",
+            [("count", count.to_string())],
+        );
     }
 
     fn find_next_in_editor(&mut self) {
         if self.ui_store.find_query.is_empty() {
-            self.preview_store.preview.status = "Find query is empty".to_string();
+            self.preview_store.preview.status =
+                crate::app::i18n::StatusText::message("gui-status-find-empty", []);
             return;
         }
         let re = match self.current_find_pattern() {
             Ok(re) => re,
             Err(err) => {
-                self.preview_store.preview.status = format!("Invalid pattern: {err}");
+                self.preview_store.preview.status = crate::app::i18n::StatusText::message(
+                    "gui-status-find-invalid",
+                    [("detail", err.to_string())],
+                );
                 return;
             },
         };
@@ -215,11 +252,15 @@ impl GuiShell {
                 self.ui_store.find_last_match = Some(m.end());
                 let (line, _col) = self.document_store.source.editor.byte_to_line_col(m.start());
                 self.document_store.source.editor.scroll_to_line(line);
-                self.preview_store.preview.status = format!("Found at line {}", line + 1);
+                self.preview_store.preview.status = crate::app::i18n::StatusText::message(
+                    "gui-status-find-found",
+                    [("line", (line + 1).to_string())],
+                );
             },
             None => {
                 self.ui_store.find_last_match = None;
-                self.preview_store.preview.status = "No matches found".to_string();
+                self.preview_store.preview.status =
+                    crate::app::i18n::StatusText::message("gui-status-find-no-matches", []);
             },
         }
     }

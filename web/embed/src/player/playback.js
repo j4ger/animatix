@@ -1,3 +1,4 @@
+import { playerLabels } from "./labels.js";
 import * as core from "./core.js";
 const {
   FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
@@ -110,7 +111,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
         this.pause();
         this._state = "error";
         const normalized = playerError(error, "capability");
-        this._showVeil(`Graphics backend recovery failed: ${normalized.message}`, true);
+        this._showVeil(playerLabels(this.lang).recoveryFailed + " " + normalized.message, true);
         this._settleVarsWaiters?.(normalized);
         dispatchPlayerError(this, this.getAttribute("src"), normalized, "capability");
       } finally {

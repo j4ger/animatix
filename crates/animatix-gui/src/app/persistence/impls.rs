@@ -2,12 +2,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
-use egui_tiles::{Container, Tile, Tree};
+use egui_tiles::Tree;
 
 use super::{
     AppState, AutosavePrefs, COMPACT_BREAKPOINT, CompactRestore, CompactTransition, LayoutPreset,
-    MAX_RECENT_FILES, WorkspaceTab, detail_visible, enforce_vertical_bounds, set_detail_visible,
-    set_pane_visible,
+    MAX_RECENT_FILES, WorkspaceTab, detail_visible, enforce_horizontal_bounds,
+    enforce_vertical_bounds, set_detail_visible, set_pane_visible,
 };
 
 /// Whether a given window width should use the compact layout.
@@ -27,8 +27,8 @@ pub(in crate::app) fn capture_compact_restore(tree: &Tree<WorkspaceTab>) -> Comp
 ///
 /// On entry the detail dock is hidden (the overlay drawer replaces it; the
 /// sidebar tile stays visible and renders its icon rail). On exit the captured
-/// visibility is restored, so a user who had closed the detail column, or was
-/// in the Focus preset, does not get panes forced back open. The caller stores
+/// visibility is restored, keeping Inspector pinned only when it was pinned
+/// before the transition. The caller stores
 /// `restore` across frames (`ViewStore::compact_restore`).
 pub(in crate::app) fn reconcile_compact(
     tree: &mut Tree<WorkspaceTab>,
@@ -46,7 +46,7 @@ pub(in crate::app) fn reconcile_compact(
     } else {
         let state = restore.take().unwrap_or(CompactRestore {
             sidebar_visible: true,
-            detail_visible: true,
+            detail_visible: false,
         });
         restore_compact_tree(tree, state);
         CompactTransition::Exited
@@ -60,8 +60,7 @@ pub(in crate::app) fn reconcile_compact(
 /// can be re-shaped without waiting for a transition.
 pub(in crate::app) fn apply_compact_entry(tree: &mut Tree<WorkspaceTab>) {
     // The rail is the only way to reach the sidebar views in compact mode, so
-    // it stays visible even if the user had hidden the sidebar (e.g. the Focus
-    // preset). The captured state restores on widen.
+    // it stays visible in the compact layout.
     set_pane_visible(tree, WorkspaceTab::Sidebar, true);
     set_detail_visible(tree, false);
 }
@@ -78,26 +77,7 @@ pub(in crate::app) fn restore_compact_tree(tree: &mut Tree<WorkspaceTab>, state:
 /// `Behavior::min_size` only constrains interactive resizing, so the rail can be
 /// narrower than `LEFT_MIN`.
 pub(in crate::app) fn enforce_compact_rail(tree: &mut Tree<WorkspaceTab>, width: f32) {
-    if width <= 0.0 {
-        return;
-    }
-    let (Some(sidebar), Some(preview)) = (
-        tree.tiles.find_pane(&WorkspaceTab::Sidebar),
-        tree.tiles.find_pane(&WorkspaceTab::Preview),
-    ) else {
-        return;
-    };
-    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
-        return;
-    };
-    if !(tree.is_visible(sidebar) && tree.is_visible(preview)) {
-        return;
-    }
-    let rail = crate::app::panels::COMPACT_RAIL_WIDTH.min((width * 0.25).max(0.0));
-    if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(top_row) {
-        linear.shares.set_share(sidebar, rail);
-        linear.shares.set_share(preview, (width - rail).max(0.0));
-    }
+    enforce_horizontal_bounds(tree, LayoutPreset::Animate, width, true);
 }
 
 /// Per-frame layout pass for compact mode: fixed rail on the left plus the

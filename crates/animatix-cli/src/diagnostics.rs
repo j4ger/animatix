@@ -127,8 +127,8 @@ pub fn fold_hints(
 ///
 /// `never-revealed` and friends are produced while walking the runtime track
 /// table, which keeps no source spans, so they reach the CLI with no location.
-/// Their message quotes the actor label in backticks; when the analyzer can
-/// resolve that label to a declaration, the diagnostic is pointed there.
+/// When the analyzer can resolve the actor label to a declaration, the
+/// diagnostic is pointed there.
 pub fn resolve_build_diagnostic_positions(
     diagnostics: &mut [Diagnostic],
     analyzer: &animatix_analyzer::Analyzer,
@@ -137,10 +137,11 @@ pub fn resolve_build_diagnostic_positions(
         if diagnostic.location.line.is_some() {
             continue;
         }
-        let Some(label) = backticked_label(&diagnostic.message) else {
+        let Some(label) = build_diagnostic_actor(diagnostic) else {
             continue;
         };
-        let Some((line, col, end_line, end_col)) = analyzer.declaration_range(&label) else {
+        let Some((line, col, end_line, end_col)) = analyzer.declaration_range(label.as_ref())
+        else {
             continue;
         };
         // Diagnostics are 1-based on this side; the analyzer reports 0-based.
@@ -149,6 +150,15 @@ pub fn resolve_build_diagnostic_positions(
         diagnostic.location.end_line = Some(end_line + 1);
         diagnostic.location.end_col = Some(end_col + 1);
     }
+}
+
+/// Actor label for build diagnostics. Older producers still encode it
+/// in the canonical message.
+pub(crate) fn build_diagnostic_actor(diagnostic: &Diagnostic) -> Option<std::borrow::Cow<'_, str>> {
+    if diagnostic.presentation.as_ref().is_some_and(|message| message.actor_subject()) {
+        return diagnostic.location.subject.as_deref().map(std::borrow::Cow::Borrowed);
+    }
+    backticked_label(&diagnostic.message).map(std::borrow::Cow::Owned)
 }
 
 /// Extract the first `` `label` `` from a diagnostic message.

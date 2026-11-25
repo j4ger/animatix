@@ -151,6 +151,24 @@ impl CompletionPopup {
         }
     }
 
+    fn detail(
+        language: crate::app::i18n::Language,
+        item: &CompletionItem,
+    ) -> Option<std::borrow::Cow<'_, str>> {
+        let localized = item.detail_message.as_ref().and_then(|message| {
+            let (key, name) = message.presentation();
+            let args = name.map(|name| {
+                let mut args = animatix_i18n::FluentArgs::new();
+                args.set("name", name);
+                args
+            });
+            language.format(key, args.as_ref())
+        });
+        localized
+            .map(std::borrow::Cow::Owned)
+            .or_else(|| item.detail.as_deref().map(std::borrow::Cow::Borrowed))
+    }
+
     /// Render the popup below the given rectangle (e.g., cursor position).
     /// Returns the selected item if confirmed (Tab/Enter).
     pub fn ui(&mut self, ui: &mut egui::Ui, below_rect: Rect) -> Option<String> {
@@ -175,13 +193,17 @@ impl CompletionPopup {
 
         // Popup dimensions
         let item_height = ROW_M;
-        let popup_width = 280.0;
+        let language = crate::app::i18n::current_language(ui.ctx());
+        let popup_width = ui.clip_rect().width().clamp(1.0, 360.0);
         let visible_count = filtered.len().min(self.max_visible);
         let popup_height = visible_count as f32 * item_height;
 
         // Position below the cursor
         let popup_pos = Pos2::new(
-            below_rect.left().min(ui.available_width() - popup_width),
+            below_rect
+                .left()
+                .min(ui.clip_rect().right() - popup_width)
+                .max(ui.clip_rect().left()),
             below_rect.bottom() + 2.0,
         );
 
@@ -255,27 +277,26 @@ impl CompletionPopup {
                     icon_color,
                 );
 
-                // Draw label
-                let label_pos = item_rect.left_center() + Vec2::new(24.0, -6.0);
-                let label_color = t.palette.text.primary;
-                ui.painter().text(
-                    label_pos,
-                    egui::Align2::LEFT_CENTER,
-                    &item.label,
-                    TextRole::BodyS.font_id(),
-                    label_color,
-                );
-
-                // Draw detail (if any)
-                if let Some(detail) = &item.detail {
-                    let detail_pos = item_rect.right_center() + Vec2::new(-8.0, -6.0);
-                    let detail_color = t.palette.text.secondary;
-                    ui.painter().text(
-                        detail_pos,
+                let detail = Self::detail(language, item);
+                let label_rect = item_rect.with_min_x(item_rect.left() + 24.0);
+                let detail_rect =
+                    label_rect.with_min_x(label_rect.left() + label_rect.width() * 0.53);
+                ui.painter()
+                    .with_clip_rect(label_rect.with_max_x(detail_rect.left() - 4.0))
+                    .text(
+                        label_rect.left_center(),
+                        egui::Align2::LEFT_CENTER,
+                        &item.label,
+                        TextRole::BodyS.font_id(),
+                        t.palette.text.primary,
+                    );
+                if let Some(detail) = &detail {
+                    ui.painter().with_clip_rect(detail_rect).text(
+                        detail_rect.right_center() - Vec2::new(8.0, 0.0),
                         egui::Align2::RIGHT_CENTER,
                         detail,
                         TextRole::Micro.font_id(),
-                        detail_color,
+                        t.palette.text.secondary,
                     );
                 }
 
@@ -284,6 +305,14 @@ impl CompletionPopup {
                     ui.scope_id().with(("completion-item", visible_idx)),
                     Sense::click(),
                 );
+                let accessible = match &detail {
+                    Some(detail) => format!("{} · {detail}", item.label),
+                    None => item.label.clone(),
+                };
+                response.widget_info(|| {
+                    egui::WidgetInfo::labeled(egui::Role::ListItem, true, &accessible)
+                });
+                let response = response.on_hover_text(accessible);
                 if response.clicked() {
                     self.selected = visible_idx;
                     let item = &self.items[filtered[visible_idx]];
@@ -330,6 +359,7 @@ mod tests {
                 label: "test".to_string(),
                 kind: CompletionKind::Keyword,
                 detail: None,
+                detail_message: None,
                 documentation: None,
                 insert_text: None,
             }],
@@ -354,6 +384,7 @@ mod tests {
                     label: "a".to_string(),
                     kind: CompletionKind::Keyword,
                     detail: None,
+                    detail_message: None,
                     documentation: None,
                     insert_text: None,
                 },
@@ -361,6 +392,7 @@ mod tests {
                     label: "b".to_string(),
                     kind: CompletionKind::Keyword,
                     detail: None,
+                    detail_message: None,
                     documentation: None,
                     insert_text: None,
                 },
@@ -380,6 +412,7 @@ mod tests {
             label: label.to_string(),
             kind: CompletionKind::Keyword,
             detail: None,
+            detail_message: None,
             documentation: None,
             insert_text: None,
         }

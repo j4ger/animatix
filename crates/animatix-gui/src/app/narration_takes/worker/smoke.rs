@@ -46,7 +46,7 @@ impl Project {
             selector: binding.selector.clone(),
             history: Arc::clone(&self.history),
         };
-        run(request, &AtomicBool::new(false))
+        run(request, &AtomicBool::new(false)).map_err(|error| error.canonical().to_owned())
     }
 }
 

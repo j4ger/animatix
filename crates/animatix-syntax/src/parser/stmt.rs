@@ -1,6 +1,7 @@
 //!
 //! Statement parsers for the Animatix DSL.
 
+use super::error::rule_error;
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 
@@ -287,7 +288,12 @@ fn import_stmt_parser<'src>() -> StmtParser<'src> {
         )
         .try_map(|(path, alias), span| {
             if alias.as_deref() == Some("std") {
-                Err(Rich::custom(span, "import alias `std` is reserved for the standard library"))
+                Err(rule_error(
+                    span,
+                    "diagnostic-parse-reserved-import",
+                    "import alias `std` is reserved for the standard library",
+                    None,
+                ))
             } else {
                 Ok(Stmt::Import {
                     path,
@@ -314,15 +320,12 @@ fn assignment_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
         .then(ctx.modifiers.clone())
         .try_map(move |((path, (value, value_span)), mut modifiers), span| {
             if path.is_empty() {
-                Err(Rich::custom(
-                    span,
-                    "assignment target must be a property name or actor.property path",
-                ))
+                Err(rule_error(span, "diagnostic-parse-assignment-target", "assignment target must be a property name or actor.property path", None))
             } else if path.len() == 1 {
                 let property = match &path[0] {
                     TargetSegment::Static(s) => s.clone(),
                     TargetSegment::Indexed { .. } => {
-                        return Err(Rich::custom(span, "indexed target cannot be a property name"));
+                        return Err(rule_error(span, "diagnostic-parse-indexed-property", "indexed target cannot be a property name", None));
                     },
                 };
                 let easing = common::extract_easing(&mut modifiers);
@@ -339,16 +342,10 @@ fn assignment_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                 let property = match path.last() {
                     Some(TargetSegment::Static(s)) => s.clone(),
                     Some(TargetSegment::Indexed { .. }) => {
-                        return Err(Rich::custom(
-                            span,
-                            "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
-                        ));
+                        return Err(rule_error(span, "diagnostic-parse-index-on-property", "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])", None));
                     },
                     None => {
-                        return Err(Rich::custom(
-                            span,
-                            "assignment target must include a property name",
-                        ));
+                        return Err(rule_error(span, "diagnostic-parse-assignment-property", "assignment target must include a property name", None));
                     },
                 };
                 let target = path[..path.len() - 1].to_vec();
@@ -380,24 +377,15 @@ fn reactive_binding_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
         ))
         .try_map(|(path, (value, value_span)), span| {
             if path.len() < 2 {
-                Err(Rich::custom(
-                    span,
-                    "reactive binding target must include an actor label and a property (e.g. 'actor.prop := expr')",
-                ))
+                Err(rule_error(span, "diagnostic-parse-reactive-target", "reactive binding target must include an actor label and a property (e.g. 'actor.prop := expr')", None))
             } else {
                 let property = match path.last() {
                     Some(TargetSegment::Static(s)) => s.clone(),
                     Some(TargetSegment::Indexed { .. }) => {
-                        return Err(Rich::custom(
-                            span,
-                            "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
-                        ));
+                        return Err(rule_error(span, "diagnostic-parse-index-on-property", "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])", None));
                     },
                     None => {
-                        return Err(Rich::custom(
-                            span,
-                            "reactive binding target must include a property name",
-                        ));
+                        return Err(rule_error(span, "diagnostic-parse-reactive-property", "reactive binding target must include a property name", None));
                     },
                 };
                 let target = path[..path.len() - 1].to_vec();
@@ -696,9 +684,11 @@ fn component_def_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                         .try_map(|body: Vec<Stmt>, span| {
                             for stmt in &body {
                                 if matches!(stmt, Stmt::Import { .. }) {
-                                    return Err(Rich::custom(
+                                    return Err(rule_error(
                                         span,
+                                        "diagnostic-parse-component-import",
                                         "import statements are not allowed inside component bodies",
+                                        None,
                                     ));
                                 }
                             }
@@ -727,9 +717,11 @@ fn block_comment_reject<'src>() -> StmtParser<'src> {
     slash()
         .ignore_then(star())
         .try_map(|_, span| {
-            Err(Rich::custom(
+            Err(rule_error(
                 span,
+                "diagnostic-parse-block-comment",
                 "block comments (/* */) are not supported; use // line comments instead",
+                None,
             ))
         })
         .boxed()
@@ -800,9 +792,11 @@ pub(crate) fn parser<'src>(
                     | Expr::Index(..) => {
                         Ok(Stmt::Expr(expr, common::source_span(&source, byte_span)))
                     },
-                    _ => Err(Rich::custom(
+                    _ => Err(rule_error(
                         byte_span,
+                        "diagnostic-parse-expression-statement",
                         "expression statements must be calls or timeline-plan values",
+                        None,
                     )),
                 })
             },

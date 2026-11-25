@@ -41,6 +41,12 @@ impl GuiShell {
                 Effect::Toast(toast) => {
                     self.ui_store.toasts.push(toast);
                 },
+                Effect::Notice(level, message) => {
+                    self.ui_store.toasts.push(Toast::new(
+                        message.display(self.ui_store.view.language).into_owned(),
+                        level,
+                    ));
+                },
                 Effect::Status(status) => {
                     self.preview_store.preview.set_status_info(status);
                 },
@@ -71,8 +77,14 @@ impl GuiShell {
         {
             tracing::warn!("Failed to create persistence directory: {}", e);
         }
+        let mut tree = self.ui_store.view.tree.clone();
+        if let Some(restore) = self.ui_store.view.compact_restore {
+            crate::app::persistence::restore_compact_tree(&mut tree, restore);
+        }
         let persistence = WorkspacePersistence {
-            tree: self.ui_store.view.tree.clone(),
+            tree,
+            layout_version: crate::app::persistence::WORKSPACE_LAYOUT_VERSION,
+            layout_preset: Some(self.ui_store.view.layout_preset),
             window_size: Some(self.window_size),
             window_maximized: Some(self.window_maximized),
             settings: Some(SettingsPersistence {
@@ -124,7 +136,11 @@ impl GuiShell {
         }
     }
 
-    pub(crate) fn set_status(&mut self, status: String, error: Option<String>) {
+    pub(crate) fn set_status(
+        &mut self,
+        status: impl Into<crate::app::i18n::StatusText>,
+        error: Option<String>,
+    ) {
         if error.is_some() {
             self.preview_store.preview.set_status_error(status);
         } else {
@@ -159,14 +175,27 @@ impl GuiShell {
                 })
                 .collect::<Vec<_>>()
                 .join("; ");
-            self.ui_store
-                .toasts
-                .push(Toast::warning(format!("Plugin reload issue: {message}")));
+            self.ui_store.toasts.push(Toast::warning(
+                crate::app::i18n::StatusText::message(
+                    "gui-file-plugin-reload",
+                    [("detail", message)],
+                )
+                .display(self.ui_store.view.language)
+                .into_owned(),
+            ));
             self.preview_store
                 .preview
-                .set_status_info("Plugin reload completed with issues");
+                .set_status_info(crate::app::i18n::StatusText::message(
+                    "gui-status-plugins-reloaded-issues",
+                    [],
+                ));
         } else {
-            self.preview_store.preview.set_status_info("Plugin reload completed");
+            self.preview_store
+                .preview
+                .set_status_info(crate::app::i18n::StatusText::message(
+                    "gui-status-plugins-reloaded",
+                    [],
+                ));
         }
     }
 
@@ -177,7 +206,13 @@ impl GuiShell {
             error.clone(),
         )];
         self.preview_store.preview_dirty = false;
-        self.set_status(format!("Render failed • {error}"), Some(error));
+        self.set_status(
+            crate::app::i18n::StatusText::message(
+                "gui-status-render-failed",
+                [("detail", error.clone())],
+            ),
+            Some(error),
+        );
     }
 
     #[cfg(test)]
@@ -192,10 +227,11 @@ impl GuiShell {
 
         if let Some(render_error) = active_render_error
             && self.preview_store.preview.error.as_deref() == Some(render_error.as_str())
-            && self.preview_store.preview.status == format!("Render failed • {render_error}")
+            && self.preview_store.preview.status.canonical()
+                == format!("Render failed • {render_error}")
         {
             self.preview_store.preview.error = None;
-            self.preview_store.preview.status = status;
+            self.preview_store.preview.status = status.into();
         }
     }
 }

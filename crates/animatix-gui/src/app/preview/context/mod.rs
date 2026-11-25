@@ -35,6 +35,7 @@ pub(crate) struct PreviewContext<'a> {
     pub performance_metrics: &'a mut PerformanceMetrics,
     /// Show layout debug overlay (container labels, slot outlines, sizes).
     pub debug_layout: bool,
+    pub preview_fullscreen: bool,
     /// Show padding/gap regions as overlay.
     pub debug_spacing: bool,
     /// True while a timeline rebuild is running.

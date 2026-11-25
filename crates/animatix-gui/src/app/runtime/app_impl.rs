@@ -66,10 +66,10 @@ impl AnimatixApp {
                 .to_ascii_lowercase()
                 .as_str()
             {
-                "code" => Some(crate::app::LayoutPreset::Code),
-                "inspect" => Some(crate::app::LayoutPreset::Inspect),
-                "focus" => Some(crate::app::LayoutPreset::Focus),
-                "animate" => Some(crate::app::LayoutPreset::Animate),
+                "code" | "write" => Some(crate::app::LayoutPreset::Code),
+                "animate" | "review" | "inspect" | "focus" => {
+                    Some(crate::app::LayoutPreset::Animate)
+                },
                 _ => None,
             };
             if let Some(preset) = preset {
@@ -168,12 +168,24 @@ impl AnimatixApp {
 
     pub(super) fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
         use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
-        // The dialog is drawn after global shortcuts. Leave its dismissal
-        // key in the event queue so it can run its own exit and focus restore.
-        if self.shell.ui_store.view.settings_open
-            || (self.shell.modal_open() && ctx.input(|input| input.key_pressed(egui::Key::Escape)))
-        {
+        let view = &self.shell.ui_store.view;
+        if view.settings_open {
             return;
+        }
+        if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+            // A dialog or drawer handles its own dismissal after keyboard dispatch.
+            if self.shell.modal_open()
+                || (!view.preview_fullscreen && view.compact_drawer.is_some())
+            {
+                return;
+            }
+            if view.preview_fullscreen
+                && ctx
+                    .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+            {
+                self.handle_escape_shortcut();
+                return;
+            }
         }
         let focus = FocusContext {
             text_edit_focused: ctx.text_edit_focused(),
@@ -473,7 +485,12 @@ fn apply_escape_shortcut(
         ui_store.pending_actions.push_back(Command::TogglePresentationMode.into());
     } else if ui_store.selection.selection.marquee_start.take().is_some() {
         ui_store.selection.selection.marquee_current = None;
-        preview.status = "Selection cancelled".to_string();
+        preview.status =
+            crate::app::i18n::StatusText::message("gui-status-selection-cancelled", []);
+    } else if ui_store.view.preview_fullscreen {
+        ui_store
+            .pending_actions
+            .push_back(ShellAction::View(ViewAction::TogglePreviewFullscreen));
     }
 }
 
@@ -494,7 +511,7 @@ mod escape_tests {
         assert!(ui.selection.selection.marquee_current.is_none());
         assert!(ui.selection.selected_actors.contains("box"));
         assert!(ui.pending_actions.is_empty());
-        assert_eq!(preview.preview.status, "Selection cancelled");
+        assert_eq!(preview.preview.status.canonical(), "Selection cancelled");
         apply_escape_shortcut(&mut ui, &mut preview.preview);
         assert!(ui.pending_actions.is_empty());
     }

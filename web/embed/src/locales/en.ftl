@@ -1,0 +1,11 @@
+web-client-play = Play
+web-client-pause = Pause
+web-client-replay = Replay
+web-client-retry = Retry
+web-player-controls = Playback controls
+web-player-timeline = Timeline
+web-player-speed = Playback speed
+web-player-scene = animatix scene
+web-player-load-failed = Failed to load scene:
+web-player-recovery-failed = Graphics backend recovery failed:
+web-player-graphics-unavailable = This browser could not start WebGPU or WebGL2.

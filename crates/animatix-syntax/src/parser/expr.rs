@@ -5,6 +5,7 @@
 //! strings, booleans, null) and the recursive expression parser with operator
 //! precedence, tuple/array literals, calls, constructors, closures, and conditionals.
 
+use super::error::rule_error;
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 use std::cell::RefCell;
@@ -160,7 +161,12 @@ fn atom_parsers<'src>(
             if body.iter().any(|stmt| {
                 matches!(stmt, crate::ast::Stmt::Config { .. } | crate::ast::Stmt::Play { .. })
             }) {
-                Err(Rich::custom(span, "config and play are only allowed at the scene/file level"))
+                Err(rule_error(
+                    span,
+                    "diagnostic-parse-scene-level",
+                    "config and play are only allowed at the scene/file level",
+                    None,
+                ))
             } else {
                 Ok(Expr::Timeline(PlanBody::new(body)))
             }
@@ -213,14 +219,19 @@ fn hex_color_parser<'src>(expr: ExprParser<'src>) -> ExprParser<'src> {
                         value: Expr::Str(digits),
                         ..
                     },
-                ] => parse_hex_color(digits),
-                _ => Err("hex_color requires one quoted hex literal".into()),
+                ] => parse_hex_color(digits, span),
+                _ => Err(rule_error(
+                    span,
+                    "diagnostic-parse-hex-arity",
+                    "hex_color requires one quoted hex literal",
+                    None,
+                )),
             };
             match result {
                 Ok(rgba) => Expr::Color(rgba),
                 Err(message) => {
                     // Keep the diagnostic at the argument through parser recovery.
-                    emitter.emit(Rich::custom(span, message));
+                    emitter.emit(message);
                     Expr::Null
                 },
             }
@@ -228,21 +239,46 @@ fn hex_color_parser<'src>(expr: ExprParser<'src>) -> ExprParser<'src> {
         .boxed()
 }
 
-fn parse_hex_color(digits: &str) -> Result<[u8; 4], String> {
+fn parse_hex_color<'src>(
+    digits: &str,
+    span: crate::ast::ByteSpan,
+) -> Result<[u8; 4], Rich<'src, TokenKind, crate::ast::ByteSpan>> {
     if let Some(digits) = digits.strip_prefix('#') {
-        let mut message = "Omit the leading '#' in hex_color.".to_string();
-        if matches!(digits.len(), 6 | 8) && digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            message.push_str(&format!(r#" Write hex_color("{digits}")."#));
-        }
-        return Err(message);
+        let message = "Omit the leading '#' in hex_color.";
+        return Err(
+            if matches!(digits.len(), 6 | 8) && digits.bytes().all(|byte| byte.is_ascii_hexdigit())
+            {
+                rule_error(
+                    span,
+                    "diagnostic-parse-hex-suggestion",
+                    format!(r#"{message} Write hex_color("{digits}")."#),
+                    Some(digits),
+                )
+            } else {
+                rule_error(span, "diagnostic-parse-hex-prefix", message, None)
+            },
+        );
     }
     if !matches!(digits.len(), 6 | 8) {
-        return Err("hex_color requires RRGGBB or RRGGBBAA".into());
+        return Err(rule_error(
+            span,
+            "diagnostic-parse-hex-length",
+            "hex_color requires RRGGBB or RRGGBBAA",
+            None,
+        ));
     }
     if let Some(invalid) = digits.chars().find(|digit| !digit.is_ascii_hexdigit()) {
-        return Err(format!("Invalid hexadecimal digit {invalid:?} in hex_color"));
+        let value = format!("{invalid:?}");
+        return Err(rule_error(
+            span,
+            "diagnostic-parse-hex-digit",
+            format!("Invalid hexadecimal digit {value} in hex_color"),
+            Some(&value),
+        ));
     }
-    let value = u32::from_str_radix(digits, 16).map_err(|error| error.to_string())?;
+    let value = u32::from_str_radix(digits, 16).map_err(|error| {
+        rule_error(span, "diagnostic-parse-hex-invalid", &error, Some(&error.to_string()))
+    })?;
     let rgba = if digits.len() == 6 {
         (value << 8) | 0xff
     } else {
@@ -426,16 +462,20 @@ fn call_arguments<'src>(
                     Some(name) => {
                         named_seen = true;
                         if !names.insert(name.clone()) {
-                            return Err(Rich::custom(
+                            return Err(rule_error(
                                 span,
+                                "diagnostic-parse-duplicate-argument",
                                 format!("duplicate named argument '{name}'"),
+                                Some(name),
                             ));
                         }
                     },
                     None if named_seen => {
-                        return Err(Rich::custom(
+                        return Err(rule_error(
                             span,
+                            "diagnostic-parse-named-order",
                             "positional arguments must come before named arguments",
+                            None,
                         ));
                     },
                     None => {},

@@ -35,7 +35,9 @@ test('documentation has direct destinations and showcase checks presets',()=>{
  for(const path of ['/docs/','/docs/quickstart/'])assert.ok(contracts('site').find(c=>c.path===path).links.length>=2);
  assert.equal(contracts('site').find(c=>c.path==='/showcase/ripple-and-cascade/').preset,true);
  assert.ok(contracts('site').some(c=>c.backend==='webgl2'&&c.action==='load'));
- assert.ok(contracts('site').some(c=>c.action==='recording'&&c.recording));
+ assert.deepEqual(contracts('site').filter(c=>c.action==='recording'&&c.recording).map(c=>c.locale), ['en','zh-Hans']);
+ assert.equal(contracts('site').filter(c=>c.action==='direct-embed').length, 2);
+ assert.ok(contracts('site').some(c=>c.action==='direct-embed'&&c.forceGraphicsFailure));
 });
 test('navigation retries only destroyed execution contexts within a deadline',async()=>{
  const {navigationCommitted}=await import('./web-smoke-browser.mjs');let calls=0;

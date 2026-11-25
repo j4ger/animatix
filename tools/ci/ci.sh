@@ -587,6 +587,7 @@ gate_embed_build() {
 
 gate_web_runtime_tests() {
   want_node
+  npm --prefix web/tools ci --silent
   node --test web/tools/runtime.test.mjs web/tools/perf-statistics.test.mjs web/tools/test/rgba-comparison.test.mjs web/tools/test/cdp-client.test.mjs
 }
 

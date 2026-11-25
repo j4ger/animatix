@@ -49,17 +49,21 @@ impl GuiShell {
         // Export scope selector (for compositions)
         if self.document_store.source.document.is_composition() {
             ui.horizontal(|ui| {
-                ui.label("Export:");
+                ui.label(crate::app::i18n::text(ui, "gui-export-scope"));
                 let mut scope = self.export_store.export_state.export_scope.clone();
                 let mut changed = false;
                 changed |= ui
-                    .selectable_value(&mut scope, ExportScope::ActiveScene, "Active Scene")
+                    .selectable_value(
+                        &mut scope,
+                        ExportScope::ActiveScene,
+                        text(ui, "gui-export-active-scene"),
+                    )
                     .clicked();
                 changed |= ui
                     .selectable_value(
                         &mut scope,
                         ExportScope::WholeComposition,
-                        "Whole Composition",
+                        text(ui, "gui-export-whole-composition"),
                     )
                     .clicked();
                 if changed {
@@ -74,9 +78,13 @@ impl GuiShell {
         if self.export_store.export_state.output_path.is_empty() {
             let default = self.suggest_export_filename();
             ui.label(
-                RichText::new(format!("Default: {}", default.display()))
-                    .size(TextRole::Micro.size())
-                    .color(theme.palette.text.muted),
+                RichText::new(render(
+                    ui,
+                    "gui-export-default",
+                    &[("path", default.display().to_string())],
+                ))
+                .size(TextRole::Micro.size())
+                .color(theme.palette.text.muted),
             );
         }
     }
@@ -90,7 +98,7 @@ impl GuiShell {
         state: &mut ExportDialogState,
     ) {
         // ── Resolution row ──
-        Self::settings_row(ui, "Resolution", |ui| {
+        Self::settings_row(ui, "gui-export-resolution", |ui| {
             let mut w_f64 = state.width as f64;
             layout::field_sized(ui, Some(78.0), |ui| {
                 NumberField::new(&mut w_f64)
@@ -135,9 +143,13 @@ impl GuiShell {
             if scene_dims.width > 0 && scene_dims.height > 0 {
                 let resp = ui.add(
                     egui::Label::new(
-                        RichText::new(format!("{} Scene", egui_phosphor::regular::ARROWS_IN))
-                            .size(TextRole::BodyS.size())
-                            .color(theme.palette.accent.primary),
+                        RichText::new(render(
+                            ui,
+                            "gui-export-scene-size",
+                            &[("icon", egui_phosphor::regular::ARROWS_IN.to_owned())],
+                        ))
+                        .size(TextRole::BodyS.size())
+                        .color(theme.palette.accent.primary),
                     )
                     .selectable(false),
                 );
@@ -151,13 +163,13 @@ impl GuiShell {
 
         ui.add_space(sp.base.space_1);
 
-        Self::settings_row(ui, "Aspect ratio", |ui| {
+        Self::settings_row(ui, "gui-export-aspect-ratio", |ui| {
             ui.checkbox(&mut state.lock_aspect, "Lock to canvas");
         });
         ui.add_space(sp.base.space_1);
 
         // ── Shared export presets ──
-        Self::settings_row(ui, "Presets", |ui| {
+        Self::settings_row(ui, "gui-export-presets", |ui| {
             for preset in animatix_render::encode::ExportPreset::ALL {
                 let resp = ui.add(Button::secondary(preset.name).with_size(eparts::Size::Sm));
                 if resp.clicked() {
@@ -175,9 +187,7 @@ impl GuiShell {
             let reset = ui.add(
                 Button::icon(egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE)
                     .with_size(eparts::Size::Sm)
-                    .with_tooltip(
-                        "Restore the encoding settings (keeps the format, scope and output path)",
-                    ),
+                    .with_tooltip(crate::app::i18n::text(ui, "gui-export-restore-encoding")),
             );
             if reset.clicked() {
                 let defaults = ExportDialogState::default();
@@ -211,7 +221,7 @@ impl GuiShell {
         // ── Format-specific settings ──
         match format {
             ExportFormat::Image | ExportFormat::WebP => {
-                Self::settings_row(ui, "Time", |ui| {
+                Self::settings_row(ui, "gui-export-time", |ui| {
                     let mut t = state.time_s as f64;
                     layout::field_sized(ui, Some(100.0), |ui| {
                         NumberField::new(&mut t)
@@ -227,9 +237,13 @@ impl GuiShell {
 
                     let resp = ui.add(
                         egui::Label::new(
-                            RichText::new(format!("{} Current", egui_phosphor::regular::CLOCK))
-                                .size(TextRole::BodyS.size())
-                                .color(theme.palette.accent.primary),
+                            RichText::new(render(
+                                ui,
+                                "gui-export-current-time",
+                                &[("icon", egui_phosphor::regular::CLOCK.to_owned())],
+                            ))
+                            .size(TextRole::BodyS.size())
+                            .color(theme.palette.accent.primary),
                         )
                         .selectable(false),
                     );
@@ -240,7 +254,7 @@ impl GuiShell {
             },
             ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
                 // FPS
-                Self::settings_row(ui, "FPS", |ui| {
+                Self::settings_row(ui, "gui-export-fps", |ui| {
                     let mut fps_f64 = state.fps as f64;
                     layout::field_sized(ui, Some(70.0), |ui| {
                         NumberField::new(&mut fps_f64)
@@ -255,13 +269,16 @@ impl GuiShell {
 
                 // Duration mode
                 let auto_prev = state.auto_duration;
-                Self::settings_row(ui, "Duration", |ui| {
-                    ui.add(Checkbox::new(&mut state.auto_duration).label("Auto"));
+                Self::settings_row(ui, "gui-export-duration", |ui| {
+                    ui.add(
+                        Checkbox::new(&mut state.auto_duration)
+                            .label(&crate::app::i18n::text(ui, "gui-export-auto")),
+                    );
 
                     if state.auto_duration {
                         ui.add_space(sp.base.space_2);
                         ui.label(
-                            RichText::new("Hold:")
+                            RichText::new(crate::app::i18n::text(ui, "gui-export-hold"))
                                 .size(TextRole::BodyS.size())
                                 .color(theme.palette.text.secondary),
                         );
@@ -310,9 +327,13 @@ impl GuiShell {
                         state.duration_s.max(0.5)
                     };
                     ui.label(
-                        RichText::new(format!("Effective duration: {:.2}s", auto_dur))
-                            .size(TextRole::Micro.size())
-                            .color(theme.palette.text.muted),
+                        RichText::new(render(
+                            ui,
+                            "gui-export-effective-duration",
+                            &[("value", format!("{auto_dur:.2}"))],
+                        ))
+                        .size(TextRole::Micro.size())
+                        .color(theme.palette.text.muted),
                     );
                 }
 
@@ -321,7 +342,7 @@ impl GuiShell {
                 // row is hidden there rather than shown as a no-op.
                 if matches!(format, ExportFormat::Video | ExportFormat::Mov) {
                     ui.add_space(sp.base.space_1);
-                    Self::settings_row(ui, "Encoder", |ui| {
+                    Self::settings_row(ui, "gui-export-encoder", |ui| {
                         // Added right-to-left: preset first so it lands on
                         // the right of the codec selector.
                         const PRESETS: &[animatix_render::encode::H264Preset] =
@@ -335,7 +356,7 @@ impl GuiShell {
                                 &mut preset_idx,
                                 &preset_names,
                             )
-                            .placeholder("Preset"),
+                            .placeholder(&crate::app::i18n::text(ui, "gui-export-preset")),
                         );
                         if let Some(idx) = preset_idx {
                             state.h264_preset = PRESETS[idx];
@@ -355,7 +376,7 @@ impl GuiShell {
                                 &mut codec_idx,
                                 &codec_names,
                             )
-                            .placeholder("Codec"),
+                            .placeholder(&crate::app::i18n::text(ui, "gui-export-codec")),
                         );
                         if let Some(idx) = codec_idx {
                             state.video_codec = CODECS[idx];
@@ -368,10 +389,10 @@ impl GuiShell {
 
     /// Output path row.
     fn export_output_row(ui: &mut egui::Ui, state: &mut ExportDialogState) {
-        Self::settings_row(ui, "Output", |ui| {
+        Self::settings_row(ui, "gui-export-output", |ui| {
             let path_width = ui.available_width();
             TextField::new(&mut state.output_path)
-                .placeholder("output filename…")
+                .placeholder(&crate::app::i18n::text(ui, "gui-export-filename"))
                 .desired_width(path_width)
                 .show(ui);
         });
@@ -401,7 +422,7 @@ impl GuiShell {
                 |ui| {
                     ui.add(
                         egui::Label::new(
-                            RichText::new(label)
+                            RichText::new(text(ui, label))
                                 .size(TextRole::BodyS.size())
                                 .color(theme.palette.text.secondary),
                         )

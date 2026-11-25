@@ -43,7 +43,7 @@ pub(super) struct NarrationTakes {
     active: Vec<String>,
     active_stamp: Option<assets::PairStamp>,
     job: Option<(Job, Origin)>,
-    feedback: Option<String>,
+    feedback: Option<crate::app::i18n::StatusText>,
     history_error: Option<String>,
     inputs: Inputs,
     audition: Option<Audition>,

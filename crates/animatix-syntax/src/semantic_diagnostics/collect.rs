@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::ast::{InlineItem, Stmt};
+use crate::diagnostics::DiagnosticPresentation;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticSeverity};
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::token::Token;
@@ -102,6 +103,12 @@ pub fn collect_semantic_diagnostics(
                     info.col,
                     info.col + name.len(),
                 )
+                .with_presentation(match info.kind {
+                    LabelKind::Actor => DiagnosticPresentation::UnusedActor,
+                    LabelKind::Let => DiagnosticPresentation::UnusedBinding,
+                    LabelKind::Component => DiagnosticPresentation::UnusedComponent,
+                    _ => DiagnosticPresentation::UnusedLabel,
+                })
                 .with_subject(name.clone()),
             );
         }

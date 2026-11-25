@@ -5,11 +5,10 @@
 use super::SidebarTab;
 
 /// Human-readable label for a top-level sidebar view.
-pub(crate) fn sidebar_tab_label(tab: SidebarTab) -> &'static str {
+pub(crate) fn sidebar_tab_message(tab: SidebarTab) -> &'static str {
     match tab {
-        SidebarTab::Project => "Project",
-        SidebarTab::Outline => "Outline",
-        SidebarTab::Library => "Library",
+        SidebarTab::Project => "gui-panel-project",
+        SidebarTab::Outline => "gui-panel-outline",
     }
 }
 

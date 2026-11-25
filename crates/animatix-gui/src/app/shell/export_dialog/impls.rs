@@ -94,7 +94,7 @@ impl GuiShell {
             ui.painter().text(
                 egui::pos2(content_rect.left(), cursor_y + 14.0),
                 egui::Align2::LEFT_CENTER,
-                "Export",
+                crate::app::i18n::text(ui, "gui-export-title"),
                 TextRole::Heading.font_id(),
                 theme.palette.text.primary,
             );
@@ -107,8 +107,11 @@ impl GuiShell {
             );
             let close_clicked = ui
                 .scope_builder(egui::UiBuilder::new().max_rect(close_rect), |ui| {
-                    ui.add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close (Esc)"))
-                        .clicked()
+                    ui.add(
+                        Button::icon(egui_phosphor::regular::X)
+                            .with_tooltip(crate::app::i18n::text(ui, "gui-action-close-esc")),
+                    )
+                    .clicked()
                 })
                 .inner;
             if close_clicked {
@@ -136,17 +139,18 @@ impl GuiShell {
                 ExportFormat::Mov,
                 ExportFormat::WebP,
             ];
-            let labels: Vec<&str> = formats
+            let labels: Vec<String> = formats
                 .iter()
                 .map(|format| match format {
-                    ExportFormat::Image => "Image",
-                    ExportFormat::Video => "Video",
-                    ExportFormat::Gif => "GIF",
-                    ExportFormat::WebM => "WebM",
-                    ExportFormat::Mov => "MOV",
-                    ExportFormat::WebP => "WebP",
+                    ExportFormat::Image => text(ui, "gui-export-image"),
+                    ExportFormat::Video => text(ui, "gui-export-video"),
+                    ExportFormat::Gif => "GIF".to_owned(),
+                    ExportFormat::WebM => "WebM".to_owned(),
+                    ExportFormat::Mov => "MOV".to_owned(),
+                    ExportFormat::WebP => "WebP".to_owned(),
                 })
                 .collect();
+            let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
             let mut selected = formats
                 .iter()
                 .position(|format| *format == self.export_store.export_state.format)
@@ -192,18 +196,31 @@ impl GuiShell {
             let response =
                 egui::Modal::new(egui::Id::unique("confirm_narration_draft")).show(ctx, |ui| {
                     ui.set_max_width(440.0);
-                    ui.heading("Export with unfinished voiceover?");
+                    ui.heading(crate::app::i18n::text(ui, "gui-export-incomplete-narration"));
                     egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
                         for paragraph in affected {
-                            ui.label(&paragraph.title);
-                            ui.weak(paragraph.effect);
+                            let scene = paragraph
+                                .scene
+                                .clone()
+                                .unwrap_or_else(|| text(ui, "gui-export-paragraph"));
+                            ui.label(render(
+                                ui,
+                                "gui-export-paragraph-title",
+                                &[
+                                    ("scene", scene),
+                                    ("number", paragraph.number.to_string()),
+                                    ("snippet", paragraph.snippet.clone()),
+                                ],
+                            ));
+                            ui.weak(text(ui, paragraph.effect));
                         }
                     });
                     let mut proceed = false;
                     let mut back = false;
                     ui.horizontal(|ui| {
-                        back = ui.button("Back").clicked();
-                        proceed = ui.button("Export Draft").clicked();
+                        back = ui.button(crate::app::i18n::text(ui, "gui-action-back")).clicked();
+                        proceed =
+                            ui.button(crate::app::i18n::text(ui, "gui-export-draft")).clicked();
                     });
                     (proceed, back)
                 });

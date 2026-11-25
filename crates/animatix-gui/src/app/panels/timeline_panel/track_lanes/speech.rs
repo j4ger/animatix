@@ -1,6 +1,7 @@
 //! Transcript review. Identical Audio/Captions transcripts share a row.
 use super::super::narration::SpeechDetail;
 use super::*;
+use crate::app::i18n::{render, text as interface_text};
 #[derive(Debug, PartialEq)]
 struct Cue {
     text: String,
@@ -115,7 +116,7 @@ pub(crate) fn render_speech_track(
         painter.text(
             Pos2::new(scroll_rect.left() + 8.0, y + row_height * 0.5),
             Align2::LEFT_CENTER,
-            "Transcript",
+            interface_text(ui, "gui-timeline-transcript"),
             TextRole::BodyS.font_id(),
             theme.palette.text.secondary,
         );
@@ -124,8 +125,13 @@ pub(crate) fn render_speech_track(
             Pos2::new(coords.bar_origin_x, y + row_height),
         );
         ui.interact(header, panel_id.with(("transcript_label", index)), Sense::hover())
-            .on_hover_text(format!(
-                "{label}\nAudio transcripts follow clip timing and the scene offset ({scene_offset_s:.3}s)."
+            .on_hover_text(render(
+                ui,
+                "gui-timeline-transcript-help",
+                &[
+                    ("name", label.to_string()),
+                    ("offset", format!("{scene_offset_s:.3}")),
+                ],
             ));
         for (cue_index, item) in row.cues.iter().enumerate() {
             cue(
@@ -160,7 +166,11 @@ pub(crate) fn render_speech_track(
             if response.clicked() {
                 commands.push_back(Command::ScrubTo(time).into());
             }
-            response.on_hover_text(format!("@{name} · {time:.3}s global"));
+            response.on_hover_text(render(
+                ui,
+                "gui-timeline-speech-marker",
+                &[("name", name.to_string()), ("time", format!("{time:.3}"))],
+            ));
         }
     }
 }
@@ -215,14 +225,20 @@ fn cue(
         commands.push_back(Command::ScrubTo(start).into());
     }
     response.context_menu(|ui| {
-        if ui.button("Loop this cue (preview only)").clicked() {
+        if ui.button(crate::app::i18n::text(ui, "gui-timeline-loop-cue")).clicked() {
             set_loop(preview, start, end);
             commands.push_back(Command::ScrubTo(start).into());
             ui.close();
         }
     });
-    response.on_hover_text(format!(
-        "{text}\n{start:.3}s – {end:.3}s global\nClick to seek · double-click to loop"
+    response.on_hover_text(render(
+        ui,
+        "gui-timeline-speech-cue",
+        &[
+            ("transcript", text.to_owned()),
+            ("start", format!("{start:.3}")),
+            ("end", format!("{end:.3}")),
+        ],
     ));
 }
 

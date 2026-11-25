@@ -5,6 +5,7 @@
 //! used during parsing) and the [`parser()`] function that builds the inline
 //! items combinator.
 
+use super::error::rule_error;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -112,16 +113,7 @@ pub(crate) fn parser<'src>(
             ),
             inline_items.clone().delimited_by(lbrace(), rbrace()).map(FlatItem::Children),
             {
-                let expr = expr.clone().try_map(|expr, span| match expr {
-                    Expr::Call(..)
-                    | Expr::Timeline(..)
-                    | Expr::Sequence(..)
-                    | Expr::Stagger { .. } => Ok(expr),
-                    _ => Err(Rich::custom(
-                        span,
-                        "container body expressions must be calls or timeline values",
-                    )),
-                });
+                let expr = expr.clone().try_map(container_body_expr);
                 let source = source.clone();
                 expr.map_with(
                         move |expr, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
@@ -238,4 +230,19 @@ pub(crate) fn parser<'src>(
     });
 
     inline_items.boxed()
+}
+
+fn container_body_expr<'src>(
+    expr: Expr,
+    span: ByteSpan,
+) -> Result<Expr, Rich<'src, crate::token::TokenKind, ByteSpan>> {
+    match expr {
+        Expr::Call(..) | Expr::Timeline(..) | Expr::Sequence(..) | Expr::Stagger { .. } => Ok(expr),
+        _ => Err(rule_error(
+            span,
+            "diagnostic-parse-container-expression",
+            "container body expressions must be calls or timeline values",
+            None,
+        )),
+    }
 }

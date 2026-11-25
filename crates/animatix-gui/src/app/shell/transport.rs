@@ -1,5 +1,6 @@
 //! Playback controls stay with the preview across Timeline, Curves and Focus layouts.
 
+use crate::app::i18n::render;
 use egui::{Align, Layout, Rect, RichText, Vec2};
 use egui_phosphor::regular as icons;
 use eparts::widget::UiExt;
@@ -9,6 +10,7 @@ use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::{Button, play_pause_icon};
 use crate::app::design_tokens::spatial::spatial;
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::i18n::text;
 use crate::app::interaction::keyboard::{KeyboardAction, ShortcutRegistry, tooltip_with_shortcut};
 
 pub(crate) fn transport_ui(
@@ -33,10 +35,13 @@ pub(crate) fn transport_ui(
         ui.label(
             RichText::new(preview.playback.timecode_string()).font(TextRole::MonoDigits.font_id()),
         )
-        .on_hover_text(format!(
-            "{:.3}s of {:.3}s",
-            preview.playback.current_time_s(),
-            preview.playback.duration_s,
+        .on_hover_text(render(
+            ui,
+            "gui-transport-time-tooltip",
+            &[
+                ("current", format!("{:.3}", preview.playback.current_time_s())),
+                ("total", format!("{:.3}", preview.playback.duration_s)),
+            ],
         ));
     });
     ui.scope_builder(scope(core, centered), |ui| {
@@ -63,7 +68,7 @@ fn player_buttons(
             commands,
             shortcuts,
             icons::SKIP_BACK,
-            "Go to start",
+            "gui-transport-start",
             None,
             Command::ScrubTo(0.0),
         );
@@ -73,7 +78,7 @@ fn player_buttons(
         commands,
         shortcuts,
         icons::CARET_LEFT,
-        "Previous keyframe",
+        "gui-transport-previous-keyframe",
         Some(Key::PrevKeyframe),
         Command::PrevKeyframe,
     );
@@ -83,15 +88,22 @@ fn player_buttons(
             commands,
             shortcuts,
             icons::CARET_DOUBLE_LEFT,
-            "Step back one frame",
+            "gui-transport-previous-frame",
             Some(Key::FrameStepBackward),
             Command::FrameStepBackward,
         );
     }
 
     let playing = preview.playback.is_playing;
-    let verb = if playing { "Pause" } else { "Play" };
-    let tooltip = tooltip_with_shortcut(shortcuts, verb, &Key::TogglePlayback, ui.ctx());
+    let verb = text(
+        ui,
+        if playing {
+            "gui-transport-pause"
+        } else {
+            "gui-transport-play"
+        },
+    );
+    let tooltip = tooltip_with_shortcut(shortcuts, &verb, &Key::TogglePlayback, ui.ctx());
     let play = Button::primary("").with_icon(play_pause_icon(playing)).with_tooltip(tooltip);
     if ui.add(play).clicked() {
         commands.push_back(Command::TogglePlayback.into());
@@ -103,7 +115,7 @@ fn player_buttons(
             commands,
             shortcuts,
             icons::CARET_DOUBLE_RIGHT,
-            "Step forward one frame",
+            "gui-transport-next-frame",
             Some(Key::FrameStepForward),
             Command::FrameStepForward,
         );
@@ -113,7 +125,7 @@ fn player_buttons(
         commands,
         shortcuts,
         icons::CARET_RIGHT,
-        "Next keyframe",
+        "gui-transport-next-keyframe",
         Some(Key::NextKeyframe),
         Command::NextKeyframe,
     );
@@ -123,7 +135,7 @@ fn player_buttons(
             commands,
             shortcuts,
             icons::SKIP_FORWARD,
-            "Go to end",
+            "gui-transport-end",
             None,
             Command::ScrubTo(preview.playback.duration_s),
         );
@@ -142,7 +154,7 @@ fn playback_options(
     let trigger = ui.add(
         Button::secondary(speed)
             .with_icon(icons::CARET_DOWN)
-            .with_tooltip("Playback settings"),
+            .with_tooltip(text(ui, "gui-transport-settings")),
     );
     egui::Popup::menu(&trigger).show(|ui| settings_menu(ui, preview, commands, shortcuts, full));
 
@@ -152,7 +164,7 @@ fn playback_options(
         .add(
             Button::icon(icons::REPEAT)
                 .active(loop_active)
-                .with_tooltip("Toggle loop playback"),
+                .with_tooltip(text(ui, "gui-transport-toggle-loop")),
         )
         .clicked()
     {
@@ -162,9 +174,13 @@ fn playback_options(
 
     if ui.available_width() > 65.0 {
         ui.label(
-            RichText::new(format!("{:.0} fps", preview.playback.fps))
-                .font(TextRole::Mono.font_id())
-                .color(theme.palette.text.secondary),
+            RichText::new(crate::app::i18n::render(
+                ui,
+                "gui-transport-frames-per-second",
+                &[("rate", format!("{:.0}", preview.playback.fps))],
+            ))
+            .font(TextRole::Mono.font_id())
+            .color(theme.palette.text.secondary),
         );
     }
 }
@@ -174,14 +190,15 @@ fn action(
     commands: &mut ActionQueue,
     shortcuts: &ShortcutRegistry,
     icon: &'static str,
-    label: &'static str,
+    message: &'static str,
     key: Option<KeyboardAction>,
     command: Command,
 ) {
+    let label = text(ui, message);
     let tooltip = key
         .as_ref()
-        .map(|key| tooltip_with_shortcut(shortcuts, label, key, ui.ctx()))
-        .unwrap_or_else(|| label.to_owned());
+        .map(|key| tooltip_with_shortcut(shortcuts, &label, key, ui.ctx()))
+        .unwrap_or(label);
     if ui.add(Button::icon(icon).with_tooltip(tooltip)).clicked() {
         commands.push_back(command.into());
     }
@@ -194,7 +211,7 @@ fn settings_menu(
     shortcuts: &ShortcutRegistry,
     full: bool,
 ) {
-    ui.label(RichText::new("Playback speed").font(TextRole::BodyMedium.font_id()));
+    ui.label(RichText::new(text(ui, "gui-transport-speed")).font(TextRole::BodyMedium.font_id()));
     for (speed, label) in [(0.5_f32, "0.5×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")] {
         let selected = (speed - preview.playback.playback_speed).abs() < f32::EPSILON;
         if ui.stable_selectable_label(selected, label).clicked() {
@@ -206,7 +223,7 @@ fn settings_menu(
     ui.separator();
     let mut ping_pong = preview.playback.ping_pong;
     if ui
-        .add(eparts::Checkbox::new(&mut ping_pong).label("Ping-pong playback"))
+        .add(eparts::Checkbox::new(&mut ping_pong).label(&text(ui, "gui-transport-ping-pong")))
         .clicked()
     {
         preview.playback.ping_pong = ping_pong;
@@ -216,11 +233,15 @@ fn settings_menu(
     }
     let presentation_tip = tooltip_with_shortcut(
         shortcuts,
-        "Presentation mode",
+        &text(ui, "gui-presentation-mode"),
         &KeyboardAction::TogglePresentationMode,
         ui.ctx(),
     );
-    if ui.button("Presentation mode").on_hover_text(presentation_tip).clicked() {
+    if ui
+        .button(text(ui, "gui-presentation-mode"))
+        .on_hover_text(presentation_tip)
+        .clicked()
+    {
         commands.push_back(Command::TogglePresentationMode.into());
         ui.close();
     }
@@ -228,12 +249,12 @@ fn settings_menu(
     if !full {
         ui.separator();
         for (label, command) in [
-            ("Go to start", Command::ScrubTo(0.0)),
-            ("Step back one frame", Command::FrameStepBackward),
-            ("Step forward one frame", Command::FrameStepForward),
-            ("Go to end", Command::ScrubTo(preview.playback.duration_s)),
+            ("gui-transport-start", Command::ScrubTo(0.0)),
+            ("gui-transport-previous-frame", Command::FrameStepBackward),
+            ("gui-transport-next-frame", Command::FrameStepForward),
+            ("gui-transport-end", Command::ScrubTo(preview.playback.duration_s)),
         ] {
-            if ui.button(label).clicked() {
+            if ui.button(text(ui, label)).clicked() {
                 commands.push_back(command.into());
                 ui.close();
             }

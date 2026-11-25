@@ -54,6 +54,17 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
     diagnostics: &[T],
     visible: &mut bool,
 ) -> Option<DiagnosticTarget> {
+    diagnostics_list_with_labels(ui, diagnostics, visible, "Diagnostics", "Close diagnostics")
+}
+
+/// Renders the diagnostics card with caller-provided headings and button labels.
+pub fn diagnostics_list_with_labels<T: DiagnosticEntry>(
+    ui: &mut egui::Ui,
+    diagnostics: &[T],
+    visible: &mut bool,
+    title: &str,
+    close: &str,
+) -> Option<DiagnosticTarget> {
     if diagnostics.is_empty() {
         return None;
     }
@@ -80,7 +91,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
 
             ui.add(
                 egui::Label::new(
-                    RichText::new("Diagnostics")
+                    RichText::new(title)
                         .size(TextRole::BodyS.size())
                         .color(t.palette.text.secondary),
                 )
@@ -115,7 +126,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
             ui.with_layout(
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui: &mut egui::Ui| {
-                    if ui
+                    let response = ui
                         .add(
                             egui::Button::new(
                                 RichText::new(egui_phosphor::regular::X)
@@ -124,8 +135,10 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                             )
                             .frame(false),
                         )
-                        .clicked()
-                    {
+                        .on_hover_text(close);
+                    response
+                        .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, close));
+                    if response.clicked() {
                         *visible = false;
                     }
                 },
@@ -155,9 +168,6 @@ fn diagnostic_row<T: DiagnosticEntry>(
     s: crate::tokens::spatial::Spatial,
 ) -> Option<DiagnosticTarget> {
     let available = ui.available_width();
-    let row_h = s.row_l;
-    let (row_rect, response) = ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
-
     let accent_color = if diagnostic.is_error() {
         t.palette.status.error
     } else {
@@ -168,6 +178,25 @@ fn diagnostic_row<T: DiagnosticEntry>(
     } else {
         egui_phosphor::regular::WARNING
     };
+
+    let phase = diagnostic.phase_label().unwrap_or_default();
+    let phase_galley = ui.painter().layout_no_wrap(
+        phase.to_owned(),
+        TextRole::Micro.font_id(),
+        diagnostic.phase_color().unwrap_or(t.palette.text.muted),
+    );
+    let message_x = s.space_3 + 20.0;
+    let message_width = (available - message_x - phase_galley.size().x - s.space_4).max(1.0);
+    let message = ui.painter().layout(
+        diagnostic.message().to_owned(),
+        TextRole::Body.font_id(),
+        t.palette.text.primary,
+        message_width,
+    );
+    let height = s.row_l.max(message.size().y + s.space_2);
+    let (row_rect, response) = ui.allocate_exact_size(Vec2::new(available, height), Sense::click());
+    response
+        .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, diagnostic.message()));
 
     let bg = if response.hovered() {
         t.components.list.hover.bg
@@ -190,7 +219,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
     ui.painter().rect_filled(accent_rect, 0.0, accent_color);
 
     let baseline_y = row_rect.center().y;
-    let mut cursor_x = row_rect.min.x + s.space_3 + 2.0;
+    let cursor_x = row_rect.min.x + s.space_3 + 2.0;
 
     ui.painter().text(
         egui::pos2(cursor_x + 7.0, baseline_y),
@@ -199,26 +228,16 @@ fn diagnostic_row<T: DiagnosticEntry>(
         TextRole::BodyS.font_id(),
         accent_color,
     );
-    cursor_x += 18.0;
-
-    let phase_str = diagnostic.phase_label().unwrap_or_default();
-    let phase_badge_w = 40.0_f32;
-    let msg_max_width = (row_rect.max.x - cursor_x - s.space_4 - phase_badge_w).max(20.0);
-
-    let msg = diagnostic.message().lines().next().unwrap_or_default();
-    let font_id = TextRole::Body.font_id();
-    let galley = ui.painter().layout(msg.to_string(), font_id.clone(), row_fg, msg_max_width);
-
-    ui.painter()
-        .galley(egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0), galley, row_fg);
-
-    ui.painter().text(
-        egui::pos2(row_rect.max.x - s.space_2, baseline_y),
-        egui::Align2::RIGHT_CENTER,
-        phase_str,
-        TextRole::Micro.font_id(),
-        diagnostic.phase_color().unwrap_or(t.palette.text.muted),
+    ui.painter().galley_with_override_text_color(
+        egui::pos2(row_rect.left() + message_x, baseline_y - message.size().y / 2.0),
+        message,
+        row_fg,
     );
+    let phase_pos = egui::pos2(
+        row_rect.right() - s.space_2 - phase_galley.size().x,
+        baseline_y - phase_galley.size().y / 2.0,
+    );
+    ui.painter().galley(phase_pos, phase_galley, t.palette.text.muted);
 
     if !is_last {
         ui.painter().line_segment(

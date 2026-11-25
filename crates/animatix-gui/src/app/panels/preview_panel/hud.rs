@@ -52,7 +52,7 @@ pub(super) fn presentation_hud_ui(
             let prev_btn = ui.add(
                 Button::ghost("")
                     .with_icon(icons::CARET_LEFT)
-                    .with_tooltip("Previous step (PageUp / Left-Arrow / Right-Click)"),
+                    .with_tooltip(crate::app::i18n::text(ui, "gui-presentation-previous-help")),
             );
             if prev_btn.clicked() {
                 ctx.commands.push_back(Command::StepPrevious.into());
@@ -99,7 +99,7 @@ pub(super) fn presentation_hud_ui(
             let next_btn = ui.add(
                 Button::ghost("")
                     .with_icon(play_icon)
-                    .with_tooltip("Next step (Space / PageDown / Click)"),
+                    .with_tooltip(crate::app::i18n::text(ui, "gui-presentation-next-help")),
             );
             if next_btn.clicked() {
                 ctx.commands.push_back(Command::StepNext.into());
@@ -109,9 +109,9 @@ pub(super) fn presentation_hud_ui(
 
             // Exit button
             let exit_btn = ui.add(
-                Button::ghost("Exit")
+                Button::ghost(crate::app::i18n::text(ui, "gui-action-exit"))
                     .with_icon(icons::X)
-                    .with_tooltip("Exit Presentation Mode (Esc / F5)"),
+                    .with_tooltip(crate::app::i18n::text(ui, "gui-presentation-exit-help")),
             );
             if exit_btn.clicked() {
                 ctx.commands.push_back(Command::TogglePresentationMode.into());
@@ -127,9 +127,12 @@ pub(super) fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui)
 
     let theme = eparts::theme(ui);
     let sp = spatial(ui);
-    let max_scene_width = (ui.available_width() - 260.0).clamp(0.0, 220.0);
+    let max_scene_width = (ui.available_width() - 290.0).clamp(0.0, 220.0);
     ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
-    ui.label(RichText::new("Preview").font(TextRole::Title.font_id()));
+    ui.label(
+        RichText::new(crate::app::i18n::text(ui, "gui-panel-preview"))
+            .font(TextRole::Title.font_id()),
+    );
 
     if let Some(composition) = ctx.composition
         && composition.declaration_order.len() > 1
@@ -154,22 +157,40 @@ pub(super) fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui)
                 )
                 .inner;
             egui::Popup::menu(&button).show(open_scenes);
-            button.on_hover_text("Switch scene");
+            button.on_hover_text(crate::app::i18n::text(ui, "gui-scene-switch"));
         } else {
-            crate::app::components::icon_menu(ui, icons::FILM_STRIP, "Switch scene", open_scenes);
+            crate::app::components::icon_menu(
+                ui,
+                icons::FILM_STRIP,
+                &crate::app::i18n::text(ui, "gui-scene-switch"),
+                open_scenes,
+            );
         }
     }
 
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let (icon, tip) = if ctx.preview_fullscreen {
+            (icons::CORNERS_IN, "gui-preview-fullscreen-exit")
+        } else {
+            (icons::CORNERS_OUT, "gui-preview-fullscreen")
+        };
+        if ui
+            .add(Button::icon(icon).with_tooltip(crate::app::i18n::text(ui, tip)))
+            .clicked()
+        {
+            ctx.commands.push_back(crate::app::commands::ShellAction::View(
+                crate::app::commands::ViewAction::TogglePreviewFullscreen,
+            ));
+        }
         let zoom = ctx.preview.viewport.preview_zoom;
         let zoom_label = format!("{:.0}%", zoom * 100.0);
         let response = ui.add(
             Button::secondary(zoom_label)
                 .with_icon(icons::CARET_DOWN)
-                .with_tooltip("Preview zoom"),
+                .with_tooltip(crate::app::i18n::text(ui, "gui-preview-zoom")),
         );
         egui::Popup::menu(&response).show(|ui| {
-            if ui.button("Fit").clicked() {
+            if ui.button(crate::app::i18n::text(ui, "gui-preview-fit")).clicked() {
                 ctx.preview.fit_zoom_requested = true;
                 ui.close();
             }

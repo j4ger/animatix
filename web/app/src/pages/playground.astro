@@ -13,9 +13,9 @@ const choices = playgroundScenes(language);
 <Page title={playground} wide>
   <h1 class="play-heading">{playground}</h1>
   <div class="playground" data-playground>
-    <EditableScene id={firstSceneId} title={t('Your scene', '当前场景')} workspace download>
+    <EditableScene id={firstSceneId} title={t('web-your-scene')} workspace download>
       <label slot="chooser" class="sample-chooser">
-        {t('Scene', '场景')}
+        {t('web-scene')}
         <select id="scene-choice" disabled>{choices.map(x =>
           <option value={x.id} data-source={sceneUrl(x.id)} selected={x.id === firstSceneId}>{x.title}</option>
         )}</select>

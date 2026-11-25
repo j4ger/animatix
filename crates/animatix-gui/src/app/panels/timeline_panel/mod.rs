@@ -29,6 +29,7 @@ mod markers;
 mod narration;
 mod review;
 pub mod ruler;
+mod toolbar;
 pub mod track_lanes;
 pub mod track_tree;
 

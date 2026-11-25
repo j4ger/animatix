@@ -70,6 +70,8 @@ pub(super) fn stale_bindings(
         .collect()
 }
 
+use crate::app::i18n::{render, text};
+
 impl EditorBuffer {
     pub(super) fn show_repair_control(&mut self, ui: &mut egui::Ui, index: &Index) {
         if index.stale_bindings.is_empty() {
@@ -80,13 +82,14 @@ impl EditorBuffer {
         {
             let target = &index.targets[binding.target];
             let instruction = if binding.key.normalized_phrase().is_some() {
-                "Select the replacement phrase"
+                "gui-narration-repair-select-phrase"
             } else {
-                "Choose the replacement paragraph"
+                "gui-narration-repair-select-paragraph"
             };
             ui.horizontal_wrapped(|ui| {
-                ui.label(format!("{instruction} for line {}.", target.line + 1));
-                if ui.add(Button::ghost("Cancel")).clicked() {
+                ui.label(render(ui, instruction, &[("line", (target.line + 1).to_string())]));
+                if ui.add(Button::ghost(crate::app::i18n::text(ui, "gui-action-cancel"))).clicked()
+                {
                     self.narration.repair = None;
                 }
             });
@@ -96,19 +99,27 @@ impl EditorBuffer {
         if index.stale_bindings.len() == 1 {
             let target = &index.targets[index.stale_bindings[0].target];
             ui.horizontal_wrapped(|ui| {
-                ui.weak(target_label(target));
-                if ui.add(Button::ghost("Rebind timing…")).clicked() {
+                ui.weak(target_label(ui, target));
+                if ui
+                    .add(Button::ghost(crate::app::i18n::text(ui, "gui-narration-rebind")))
+                    .clicked()
+                {
                     self.start_repair(0);
                 }
             });
             return;
         }
-        let response =
-            ui.add(Button::ghost(format!("{} cues need timing…", index.stale_bindings.len())));
+        let response = ui.add(Button::ghost(render(
+            ui,
+            "gui-narration-repair-count",
+            &[("count", index.stale_bindings.len().to_string())],
+        )));
         egui::Popup::menu(&response).show(|ui| {
             egui::ScrollArea::vertical().max_height(250.0).show(ui, |ui| {
                 for (ordinal, binding) in index.stale_bindings.iter().enumerate() {
-                    if ui.add(Button::ghost(target_label(&index.targets[binding.target]))).clicked()
+                    if ui
+                        .add(Button::ghost(target_label(ui, &index.targets[binding.target])))
+                        .clicked()
                     {
                         self.start_repair(ordinal);
                         ui.close();
@@ -194,24 +205,34 @@ impl EditorBuffer {
         let target = &index.targets[binding.target];
         let mut close = false;
         egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.strong("Which words should time this action?");
-            ui.label(target_label(target));
+            ui.strong(text(ui, "gui-narration-repair-question"));
+            ui.label(target_label(ui, target));
             ui.label(match binding.key.edge() {
-                AnchorEdge::Start => "Timing uses the start of the selection.",
-                AnchorEdge::End => "Timing uses the end of the selection.",
+                AnchorEdge::Start => text(ui, "gui-narration-repair-edge-start"),
+                AnchorEdge::End => text(ui, "gui-narration-repair-edge-end"),
             });
             if binding.candidates.is_empty() {
-                ui.label("Choose replacement text in the script.");
+                ui.label(crate::app::i18n::text(ui, "gui-narration-rebind-source"));
             } else {
-                ui.label("Choose the intended occurrence.");
+                ui.label(crate::app::i18n::text(ui, "gui-narration-rebind-occurrence"));
                 egui::ScrollArea::vertical().max_height(250.0).show(ui, |ui| {
                     let lines = LineIndex::new(self.text());
                     for (ordinal, candidate) in binding.candidates.iter().enumerate() {
                         let paragraph = &index.paragraphs[candidate.paragraph];
                         let line = lines.byte_to_line_col(paragraph.span.start).0 + 1;
-                        ui.label(format!("Paragraph at line {line}"));
+                        ui.label(render(
+                            ui,
+                            "gui-narration-repair-line",
+                            &[("line", line.to_string())],
+                        ));
                         ui.label(candidate_preview(ui, &paragraph.text, candidate.phrase.clone()));
-                        if ui.add(Button::ghost(format!("Use match {}", ordinal + 1))).clicked()
+                        if ui
+                            .add(Button::ghost(render(
+                                ui,
+                                "gui-narration-repair-match",
+                                &[("number", (ordinal + 1).to_string())],
+                            )))
+                            .clicked()
                             && let Some(anchor) = anchor_for_phrase(
                                 paragraph,
                                 Some(candidate.phrase.clone()),
@@ -227,8 +248,15 @@ impl EditorBuffer {
                 });
             }
             ui.horizontal_wrapped(|ui| {
-                session.manual = ui.add(Button::ghost("Select in script")).clicked();
-                close |= ui.add(Button::ghost("Cancel")).clicked();
+                session.manual = ui
+                    .add(Button::ghost(crate::app::i18n::text(
+                        ui,
+                        "gui-narration-select-in-script",
+                    )))
+                    .clicked();
+                close |= ui
+                    .add(Button::ghost(crate::app::i18n::text(ui, "gui-action-cancel")))
+                    .clicked();
             });
         });
         self.narration.repair = (!close).then_some(session);
@@ -250,11 +278,18 @@ fn patch_binding(
     )
 }
 
-fn target_label(target: &TimingTarget) -> String {
-    target.scene.as_ref().map_or_else(
-        || format!("Line {} · {}", target.line + 1, target.label),
-        |scene| format!("{scene} · Line {} · {}", target.line + 1, target.label),
-    )
+fn target_label(ui: &egui::Ui, target: &TimingTarget) -> String {
+    let mut args = vec![
+        ("line", (target.line + 1).to_string()),
+        ("label", target.label.to_owned()),
+    ];
+    let id = if let Some(scene) = &target.scene {
+        args.push(("scene", scene.to_owned()));
+        "gui-narration-repair-target-scene"
+    } else {
+        "gui-narration-repair-target"
+    };
+    render(ui, id, &args)
 }
 
 fn candidate_preview(ui: &egui::Ui, text: &str, phrase: Range<usize>) -> LayoutJob {

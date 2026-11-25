@@ -1,3 +1,4 @@
+import { playerLabels } from "./labels.js";
 import * as core from "./core.js";
 const {
   FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
@@ -220,7 +221,7 @@ export class AmxPlayerView extends AmxPlayerBase {
     spinner.className = "skeleton-spinner";
     const titleSpan = document.createElement("span");
     titleSpan.className = "skeleton-title";
-    titleSpan.textContent = title ? `${title}` : "animatix scene";
+    titleSpan.textContent = title ? `${title}` : playerLabels(this.lang).scene;
     badge.append(spinner, titleSpan);
     this._skeleton.appendChild(badge);
     this._stage.appendChild(this._skeleton);
@@ -243,7 +244,7 @@ export class AmxPlayerView extends AmxPlayerBase {
 
     this._playbtn = document.createElement("button");
     this._playbtn.className = "playbtn";
-    this._playbtn.setAttribute("aria-label", /^zh(?:-|$)/i.test(this.lang) ? "播放" : "Play");
+    this._playbtn.setAttribute("aria-label", playerLabels(this.lang).play);
     this._playbtn.innerHTML = ICONS.playBig;
     this._playbtn.addEventListener("click", () => this.play());
 
@@ -266,7 +267,7 @@ export class AmxPlayerView extends AmxPlayerBase {
       const retry = document.createElement("button");
       retry.type = "button";
       retry.className = "retry-btn";
-      retry.textContent = /^zh(?:-|$)/i.test(this.lang) ? "重试" : "Retry";
+      retry.textContent = playerLabels(this.lang).retry;
       retry.addEventListener("click", () => this._resetForReload());
       this._veil.appendChild(retry);
     }

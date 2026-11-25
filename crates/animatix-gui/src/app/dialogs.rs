@@ -11,8 +11,8 @@ use egui::Stroke;
 use super::GuiShell;
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::Button;
+use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
-use crate::app::components::{dialog, text_tooltip};
 use crate::app::design_tokens::spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
 use crate::app::design_tokens::spatial::{
     RADIUS_L, ROW_L, SPACE_2, SPACE_3, SPACE_5, STROKE_WIDTH, spatial,
@@ -64,7 +64,7 @@ impl GuiShell {
 
                         // Title
                         ui.label(
-                            egui::RichText::new("Welcome to Animatix")
+                            egui::RichText::new(crate::app::i18n::text(ui, "gui-welcome-title"))
                                 .font(TextRole::Heading.font_id())
                                 .color(theme.palette.text.primary)
                                 .strong(),
@@ -73,7 +73,7 @@ impl GuiShell {
 
                         // Subtitle
                         ui.label(
-                            egui::RichText::new("Layout-first animation for creative coders")
+                            egui::RichText::new(crate::app::i18n::text(ui, "gui-welcome-tagline"))
                                 .size(TextRole::Body.size())
                                 .color(theme.palette.text.secondary),
                         );
@@ -84,7 +84,7 @@ impl GuiShell {
                         // Primary: Create new scene
                         let new_resp = ui.add_sized(
                             egui::vec2(btn_w, sp.welcome.btn_height),
-                            Button::primary("Create new scene")
+                            Button::primary(crate::app::i18n::text(ui, "gui-welcome-new-scene"))
                                 .with_icon(egui_phosphor::regular::PLUS),
                         );
                         if new_resp.clicked() {
@@ -92,9 +92,14 @@ impl GuiShell {
                             match std::fs::write(&path, "#0s\n") {
                                 Ok(_) => {},
                                 Err(e) => {
-                                    self.ui_store
-                                        .toasts
-                                        .push(Toast::error(format!("Failed to create scene: {e}")));
+                                    self.ui_store.toasts.push(Toast::error(
+                                        crate::app::i18n::StatusText::message(
+                                            "gui-file-new-scene-failed",
+                                            [("detail", e.to_string())],
+                                        )
+                                        .display(self.ui_store.view.language)
+                                        .into_owned(),
+                                    ));
                                     return; // don't proceed to open
                                 },
                             }
@@ -106,7 +111,7 @@ impl GuiShell {
                         // Secondary: open existing file
                         let open_resp = ui.add_sized(
                             egui::vec2(btn_w, sp.welcome.btn_height),
-                            Button::ghost("Open existing file")
+                            Button::ghost(crate::app::i18n::text(ui, "gui-welcome-open-file"))
                                 .with_icon(egui_phosphor::regular::FOLDER_OPEN),
                         );
                         if open_resp.clicked()
@@ -121,7 +126,7 @@ impl GuiShell {
                         // Tertiary: open workspace
                         let ws_resp = ui.add_sized(
                             egui::vec2(btn_w, sp.welcome.btn_height),
-                            Button::ghost("Open workspace")
+                            Button::ghost(crate::app::i18n::text(ui, "gui-welcome-workspace"))
                                 .with_icon(egui_phosphor::regular::FOLDER_NOTCH),
                         );
                         if ws_resp.clicked()
@@ -182,9 +187,11 @@ impl GuiShell {
                                 egui::RichText::new(icon).size(TextRole::Body.size()).color(color),
                             );
                             ui.label(
-                                egui::RichText::new(format!(
-                                    "{errors} error(s) · {warnings} warning(s)"
-                                ))
+                                egui::RichText::new(
+                                    crate::app::components::diagnostics::diagnostic_counts(
+                                        ui, errors, warnings,
+                                    ),
+                                )
                                 .size(TextRole::BodyS.size())
                                 .color(theme.palette.text.primary),
                             );
@@ -193,20 +200,23 @@ impl GuiShell {
                                 |ui| {
                                     let pin = ui.add(
                                         Button::ghost("")
-                                            .with_icon(egui_phosphor::regular::ARROW_SQUARE_DOWN),
-                                    );
-                                    text_tooltip(
-                                        ui,
-                                        pin.id.with("diag_peek_pin"),
-                                        &pin,
-                                        "Pin to the bottom panel",
+                                            .with_icon(egui_phosphor::regular::ARROW_SQUARE_DOWN)
+                                            .with_tooltip(crate::app::i18n::text(
+                                                ui,
+                                                "gui-diagnostics-pin",
+                                            )),
                                     );
                                     if pin.clicked() {
                                         self.ui_store.view.diagnostics_panel_visible = true;
                                         close = true;
                                     }
                                     let dismiss = ui.add(
-                                        Button::ghost("").with_icon(egui_phosphor::regular::X),
+                                        Button::ghost("")
+                                            .with_icon(egui_phosphor::regular::X)
+                                            .with_tooltip(crate::app::i18n::text(
+                                                ui,
+                                                "gui-diagnostics-close",
+                                            )),
                                     );
                                     if dismiss.clicked() {
                                         close = true;
@@ -219,9 +229,12 @@ impl GuiShell {
                             if diagnostics.is_empty() {
                                 ui.add_space(SPACE_2);
                                 ui.label(
-                                    egui::RichText::new("No diagnostics — all clear")
-                                        .size(TextRole::BodyS.size())
-                                        .color(theme.palette.status.success),
+                                    egui::RichText::new(crate::app::i18n::text(
+                                        ui,
+                                        "gui-diagnostic-all-clear",
+                                    ))
+                                    .size(TextRole::BodyS.size())
+                                    .color(theme.palette.status.success),
                                 );
                             } else if let Some(target) =
                                 crate::app::components::diagnostics::diagnostics_list(
@@ -264,7 +277,10 @@ impl GuiShell {
 
         let mut commands = ActionQueue::default();
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
-            let title_close = dialog::title_row(ui, "Switch Workspace");
+            let title_close = {
+                let title = crate::app::i18n::text(ui, "gui-workspace-switch-title");
+                dialog::title_row(ui, &title)
+            };
             let mut body_close = false;
 
             ui.add_space(SPACE_3);
@@ -272,7 +288,7 @@ impl GuiShell {
             ui.add_space(SPACE_3);
 
             ui.label(
-                egui::RichText::new("Directory path")
+                egui::RichText::new(crate::app::i18n::text(ui, "gui-workspace-directory-path"))
                     .size(TextRole::BodyS.size())
                     .color(theme.palette.text.secondary),
             );
@@ -284,14 +300,20 @@ impl GuiShell {
 
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let confirm = ui.add_sized([80.0, 28.0], Button::primary("Switch"));
+                    let confirm = ui.add_sized(
+                        [80.0, 28.0],
+                        Button::primary(crate::app::i18n::text(ui, "gui-action-switch")),
+                    );
                     if confirm.clicked() {
                         let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
                         commands.push_back(Command::SwitchWorkspace(path).into());
                         body_close = true;
                     }
 
-                    let cancel = ui.add_sized([80.0, 28.0], Button::ghost("Cancel"));
+                    let cancel = ui.add_sized(
+                        [80.0, 28.0],
+                        Button::ghost(crate::app::i18n::text(ui, "gui-action-cancel")),
+                    );
                     if cancel.clicked() {
                         body_close = true;
                     }
@@ -320,7 +342,11 @@ impl GuiShell {
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let title_close = dialog::title_row(
                 ui,
-                &format!("{}  Unsaved changes", egui_phosphor::regular::FLOPPY_DISK),
+                &format!(
+                    "{}  {}",
+                    egui_phosphor::regular::FLOPPY_DISK,
+                    crate::app::i18n::text(ui, "gui-unsaved-title")
+                ),
             );
             let mut body_close = false;
 
@@ -330,9 +356,11 @@ impl GuiShell {
 
             ui.add(
                 egui::Label::new(
-                    egui::RichText::new(&self.ui_store.unsaved_changes.message)
-                        .size(TextRole::Body.size())
-                        .color(theme.palette.text.secondary),
+                    egui::RichText::new(
+                        self.ui_store.unsaved_changes.message.display(self.ui_store.view.language),
+                    )
+                    .size(TextRole::Body.size())
+                    .color(theme.palette.text.secondary),
                 )
                 .selectable(false),
             );
@@ -344,7 +372,8 @@ impl GuiShell {
                     // Save button
                     let save = ui.add_sized(
                         [90.0, ROW_L],
-                        Button::primary("Save").with_icon(egui_phosphor::regular::FLOPPY_DISK),
+                        Button::primary(crate::app::i18n::text(ui, "gui-command-save"))
+                            .with_icon(egui_phosphor::regular::FLOPPY_DISK),
                     );
                     if save.clicked() {
                         if self.recovery_prompt_pending() {
@@ -357,10 +386,14 @@ impl GuiShell {
                             file::save_document(&mut self.document_store)
                         } {
                             // Keep the dialog open if saving fails so unsaved edits are not lost.
-                            self.preview_store
-                                .preview
-                                .set_status_error(format!("Save failed: {err}"));
-                            self.ui_store.toasts.push(Toast::error(format!("Save failed: {err}")));
+                            let message = crate::app::i18n::StatusText::message(
+                                "gui-status-save-failed",
+                                [("detail", err)],
+                            );
+                            self.ui_store.toasts.push(Toast::error(
+                                message.display(self.ui_store.view.language).into_owned(),
+                            ));
+                            self.preview_store.preview.set_status_error(message);
                             save_failed = true;
                         } else {
                             self.narration_takes.checkpoint(&self.document_store.source, true);
@@ -377,7 +410,8 @@ impl GuiShell {
                     // Discard button
                     let discard = ui.add_sized(
                         [90.0, ROW_L],
-                        Button::danger("Discard").with_icon(egui_phosphor::regular::TRASH),
+                        Button::danger(crate::app::i18n::text(ui, "gui-action-discard"))
+                            .with_icon(egui_phosphor::regular::TRASH),
                     );
                     if discard.clicked() {
                         // Mark document as no longer dirty, then execute pending
@@ -397,7 +431,10 @@ impl GuiShell {
                     }
 
                     // Cancel button
-                    let cancel = ui.add_sized([90.0, ROW_L], Button::ghost("Cancel"));
+                    let cancel = ui.add_sized(
+                        [90.0, ROW_L],
+                        Button::ghost(crate::app::i18n::text(ui, "gui-action-cancel")),
+                    );
                     if cancel.clicked() {
                         self.ui_store.unsaved_changes.close();
                         body_close = true;

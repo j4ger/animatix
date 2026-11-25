@@ -1,0 +1,11 @@
+web-client-play = 播放
+web-client-pause = 暂停
+web-client-replay = 重播
+web-client-retry = 重试
+web-player-controls = 播放控制
+web-player-timeline = 时间轴
+web-player-speed = 播放速度
+web-player-scene = Animatix 场景
+web-player-load-failed = 无法加载场景：
+web-player-recovery-failed = 图形后端恢复失败：
+web-player-graphics-unavailable = 此浏览器无法启动 WebGPU 或 WebGL2。

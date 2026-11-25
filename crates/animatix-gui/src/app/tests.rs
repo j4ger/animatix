@@ -12,99 +12,28 @@ use super::{
 use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR;
 
 #[test]
-fn default_workspace_has_detail_tabs_visible() {
-    let tree = default_tree();
-    let tabs: Vec<_> = tree
-        .tiles
-        .iter()
-        .filter_map(|(_, tile)| match tile {
-            egui_tiles::Tile::Pane(tab) => Some(*tab),
-            _ => None,
-        })
-        .collect();
-    // Six panes: Inspector|Code share the detail tab group, Timeline|Curves
-    // share the bottom tab group, both visible by default.
-    assert_eq!(tabs.len(), 6);
-    assert!(tabs.contains(&WorkspaceTab::Sidebar));
-    assert!(tabs.contains(&WorkspaceTab::Preview));
-    assert!(tabs.contains(&WorkspaceTab::Inspector));
-    assert!(tabs.contains(&WorkspaceTab::Code));
-    assert!(tabs.contains(&WorkspaceTab::Timeline));
-    assert!(tabs.contains(&WorkspaceTab::Curves));
-
-    assert_eq!(
-        super::persistence::active_detail_tab(&tree),
-        Some(WorkspaceTab::Inspector),
-        "Inspector is the default detail tab"
-    );
-    assert_eq!(
-        super::persistence::active_bottom_tab(&tree),
-        Some(WorkspaceTab::Timeline),
-        "Timeline is the default bottom tab"
-    );
-    assert!(super::persistence::detail_visible(&tree), "detail region is visible by default");
-    assert!(super::persistence::bottom_visible(&tree), "bottom region is visible by default");
-}
-
-#[test]
-fn bottom_tab_group_switches_between_timeline_and_curves() {
+fn review_uses_three_visible_panes_and_write_adds_the_shared_editor() {
+    use super::persistence::{apply_layout_preset, pane_visible, show_inspector};
     let mut tree = default_tree();
-    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Timeline));
-
-    assert!(super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Curves));
-    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Curves));
-    // Switching the bottom tab leaves the detail tab untouched.
-    assert_eq!(super::persistence::active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
-
-    // Hiding and reactivating keeps both bottom panes in the tree.
-    assert!(super::persistence::set_bottom_visible(&mut tree, false));
-    assert!(!super::persistence::bottom_visible(&tree));
-    assert!(tree.tiles.find_pane(&WorkspaceTab::Curves).is_some());
-    assert!(super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Curves));
-    assert!(super::persistence::bottom_visible(&tree));
-    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Curves));
-
-    // Returning to the Timeline works and is a valid bottom tab.
-    assert!(super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Timeline));
-    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Timeline));
-
-    // A pane outside the bottom group is rejected.
-    assert!(!super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Preview));
-}
-
-#[test]
-fn layout_presets_switch_detail_tab_and_focus_hides_regions() {
-    let mut tree = default_tree();
-
-    assert!(super::persistence::apply_layout_preset(
-        &mut tree,
-        LayoutPreset::Code,
-        1440.0,
-        960.0
-    ));
-    assert_eq!(super::persistence::active_detail_tab(&tree), Some(WorkspaceTab::Code));
-
-    assert!(super::persistence::apply_layout_preset(
-        &mut tree,
-        LayoutPreset::Focus,
-        1440.0,
-        960.0
-    ));
-    let sidebar = tree.tiles.find_pane(&WorkspaceTab::Sidebar).unwrap();
-    assert!(!tree.is_visible(sidebar), "Focus hides the sidebar");
-    assert!(!super::persistence::bottom_visible(&tree), "Focus hides the bottom region");
-    assert!(!super::persistence::detail_visible(&tree), "Focus hides the detail region");
-
-    assert!(super::persistence::apply_layout_preset(
-        &mut tree,
-        LayoutPreset::Animate,
-        1440.0,
-        960.0
-    ));
-    assert!(tree.is_visible(sidebar));
-    assert!(super::persistence::bottom_visible(&tree));
-    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Timeline));
-    assert_eq!(super::persistence::active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
+    for tab in [
+        WorkspaceTab::Sidebar,
+        WorkspaceTab::Preview,
+        WorkspaceTab::Timeline,
+    ] {
+        assert!(pane_visible(&tree, tab));
+    }
+    assert!(!pane_visible(&tree, WorkspaceTab::Code));
+    assert!(!pane_visible(&tree, WorkspaceTab::Inspector));
+    assert!(tree.tiles.find_pane(&WorkspaceTab::Curves).is_none());
+    let timeline = tree.tiles.find_pane(&WorkspaceTab::Timeline).unwrap();
+    assert_eq!(tree.tiles.parent_of(timeline), tree.root);
+    show_inspector(&mut tree);
+    assert!(apply_layout_preset(&mut tree, LayoutPreset::Code, 1440.0, 960.0));
+    assert!(pane_visible(&tree, WorkspaceTab::Code));
+    assert!(pane_visible(&tree, WorkspaceTab::Inspector));
+    assert!(apply_layout_preset(&mut tree, LayoutPreset::Animate, 1440.0, 960.0));
+    assert!(!pane_visible(&tree, WorkspaceTab::Code));
+    assert!(pane_visible(&tree, WorkspaceTab::Inspector), "keep the user's pin");
 }
 
 #[test]
@@ -180,7 +109,7 @@ fn diagnostics_banner_message_shows_first_parse_error() {
     )];
 
     assert_eq!(
-        diagnostics_banner_message(&diagnostics),
+        diagnostics_banner_message(&diagnostics, super::i18n::Language::English),
         Some("line 3, col 15: expected expression, found ','".to_string())
     );
 }
@@ -194,7 +123,7 @@ fn diagnostics_banner_message_shows_build_error_message() {
     )];
 
     assert_eq!(
-        diagnostics_banner_message(&diagnostics),
+        diagnostics_banner_message(&diagnostics, super::i18n::Language::English),
         Some("Unknown callable 'fade_ind'".to_string())
     );
 }
@@ -207,7 +136,10 @@ fn diagnostics_banner_message_shows_warning_when_no_errors() {
         "parse warning",
     )];
 
-    assert_eq!(diagnostics_banner_message(&diagnostics), Some("parse warning".to_string()));
+    assert_eq!(
+        diagnostics_banner_message(&diagnostics, super::i18n::Language::English),
+        Some("parse warning".to_string())
+    );
 }
 
 #[test]
@@ -226,7 +158,7 @@ fn diagnostics_banner_message_shows_first_error_over_warnings() {
     ];
 
     assert_eq!(
-        diagnostics_banner_message(&diagnostics),
+        diagnostics_banner_message(&diagnostics, super::i18n::Language::English),
         Some("Unknown callable 'fade_ind'".to_string())
     );
 }
@@ -239,7 +171,10 @@ fn diagnostics_banner_message_shows_render_error_message() {
         "render failed",
     )];
 
-    assert_eq!(diagnostics_banner_message(&diagnostics), Some("render failed".to_string()));
+    assert_eq!(
+        diagnostics_banner_message(&diagnostics, super::i18n::Language::English),
+        Some("render failed".to_string())
+    );
 }
 
 #[test]
@@ -251,7 +186,7 @@ fn clear_render_error_removes_render_failure_state() {
 
     assert!(shell.document_store.history.render_diagnostics.is_empty());
     assert!(shell.preview_store.preview.error.is_none());
-    assert_eq!(shell.preview_store.preview.status, "Live preview restored");
+    assert_eq!(shell.preview_store.preview.status.canonical(), "Live preview restored");
 }
 
 #[test]
@@ -263,7 +198,7 @@ fn clear_render_error_preserves_non_render_preview_failures() {
 
     assert!(shell.document_store.history.render_diagnostics.is_empty());
     assert_eq!(shell.preview_store.preview.error.as_deref(), Some("missing file"));
-    assert_eq!(shell.preview_store.preview.status, "Open failed • missing.amx");
+    assert_eq!(shell.preview_store.preview.status.canonical(), "Open failed • missing.amx");
 }
 
 /// A 5s preview at `time_s` with the standard 1920×1080 stage.
@@ -320,7 +255,10 @@ fn clear_render_error_preserves_newer_non_render_failure_when_render_diagnostic_
 
     assert!(shell.document_store.history.render_diagnostics.is_empty());
     assert_eq!(shell.preview_store.preview.error.as_deref(), Some("duplicate export"));
-    assert_eq!(shell.preview_store.preview.status, "Rebuild blocked • parse/load error");
+    assert_eq!(
+        shell.preview_store.preview.status.canonical(),
+        "Rebuild blocked • parse/load error"
+    );
 }
 
 #[test]
@@ -408,5 +346,5 @@ fn rebuild_command_submits_to_background_worker() {
         "manual rebuild must be submitted to the worker"
     );
     assert!(shell.preview_store.rebuild_in_progress);
-    assert_eq!(shell.preview_store.preview.status, "Building timeline…");
+    assert_eq!(shell.preview_store.preview.status.canonical(), "Building timeline…");
 }

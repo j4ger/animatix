@@ -37,7 +37,7 @@ const poster = url(posterPath);
     <div class="sample-file"><span class="file-icon" aria-hidden="true"></span><span data-scene-filename>{id}.amx</span></div>
     <slot name="chooser"/>
     {download && <a class="sample-download" data-source-download href={workspace ? undefined : sourceUrl}
-      download={`${id}.amx`}>{t('Download AMX', '下载 AMX')} ↓</a>}
+      download={`${id}.amx`}>{t('web-download-amx')} ↓</a>}
   </figcaption>
   <div class="sample-preview">
     <div class="scene-shell" data-scene-shell data-module={url('runtime/amx-player.js')}
@@ -51,19 +51,19 @@ const poster = url(posterPath);
       </div>
       {recording && <div class="recording-panel" hidden>
         <video controls playsinline preload="none" {width} {height} poster={poster}
-          data-recording={url(`content/previews/${id}.mp4`)} aria-label={t(`${title} — recording`, `${title}录制视频`)}
+          data-recording={url(`content/previews/${id}.mp4`)} aria-label={t('web-scene-recording-label', {title})}
           tabindex="0"></video>
-        <p class="recording-caption">{t('Recording of the original settings.', '按原始设置录制。')}</p>
+        <p class="recording-caption">{t('web-recording-of-the-original-settings')}</p>
       </div>}
       <p class="scene-status" role="status" aria-live="polite"></p>
       <slot name="playback-status"/>
       {recording && <div class="scene-fallback" hidden>
-        <button class="button watch-recording" type="button">{t('Play recording', '播放录制视频')}</button>
+        <button class="button watch-recording" type="button">{t('web-play-recording')}</button>
       </div>}
     </div>
     <div class="sample-controls amx-transport">
       <button type="button" class="sample-play" disabled><i aria-hidden="true"></i><span>{labels.play}</span></button>
-      <Timeline label={t('Scene time in seconds', '场景时间（秒）')} max={duration}/>
+      <Timeline label={t('web-scene-time-in-seconds')} max={duration}/>
       <output class="sample-clock amx-time" aria-hidden="true">0.00s</output>
       <button type="button" class="inspect" aria-expanded={workspace ? 'true' : 'false'} aria-controls={sourcePanel}><b aria-hidden="true">&lt;/&gt;</b> <span>{workspace ? labels.hideSource : labels.viewSource}</span></button>
     </div>
@@ -73,11 +73,11 @@ const poster = url(posterPath);
     <SourceEditor id={workspace ? 'source-code' : `${sourcePanel}-code`} describedBy={sourceStatus} {source}/>
     <div class="source-footer">
       <p id={sourceStatus} class="source-status" role="status"></p>
-      <button class="reset-source" type="button" aria-label={t('Reset source', '重置源码')} disabled>{labels.reset}</button>
+      <button class="reset-source" type="button" aria-label={t('web-reset-source')} disabled>{labels.reset}</button>
     </div>
     {workspace && <div id="diagnostics"></div>}
   </div>
-  {!download && <noscript><a href={sourceUrl}>{t(`View ${id}.amx`, `查看 ${id}.amx`)} →</a></noscript>}
+  {!download && <noscript><a href={sourceUrl}>{t('web-scene-view-file', {file: `${id}.amx`})} →</a></noscript>}
 </figure>
 <script>
   import {editableScene} from '../scripts/editable-scene';

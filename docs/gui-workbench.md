@@ -6,18 +6,21 @@ and its referenced files define scene playback and export. The companion
 
 ## Workflow
 
-1. Open an `.amx` file from the filename menu. Choose **Write** for source editing,
-   **Review** for timing, or **Inspect** for object analysis. **Focus** hides the
-   surrounding panels. Smaller windows group the presets in the layout menu.
+1. Open an `.amx` file from the filename menu. **Write** gives the editor most of
+   the upper workbench and keeps the preview alongside it. **Review** gives the
+   preview and timeline more room. In narrow windows, use the layout menu to
+   switch modes. **Project** shows files and resources. **Outline** shows scenes
+   and objects. Both open from the icon rail when space is tight.
 2. Use the controls below the preview to play, seek, step frames, or loop. The
    timeline bracket button sets the loop to the visible interval; its range
    row appears when a loop range is set. The playback menu also offers speed,
    ping-pong, and presentation mode. Grid, guides, and preview zoom are above
-   the scene. These actions affect the workspace. Scene and object lists change
-   the selection.
-3. Inspect an object and its sampled values, or jump to its source when a direct,
-   unambiguous source location is available. Generated/imported instances do not
-   guess a location by label.
+   the scene. Use the preview's fullscreen button and press Escape to return.
+   These actions affect the workspace. Scene and object lists change the selection.
+3. Open **Inspector** to see the selected object and its sampled values. Pin it
+   when you want to keep it visible. In a narrow window, a pinned Inspector moves
+   to an overlay and returns to the dock when the window widens. **Go to source**
+   opens the shared editor when a direct, unambiguous location is available.
 4. Edit code, then review the rebuilt result. The footer distinguishes current,
    rebuilding, failed, and out-of-date previews. A failed build preserves the
    last successful image. Click the diagnostics button to see build messages.
@@ -41,7 +44,8 @@ open the **cues need timing…** menu when several cues need attention. The edit
 preserves the start or end choice and the timing offset. During the editing
 session, draft builds can use the last resolved cue time.
 
-Open **Voiceover…** beside the paragraph or from the file menu. **Record**
+Open **Voiceover…** beside a paragraph in Write, from the file menu, or from
+the selected paragraph's controls in Review. **Record**
 uses the default microphone. After **Stop**, the workbench keeps the audio,
 aligns it with local SenseVoice, and applies the result. The recording limit
 is ten minutes or 128 MiB of PCM audio, whichever comes first. **More** contains
@@ -54,9 +58,10 @@ one source edit. Use the editor's normal Undo, Redo, and Save commands. If the
 target script or current narration changes during processing, the new take
 stays in history. [Set up and share a narrated scene](narration.md#record-in-the-native-workbench)
 
-In Review, click a paragraph in the timeline or choose it from the paragraph
-selector to see its words. Use **Bindings** to inspect the actions and
-**Go to script** to return to the text. The selector includes paragraphs awaiting
+In Review, select a paragraph in the timeline or use the selector above the
+paragraph track to see its words. **Voiceover…** opens the existing take and
+alignment controls for that paragraph. Use **Bindings** to inspect its timing
+targets and **Go to script** to return to the text. The selector includes paragraphs awaiting
 alignment, and the selected paragraph still shows any voiceover issue. External
 changes to an attached audio file or transcript refresh the preview, including
 when the script has unsaved edits.
@@ -70,8 +75,9 @@ directly underneath that row; click again to close it. Vector and color tracks
 offer a channel selector beside the graph. The graph shares the Timeline time
 scale and playhead, and clicking or dragging it seeks the preview. It shows
 compiled keyframe interpolation, not subsequent expression or layout effects.
-Edit the source to change the animation. The standalone Curves panel remains
-available for viewing multiple objects together.
+Edit the source to change the animation. For standalone curve comparison,
+use **Toggle Curve Comparison** in the command palette to open or close the
+optional **Curves** tab.
 
 ## Read-only boundaries
 
@@ -86,8 +92,11 @@ The application theme is a separate preference.
 Open Settings from the workbench menu or command palette. It is an in-app page,
 with section navigation on the left at wider widths and a selector above the
 form at narrower widths. Playback pauses on entry. Back to workbench returns to
-the same document, workspace layout and playhead. Settings supports English
-and Simplified Chinese without changing authored scene content.
+the same document, workspace layout, selection and playhead. **Interface
+language** changes the workbench between English and Simplified Chinese
+immediately. The choice is saved for the next launch. The command palette
+accepts English search terms in either language. Scene source, identifiers and
+timecodes retain their authored forms.
 
 The timeline presents author timing rather than an always-expanded forest of ECS
 properties. Unresolved source timing must be shown as unresolved, not silently
@@ -114,7 +123,8 @@ view state must remain distinct as those features are added.
 The first phase indexes direct scene/top-level `#` declarations. Numeric and
 relative seconds and speech anchors can be resolved; beat-based or generated
 control-flow timing is explicitly unresolved rather than inferred with a guessed
-tempo. Dense markers can be selected from the marker menu. Debug property tracks
+tempo. Authored markers occupy the lower band of the time ruler. Dense or unresolved
+markers can be selected from the marker menu. Debug property tracks
 are opt-in, read-only, and remain distinct from authored keyframes.
 
 Audio-backed transcript cues use the clip's start in the scene and the scene's start in the composition. A standalone transcript uses scene-relative timestamps. Source timing markers use the engine's compiled resolution for speech. Identical Audio/Captions transcripts at the same time share a review row.
@@ -132,8 +142,8 @@ view modes retain a visible active state; unavailable actions remain disabled.
 
 Filename, preview validity, timecode, scene names, track names and panel headings
 remain text because they describe the current document rather than an action.
-Project, Outline and Library keep their names as space tightens, before
-switching together to named, tooltipped icons. Inspector summaries align compact
+Project and Outline switch together to named, tooltipped icons as space
+tightens. Inspector summaries align compact
 labels and values in two columns, stacking them when space is tight. Preview
 ruler labels occupy a separate lane from the ticks; drag from either ruler to
 place a guide.

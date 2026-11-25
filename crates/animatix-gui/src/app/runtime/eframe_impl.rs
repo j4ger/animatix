@@ -72,7 +72,12 @@ impl eframe::App for AnimatixApp {
 
         if let Some(err) = self.shell.workspace_store.hot_reload_error.take() {
             self.shell.ui_store.toasts.push(crate::app::components::toast::Toast::warning(
-                format!("Hot reload unavailable: {err}"),
+                crate::app::i18n::StatusText::message(
+                    "gui-file-hot-reload",
+                    [("detail", err.to_string())],
+                )
+                .display(self.shell.ui_store.view.language)
+                .into_owned(),
             ));
         }
 
@@ -148,19 +153,27 @@ impl eframe::App for AnimatixApp {
         }
 
         // Render the UI
+        let was_fullscreen = self.shell.ui_store.view.preview_fullscreen;
         self.shell.ui(ui, self.preview_texture_id);
+        let fullscreen = self.shell.ui_store.view.preview_fullscreen;
+        if was_fullscreen != fullscreen {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(fullscreen));
+        }
 
         // Debug aid for native IME input: raw events plus focus state.
         self.shell.log_input_debug(ui.ctx());
 
         // Capture window geometry for persistence
-        let (size, maximized) = ui.ctx().input(|i| {
-            let rect = i.viewport_rect();
-            let max = i.viewport().maximized.unwrap_or(false);
-            ([rect.size().x, rect.size().y], max)
-        });
-        self.shell.window_size = size;
-        self.shell.window_maximized = maximized;
+        if !was_fullscreen && !fullscreen && !ui.input(|i| i.viewport().fullscreen.unwrap_or(false))
+        {
+            let (size, maximized) = ui.ctx().input(|i| {
+                let rect = i.viewport_rect();
+                let max = i.viewport().maximized.unwrap_or(false);
+                ([rect.size().x, rect.size().y], max)
+            });
+            self.shell.window_size = size;
+            self.shell.window_maximized = maximized;
+        }
 
         if self.shell.workspace_store.media_watch.active() {
             ui.ctx()

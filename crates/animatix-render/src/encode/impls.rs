@@ -16,11 +16,14 @@ impl Default for ExportSettings {
 
 impl<'a> ExportOptions<'a> {
     #[cfg(feature = "video")]
-    pub(super) fn warn(&self, message: String) {
+    pub(super) fn warn(&self, warning: super::ExportWarning) {
         if let Some(warnings) = self.warnings {
-            let _ = warnings.send(message);
-        } else {
-            tracing::warn!("{message}");
+            let _ = warnings.send(warning.to_string());
+        }
+        if let Some(events) = self.warning_events {
+            let _ = events.send(warning);
+        } else if self.warnings.is_none() {
+            tracing::warn!("{warning}");
         }
     }
 

@@ -66,7 +66,7 @@ fn export_submission_rechecks_source_after_dialog_opened() {
     shell.handle_action(crate::app::commands::Command::EditorChanged.into());
     shell.start_export();
     assert!(matches!(shell.export_store.export_status, ExportStatus::Failed(ref error)
-        if error.contains("current source")));
+        if error.canonical().contains("current source")));
     assert!(shell.export_store.export_thread.is_none());
 }
 
@@ -142,8 +142,8 @@ fn draft_warning_follows_the_visible_subtitle_and_clears_after_readoption() {
 
     let warning = affected(&store, &history, &state);
     assert_eq!(warning.len(), 1);
-    assert!(warning[0].title.contains("第二段"));
-    assert_eq!(warning[0].effect, "Includes previous subtitles");
+    assert!(warning[0].snippet.contains("第二段"));
+    assert_eq!(warning[0].effect, "gui-export-draft-subtitles");
     state.time_s = 0.5;
     assert!(affected(&store, &history, &state).is_empty());
     state.time_s = 3.0;
@@ -156,7 +156,7 @@ fn draft_warning_follows_the_visible_subtitle_and_clears_after_readoption() {
     store.source.document.rebuild().unwrap();
     assert!(affected(&store, &history, &state).is_empty());
     state.format = ExportFormat::Video;
-    assert_eq!(affected(&store, &history, &state)[0].effect, "Includes previous audio");
+    assert_eq!(affected(&store, &history, &state)[0].effect, "gui-export-draft-audio");
     state.format = ExportFormat::Gif;
     assert!(affected(&store, &history, &state).is_empty());
 
@@ -196,10 +196,12 @@ fn draft_confirmation_cannot_bypass_an_unresolved_time_binding() {
     let mut shell = GuiShell::load(PathBuf::from("missing-export-boundary.amx"), false);
     shell.document_store = crate::app::test_support::make_document_store(&source);
     shell.submit_export(Some(vec![narration::AffectedParagraph {
-        title: "Paragraph 1 · New passage.".into(),
-        effect: "Includes previous subtitles",
+        scene: None,
+        number: 1,
+        snippet: "New passage.".into(),
+        effect: "gui-export-draft-subtitles",
     }]));
     assert!(matches!(shell.export_store.export_status, ExportStatus::Failed(ref error)
-        if error.contains("Resolve the narration binding")));
+        if error.canonical().contains("Resolve the narration binding")));
     assert!(shell.export_store.export_thread.is_none());
 }

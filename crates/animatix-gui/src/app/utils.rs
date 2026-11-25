@@ -46,7 +46,10 @@ pub(super) fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<Dia
 /// 1. First error message (any phase) — actual diagnostic text, truncated.
 /// 2. First warning message (any phase) — actual diagnostic text, truncated.
 /// 3. Static phase description as a last resort.
-pub(super) fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<String> {
+pub(super) fn diagnostics_banner_message(
+    diagnostics: &[Diagnostic],
+    language: crate::app::i18n::Language,
+) -> Option<String> {
     if diagnostics.is_empty() {
         return None;
     }
@@ -58,10 +61,10 @@ pub(super) fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<S
         .or_else(|| diagnostics.first());
 
     if let Some(err) = first_message {
-        let msg = &err.message;
-        let first_line = msg.lines().next().unwrap_or(msg);
-        if first_line.len() > 80 {
-            return Some(format!("{}...", &first_line[..80]));
+        let msg = crate::app::components::diagnostics::diagnostic_message(language, err);
+        let first_line = msg.lines().next().unwrap_or(&msg);
+        if let Some((end, _)) = first_line.char_indices().nth(80) {
+            return Some(format!("{}...", &first_line[..end]));
         }
         return Some(first_line.to_string());
     }

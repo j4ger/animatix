@@ -1,7 +1,7 @@
 ---
 import EditableScene from './EditableScene.astro';
 import {pageUrl} from '../lib/content';
-import {pageLanguage} from '../lib/language';
+import {choose, pageLanguage} from '../lib/language';
 import {sceneSource} from '../lib/scene-source';
 import {ui} from '../lib/ui';
 
@@ -21,17 +21,17 @@ const {t} = ui(language);
 <section class="work-heading">
   <a class="text-link" href={pageUrl(language, backPath)}>← {backLabel}</a>
   <p class="eyebrow">{eyebrow}</p>
-  <h1>{title}{t('.', '')}</h1>
+  <h1>{title}{choose(language, '.', '')}</h1>
   <p class="lead">{goal}</p>
 </section>
 <EditableScene id={file} {title} {posterAlt} source={sceneSource(file)} download/>
 <div class="learning-notes">
   <section>
-    <h2>{t('What to notice', '观察要点')}</h2>
+    <h2>{t('web-what-to-notice')}</h2>
     <p>{explanation}</p>
   </section>
   <section>
-    <h2>{t('Try a change', '动手试试')}</h2>
+    <h2>{t('web-try-a-change')}</h2>
     <p>{exercise}</p>
     {rule && <p class="learning-rule">{rule}</p>}
   </section>

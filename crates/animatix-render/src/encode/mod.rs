@@ -58,7 +58,7 @@ pub use video::{
 #[cfg(feature = "video")]
 pub use video_chapters::{VideoFrameRange, video_chapter_frame_ranges};
 
-pub use export_error::ExportError;
+pub use export_error::{ExportError, ExportWarning};
 
 pub use impls::output_dimensions;
 
@@ -93,6 +93,8 @@ pub struct ExportOptions<'a> {
     pub cancel: Option<&'a AtomicBool>,
     /// Receives export preflight warnings in UI clients. Other clients log them.
     pub warnings: Option<&'a std::sync::mpsc::Sender<String>>,
+    /// Receives the same preflight warning with structured time and source data.
+    pub warning_events: Option<&'a std::sync::mpsc::Sender<ExportWarning>>,
     /// Omit the audio track from video exports.
     pub skip_audio: bool,
 }

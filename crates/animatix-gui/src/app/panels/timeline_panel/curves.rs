@@ -229,7 +229,7 @@ pub(super) fn lane(
         let time = coords.x_to_time(pos.x).clamp(0.0, preview.playback.duration_s.max(0.0));
         commands.push_back(Command::ScrubTo(time).into());
     }
-    response.on_hover_text("Click or drag to seek · compiled keyframes, read-only");
+    response.on_hover_text(crate::app::i18n::text(ui, "gui-timeline-curves-seek"));
 }
 
 fn curve_axis(

@@ -1,15 +1,19 @@
 ---
 import Page from '../layouts/Page.astro';
-import {url} from '../lib/content';
+import {pageUrl} from '../lib/content';
+import {pageLanguage} from '../lib/language';
+import {ui} from '../lib/ui';
+const language = pageLanguage(Astro.currentLocale);
+const {t} = ui(language);
 ---
-<Page title="Page not found" homeLinks>
+<Page title={t('web-not-found-title')} homeLinks>
   <section class="not-found">
-    <p class="eyebrow">404 / Out of frame</p>
-    <h1>This scene is missing.</h1>
-    <p>The link may have moved. Find a new starting point below.</p>
+    <p class="eyebrow">{t('web-not-found-eyebrow')}</p>
+    <h1>{t('web-not-found-heading')}</h1>
+    <p>{t('web-not-found-description')}</p>
     <div class="actions">
-      <a class="button primary" href={url('')}>Back home</a>
-      <a class="button" href={url('#examples')}>Explore the works</a>
+      <a class="button primary" href={pageUrl(language)}>{t('web-not-found-home')}</a>
+      <a class="button" href={pageUrl(language) + '#examples'}>{t('web-not-found-examples')}</a>
     </div>
   </section>
 </Page>

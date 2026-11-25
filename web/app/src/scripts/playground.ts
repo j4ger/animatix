@@ -2,14 +2,14 @@ import {fetchSource} from '../lib/requests';
 import {canonicalSceneId, overridesFor, parameterQueryNames, withOverride} from '../lib/overrides';
 import {insertionId, insertionSteps} from '../lib/insertion-steps';
 import {takeEditorTransfer, transferEditor} from '../lib/editor-transfer';
-import {currentUi} from '../lib/ui';
+import {clientUi} from '../lib/client-ui';
 import {editableScene} from './editable-scene';
 
 const root = document.querySelector<HTMLElement>('[data-playground]');
 if (root) installPlayground(root);
 
 function installPlayground(root: HTMLElement) {
-  const {t} = currentUi();
+  const t = clientUi();
   const sample = root.querySelector<HTMLElement>('[data-sample]')!;
   const scene = editableScene(sample);
   const selector = root.querySelector<HTMLSelectElement>('#scene-choice')!;
@@ -58,7 +58,7 @@ function installPlayground(root: HTMLElement) {
   selector.addEventListener('change', () => {
     const next = selector.value;
     if (next === current) return;
-    if (scene.hasUnsaved() && !confirm(t('Replace your unsaved edits with another source?', '要用另一个场景替换尚未保存的修改吗？'))) {
+    if (scene.hasUnsaved() && !confirm(t('web-client-playground-confirm-replace'))) {
       selector.value = current;
       return;
     }
@@ -71,7 +71,7 @@ function installPlayground(root: HTMLElement) {
     const destination = new URL(link.href);
     if (destination.origin === location.origin && destination.pathname === location.pathname &&
         destination.search === location.search && destination.hash) return;
-    if (!confirm(t('Leave this page? Download your source first to keep your edits.', '要离开这个页面吗？下载源码可以保留修改。'))) event.preventDefault();
+    if (!confirm(t('web-client-playground-confirm-leave'))) event.preventDefault();
     else leaving = true;
   });
   window.addEventListener('beforeunload', event => {

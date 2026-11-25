@@ -25,7 +25,8 @@ impl GuiShell {
                     // Keep the bar readable but never hide the reason: the full
                     // message is one hover away and copied on request, since
                     // encoder failures carry the actionable detail.
-                    let truncated = truncate_chars(err, 37);
+                    let error = err.display(self.ui_store.view.language);
+                    let truncated = truncate_chars(&error, 37);
                     let resp = ui.add(
                         Tag::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))
                             .color(theme.palette.status.error)
@@ -33,13 +34,16 @@ impl GuiShell {
                     );
                     let resp = resp.on_hover_ui(|ui| {
                         ui.set_max_width(420.0);
-                        ui.label(RichText::new(err).size(TextRole::BodyS.size()));
+                        ui.label(RichText::new(error.as_ref()).size(TextRole::BodyS.size()));
                         ui.add_space(sp.base.space_1);
                         if ui
-                            .add(Button::ghost("Copy").with_icon(egui_phosphor::regular::COPY))
+                            .add(
+                                Button::ghost(crate::app::i18n::text(ui, "gui-action-copy"))
+                                    .with_icon(egui_phosphor::regular::COPY),
+                            )
                             .clicked()
                         {
-                            ui.ctx().copy_text(err.clone());
+                            ui.ctx().copy_text(error.to_string());
                         }
                     });
                     if resp.clicked() {
@@ -59,18 +63,25 @@ impl GuiShell {
                     ))
                     .color(theme.palette.status.warning),
                 )
-                .on_hover_text(self.export_store.export_warnings.join("\n"));
+                .on_hover_text(
+                    self.export_store
+                        .export_warnings
+                        .iter()
+                        .map(|warning| warning.display(self.ui_store.view.language))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                );
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Export button
                 let btn_text = match self.export_store.export_state.format {
-                    ExportFormat::Image => "Export Image",
-                    ExportFormat::Video => "Export Video",
-                    ExportFormat::Gif => "Export GIF",
-                    ExportFormat::WebM => "Export WebM",
-                    ExportFormat::Mov => "Export MOV",
-                    ExportFormat::WebP => "Export WebP",
+                    ExportFormat::Image => text(ui, "gui-export-submit-image"),
+                    ExportFormat::Video => text(ui, "gui-export-submit-video"),
+                    ExportFormat::Gif => text(ui, "gui-export-submit-gif"),
+                    ExportFormat::WebM => text(ui, "gui-export-submit-webm"),
+                    ExportFormat::Mov => text(ui, "gui-export-submit-mov"),
+                    ExportFormat::WebP => text(ui, "gui-export-submit-webp"),
                 };
                 let btn_size = Vec2::new(120.0, sp.base.row_m);
                 let (btn_rect, btn_resp) = ui.allocate_exact_size(btn_size, egui::Sense::click());
@@ -145,9 +156,8 @@ impl GuiShell {
             || self.document_store.snapshot_is_stale()
             || self.preview_store.has_pending_rebuild()
         {
-            self.export_store.export_status = ExportStatus::Failed(
-                "Build the current source successfully before exporting".into(),
-            );
+            self.export_store.export_status =
+                ExportStatus::Failed(StatusText::message("gui-export-build", []));
             return false;
         }
         let document = &self.document_store.source.document;
@@ -155,9 +165,9 @@ impl GuiShell {
             diagnostic.code
                 == animatix_syntax::diagnostics::DiagnosticCode::NarrationBindingUnresolved
         }) {
-            self.export_store.export_status = ExportStatus::Failed(format!(
-                "Resolve the narration binding before exporting. {}",
-                diagnostic.message,
+            self.export_store.export_status = ExportStatus::Failed(StatusText::message(
+                "gui-export-resolve-narration",
+                [("detail", diagnostic.message.clone())],
             ));
             return false;
         }
@@ -180,7 +190,10 @@ impl GuiShell {
         if self.export_store.export_thread.is_some() {
             self.export_store.export_status = ExportStatus::Running;
             self.ui_store.toasts.push(crate::app::components::toast::Toast::warning(
-                "Previous export is still finishing".to_string(),
+                crate::app::i18n::text_for(
+                    self.ui_store.view.language,
+                    "gui-export-previous-finishing",
+                ),
             ));
             return;
         }
@@ -192,7 +205,7 @@ impl GuiShell {
             Some(t) => t,
             None => {
                 self.export_store.export_status =
-                    ExportStatus::Failed("No timeline or composition to export".into());
+                    ExportStatus::Failed(StatusText::message("gui-export-no-timeline", []));
                 return;
             },
         };
@@ -205,40 +218,8 @@ impl GuiShell {
             PathBuf::from(&state.output_path)
         };
 
-        // ── Margin-case validation ──
-        if state.width == 0 || state.height == 0 {
-            self.export_store.export_status = ExportStatus::Failed("Resolution must be > 0".into());
-            return;
-        }
-        if state.width > 8192 || state.height > 8192 {
-            self.export_store.export_status =
-                ExportStatus::Failed("Resolution exceeds 8192px limit".into());
-            return;
-        }
-        match state.format {
-            ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
-                if state.fps == 0 {
-                    self.export_store.export_status =
-                        ExportStatus::Failed("FPS must be > 0".into());
-                    return;
-                }
-                if state.motion_duration_s(effective_duration_s) <= 0.0 {
-                    self.export_store.export_status =
-                        ExportStatus::Failed("Duration must be > 0".into());
-                    return;
-                }
-            },
-            _ => {},
-        }
-        if output_path.as_os_str().is_empty() {
-            self.export_store.export_status = ExportStatus::Failed("Output path is empty".into());
-            return;
-        }
-        if let Some(parent) = output_path.parent()
-            && !parent.exists()
-        {
-            self.export_store.export_status =
-                ExportStatus::Failed(format!("Directory does not exist: {}", parent.display()));
+        if let Err(error) = validate_export(&state, &output_path, effective_duration_s) {
+            self.export_store.export_status = ExportStatus::Failed(error);
             return;
         }
 
@@ -343,7 +324,8 @@ impl GuiShell {
                         settings: export_settings_for(&state, state.format),
                         progress: progress_ref,
                         cancel: cancel_ref,
-                        warnings: Some(&warnings),
+                        warnings: None,
+                        warning_events: Some(&warnings),
                         skip_audio: false,
                     },
                 ),
@@ -458,4 +440,40 @@ fn render_motion_export(
             options,
         ),
     }
+}
+
+fn validate_export(
+    state: &ExportDialogState,
+    output_path: &std::path::Path,
+    effective_duration_s: f64,
+) -> Result<(), StatusText> {
+    if state.width == 0 || state.height == 0 {
+        return Err(StatusText::message("gui-export-resolution-positive", []));
+    }
+    if state.width > 8192 || state.height > 8192 {
+        return Err(StatusText::message("gui-export-resolution-limit", []));
+    }
+    if matches!(
+        state.format,
+        ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov
+    ) {
+        if state.fps == 0 {
+            return Err(StatusText::message("gui-export-fps-positive", []));
+        }
+        if state.motion_duration_s(effective_duration_s) <= 0.0 {
+            return Err(StatusText::message("gui-export-duration-positive", []));
+        }
+    }
+    if output_path.as_os_str().is_empty() {
+        return Err(StatusText::message("gui-export-output-empty", []));
+    }
+    if let Some(parent) = output_path.parent()
+        && !parent.exists()
+    {
+        return Err(StatusText::message(
+            "gui-export-output-directory",
+            [("path", parent.display().to_string())],
+        ));
+    }
+    Ok(())
 }

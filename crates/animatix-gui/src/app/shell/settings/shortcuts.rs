@@ -17,15 +17,16 @@ impl GuiShell {
                 .unwrap_or_default();
             let is_recording = recording.as_deref() == Some(name.as_str());
             let hint = if is_recording {
-                copy(ui, "Recording…", "正在录入…")
+                text(ui, "gui-shortcut-recording")
             } else {
-                &current
+                current
             };
-            page::row_labels(ui, &name, &name, Some(hint), |ui| {
+            let label = shortcut_label(ui, &name);
+            page::row_labels(ui, &name, &label, Some(&hint), |ui| {
                 let title = if is_recording {
-                    copy(ui, "Cancel", "取消")
+                    text(ui, "gui-action-cancel")
                 } else {
-                    copy(ui, "Rebind", "重设")
+                    text(ui, "gui-shortcut-rebind")
                 };
                 if ui.add(Button::ghost(title)).clicked() {
                     self.ui_store.recording_shortcut = if is_recording {
@@ -34,7 +35,7 @@ impl GuiShell {
                         Some(name.clone())
                     };
                 }
-                let reset = copy(ui, "Reset", "恢复默认");
+                let reset = text(ui, "gui-shortcut-reset");
                 if self.ui_store.shortcut_overrides.contains_key(&name)
                     && ui.add(Button::ghost(reset)).clicked()
                 {
@@ -44,12 +45,17 @@ impl GuiShell {
                             self.shortcut_registry = registry;
                             self.save_persistence();
                             self.preview_store.preview.status =
-                                format!("Shortcut '{}' reset to default", name);
+                                crate::app::i18n::StatusText::message(
+                                    "gui-shortcut-reset-success",
+                                    [("name", label.clone())],
+                                );
                         },
-                        Err(error) => self
-                            .preview_store
-                            .preview
-                            .set_status_error(format!("Shortcut reset failed: {error}")),
+                        Err(error) => self.preview_store.preview.set_status_error(
+                            crate::app::i18n::StatusText::message(
+                                "gui-shortcut-reset-failed",
+                                [("detail", error.to_string())],
+                            ),
+                        ),
                     }
                 }
             });
@@ -64,14 +70,22 @@ impl GuiShell {
                     self.ui_store.shortcut_overrides = overrides;
                     self.ui_store.recording_shortcut = None;
                     self.save_persistence();
-                    self.preview_store.preview.status =
-                        format!("Shortcut '{}' set to {}", name, saved.display_with(ui.ctx()));
+                    self.preview_store.preview.status = crate::app::i18n::StatusText::message(
+                        "gui-shortcut-update-success",
+                        [
+                            ("name", shortcut_label(ui, &name)),
+                            ("key", saved.display_with(ui.ctx())),
+                        ],
+                    );
                 },
                 Err(error) => {
                     self.ui_store.recording_shortcut = None;
-                    self.preview_store
-                        .preview
-                        .set_status_error(format!("Shortcut update failed: {error}"));
+                    self.preview_store.preview.set_status_error(
+                        crate::app::i18n::StatusText::message(
+                            "gui-shortcut-update-failed",
+                            [("detail", error.to_string())],
+                        ),
+                    );
                 },
             }
         }
@@ -87,9 +101,13 @@ impl GuiShell {
     ) -> Option<(String, crate::app::interaction::keyboard::SavedShortcut)> {
         let name = recording?;
         ui.label(
-            RichText::new(format!("Press a key for '{name}'…"))
-                .size(TextRole::BodyS.size())
-                .color(theme.palette.accent.primary),
+            RichText::new(crate::app::i18n::render(
+                ui,
+                "gui-shortcut-press-key",
+                &[("name", shortcut_label(ui, name))],
+            ))
+            .size(TextRole::BodyS.size())
+            .color(theme.palette.accent.primary),
         );
         let captured_key = ui.input(|i| {
             i.events.iter().find_map(|event| {
@@ -108,4 +126,37 @@ impl GuiShell {
         });
         captured_key.map(|saved| (name.clone(), saved))
     }
+}
+
+fn shortcut_label(ui: &egui::Ui, name: &str) -> String {
+    let message = match name {
+        "Command Palette" => "gui-shortcut-command-palette",
+        "Editor Sync" => "gui-shortcut-editor-sync",
+        "Escape" => "gui-shortcut-escape",
+        "Find/Replace" => "gui-shortcut-find-replace",
+        "Next Keyframe" => "gui-shortcut-next-keyframe",
+        "Play/Pause" => "gui-shortcut-play-pause",
+        "Prev Keyframe" => "gui-shortcut-prev-keyframe",
+        "Scene 1" => "gui-shortcut-scene-1",
+        "Scene 2" => "gui-shortcut-scene-2",
+        "Scene 3" => "gui-shortcut-scene-3",
+        "Scrub Backward" => "gui-shortcut-scrub-backward",
+        "Scrub Forward" => "gui-shortcut-scrub-forward",
+        "Step Back 1 Frame" => "gui-shortcut-step-back-1-frame",
+        "Step Forward 1 Frame" => "gui-shortcut-step-forward-1-frame",
+        "Zoom to All" => "gui-shortcut-zoom-to-all",
+        "Save" => "gui-command-save",
+        "Rebuild" => "gui-command-rebuild",
+        "Redo" => "gui-command-redo",
+        "Reload" => "gui-command-reload",
+        "Undo" => "gui-command-undo",
+        "Step Next" => "gui-command-step-next",
+        "Step Previous" => "gui-command-step-previous",
+        "Toggle Code" => "gui-command-code",
+        "Toggle Inspector" => "gui-command-inspector",
+        "Toggle Presentation Mode" => "gui-command-presentation",
+        "Zoom to Selection" => "gui-command-zoom-selection",
+        _ => return name.to_owned(),
+    };
+    text(ui, message)
 }

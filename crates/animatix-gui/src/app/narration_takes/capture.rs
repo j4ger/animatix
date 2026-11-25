@@ -1,6 +1,8 @@
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
+use crate::app::i18n::StatusText;
+
 use super::history::{History, Take};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded, select_biased};
 use rodio::cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -13,14 +15,18 @@ const MAX_SAMPLES: u64 = 64 * 1024 * 1024;
 
 pub(super) struct Capture {
     control: Sender<()>,
-    result: Receiver<Result<(), String>>,
+    result: Receiver<Result<(), StatusText>>,
     started: Arc<OnceLock<Instant>>,
     pub stopping: bool,
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Capture {
-    pub fn start(ctx: egui::Context, history: Arc<History>, take: Take) -> Result<Self, String> {
+    pub fn start(
+        ctx: egui::Context,
+        history: Arc<History>,
+        take: Take,
+    ) -> Result<Self, StatusText> {
         let (control, requests) = bounded(2);
         let (done, result) = bounded(1);
         let started = Arc::new(OnceLock::new());
@@ -31,7 +37,12 @@ impl Capture {
                 let _ = done.send(record(requests, &worker_started, &ctx, &history, &take));
                 ctx.request_repaint();
             })
-            .map_err(|error| format!("Could not start the microphone worker: {error}"))?;
+            .map_err(|error| {
+                StatusText::message(
+                    "gui-narration-mic-worker-start",
+                    [("detail", error.to_string())],
+                )
+            })?;
         Ok(Self {
             control,
             result,
@@ -52,11 +63,13 @@ impl Capture {
         }
     }
 
-    pub fn poll(&self) -> Option<Result<(), String>> {
+    pub fn poll(&self) -> Option<Result<(), StatusText>> {
         match self.result.try_recv() {
             Ok(result) => Some(result),
             Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => Some(Err("Microphone worker stopped.".into())),
+            Err(TryRecvError::Disconnected) => {
+                Some(Err(StatusText::message("gui-narration-mic-worker-stopped", [])))
+            },
         }
     }
 }
@@ -76,23 +89,22 @@ fn record(
     ctx: &egui::Context,
     history: &History,
     take: &Take,
-) -> Result<(), String> {
+) -> Result<(), StatusText> {
     let device = cpal::default_host()
         .default_input_device()
-        .ok_or("No default microphone is available.")?;
-    let config = device
-        .default_input_config()
-        .map_err(|error| format!("Could not configure the default microphone: {error}"))?;
+        .ok_or_else(|| StatusText::message("gui-narration-mic-no-device", []))?;
+    let config = device.default_input_config().map_err(|error| {
+        StatusText::message("gui-narration-mic-configure", [("detail", error.to_string())])
+    })?;
     if !matches!(requests.try_recv(), Err(TryRecvError::Empty)) {
-        return Err("Recording cancelled.".into());
+        return Err(StatusText::message("gui-narration-record-cancelled", []));
     }
 
     let (free, spare) = bounded(AUDIO_BLOCKS);
     let (filled, blocks) = bounded(AUDIO_BLOCKS);
     let (errors, stream_errors) = bounded(1);
     for _ in 0..AUDIO_BLOCKS {
-        free.send(Vec::with_capacity(BLOCK_SAMPLES))
-            .map_err(|error| error.to_string())?;
+        free.send(Vec::with_capacity(BLOCK_SAMPLES)).map_err(recording_error)?;
     }
     let stream = open_stream(
         &device,
@@ -104,12 +116,12 @@ fn record(
         },
     )?;
     if !matches!(requests.try_recv(), Err(TryRecvError::Empty)) {
-        return Err("Recording cancelled.".into());
+        return Err(StatusText::message("gui-narration-record-cancelled", []));
     }
     let mut recording = Recording::new(history, take, config.sample_rate().0, config.channels())?;
-    stream
-        .play()
-        .map_err(|error| format!("Could not start microphone capture: {error}"))?;
+    stream.play().map_err(|error| {
+        StatusText::message("gui-narration-mic-start", [("detail", error.to_string())])
+    })?;
     let _ = started.set(Instant::now());
     ctx.request_repaint();
 
@@ -117,10 +129,10 @@ fn record(
         select_biased! {
             recv(requests) -> _ => break,
             recv(stream_errors) -> error => {
-                return Err(error.unwrap_or_else(|_| "The microphone disconnected.".into()));
+                return Err(error.map(StreamFailure::message).unwrap_or_else(|_| StatusText::message("gui-narration-mic-disconnected", [])));
             },
             recv(blocks) -> block => {
-                let mut block = block.map_err(|_| "The microphone stopped sending audio.")?;
+                let mut block = block.map_err(|_| StatusText::message("gui-narration-mic-no-stream", []))?;
                 recording.append(&block)?;
                 block.clear();
                 let _ = free.try_send(block);
@@ -129,7 +141,7 @@ fn record(
     }
     drop(stream);
     if let Ok(error) = stream_errors.try_recv() {
-        return Err(error);
+        return Err(error.message());
     }
     // The callback has stopped. Keep samples it queued before the stop request.
     for block in blocks.try_iter() {
@@ -144,14 +156,31 @@ fn record(
 struct InputBuffers {
     spare: Receiver<Vec<i16>>,
     filled: Sender<Vec<i16>>,
-    errors: Sender<String>,
+    errors: Sender<StreamFailure>,
+}
+
+// Keep formatting out of the real-time audio callback.
+enum StreamFailure {
+    DroppedSamples,
+    Backend(cpal::StreamError),
+}
+
+impl StreamFailure {
+    fn message(self) -> StatusText {
+        match self {
+            Self::DroppedSamples => StatusText::message("gui-narration-mic-dropped", []),
+            Self::Backend(error) => {
+                StatusText::message("gui-narration-mic-stopped", [("detail", error.to_string())])
+            },
+        }
+    }
 }
 
 fn open_stream(
     device: &cpal::Device,
     config: &cpal::SupportedStreamConfig,
     buffers: InputBuffers,
-) -> Result<cpal::Stream, String> {
+) -> Result<cpal::Stream, StatusText> {
     let stream = match config.sample_format() {
         SampleFormat::I8 => input::<i8>(device, config, buffers),
         SampleFormat::I16 => input::<i16>(device, config, buffers),
@@ -164,10 +193,15 @@ fn open_stream(
         SampleFormat::F32 => input::<f32>(device, config, buffers),
         SampleFormat::F64 => input::<f64>(device, config, buffers),
         _ => {
-            return Err(format!("Unsupported microphone sample format {}", config.sample_format()));
+            return Err(StatusText::message(
+                "gui-narration-mic-format",
+                [("format", config.sample_format().to_string())],
+            ));
         },
     };
-    stream.map_err(|error| format!("Could not open the default microphone: {error}"))
+    stream.map_err(|error| {
+        StatusText::message("gui-narration-mic-open", [("detail", error.to_string())])
+    })
 }
 
 fn input<T: SizedSample + Sample>(
@@ -184,9 +218,7 @@ where
         move |samples: &[T], _| {
             for chunk in samples.chunks(BLOCK_SAMPLES) {
                 let Ok(mut block) = buffers.spare.try_recv() else {
-                    let _ = buffers.errors.try_send(
-                        "The microphone could not record without dropping samples.".into(),
-                    );
+                    let _ = buffers.errors.try_send(StreamFailure::DroppedSamples);
                     return;
                 };
                 block.extend(chunk.iter().map(|sample| pcm16(sample.to_sample::<f32>())));
@@ -196,7 +228,7 @@ where
             }
         },
         move |error| {
-            let _ = stream_errors.try_send(format!("Microphone capture stopped: {error}"));
+            let _ = stream_errors.try_send(StreamFailure::Backend(error));
         },
         None,
     )
@@ -218,16 +250,19 @@ struct Recording<'a> {
 }
 
 impl<'a> Recording<'a> {
-    fn new(history: &'a History, take: &'a Take, rate: u32, channels: u16) -> Result<Self, String> {
+    fn new(
+        history: &'a History,
+        take: &'a Take,
+        rate: u32,
+        channels: u16,
+    ) -> Result<Self, StatusText> {
         if rate == 0 || channels == 0 {
-            return Err("Invalid microphone sample layout.".into());
+            return Err(StatusText::message("gui-narration-mic-sample-layout", []));
         }
         let rate = u64::from(rate);
         let channel_count = u64::from(channels);
         let frames = (MAX_SECONDS * rate).min(MAX_SAMPLES / channel_count);
-        history
-            .start_recording(take, rate as u32, channels)
-            .map_err(|error| error.to_string())?;
+        history.start_recording(take, rate as u32, channels).map_err(recording_error)?;
         Ok(Self {
             history,
             id: &take.id,
@@ -240,7 +275,7 @@ impl<'a> Recording<'a> {
         })
     }
 
-    fn append(&mut self, block: &[i16]) -> Result<(), String> {
+    fn append(&mut self, block: &[i16]) -> Result<(), StatusText> {
         let count = block.len().min(self.limit - self.samples);
         self.pending.extend_from_slice(&block[..count]);
         self.samples += count;
@@ -250,12 +285,12 @@ impl<'a> Recording<'a> {
         Ok(())
     }
 
-    fn flush(&mut self) -> Result<(), String> {
+    fn flush(&mut self) -> Result<(), StatusText> {
         let channels = usize::from(self.channels);
         let usable = self.pending.len() / channels * channels;
         self.history
             .append_recording(self.id, &self.pending[..usable], self.channels)
-            .map_err(|error| error.to_string())?;
+            .map_err(recording_error)?;
         self.pending.drain(..usable);
         Ok(())
     }
@@ -264,14 +299,12 @@ impl<'a> Recording<'a> {
         self.samples >= self.limit
     }
 
-    fn finish(mut self) -> Result<(), String> {
+    fn finish(mut self) -> Result<(), StatusText> {
         if self.samples < usize::from(self.channels) {
-            return Err("The microphone recorded no audio.".into());
+            return Err(StatusText::message("gui-narration-mic-no-audio", []));
         }
         self.flush()?;
-        self.history
-            .finish_recording(self.id, true)
-            .map_err(|error| error.to_string())?;
+        self.history.finish_recording(self.id, true).map_err(recording_error)?;
         self.complete = true;
         Ok(())
     }
@@ -281,12 +314,19 @@ impl Drop for Recording<'_> {
     fn drop(&mut self) {
         if !self.complete
             && let Err(error) = self.flush().and_then(|()| {
-                self.history.finish_recording(self.id, false).map_err(|error| error.to_string())
+                self.history.finish_recording(self.id, false).map_err(recording_error)
             })
         {
-            tracing::warn!(%error, "Could not finish interrupted microphone recording");
+            tracing::warn!(
+                error = error.canonical(),
+                "Could not finish interrupted microphone recording"
+            );
         }
     }
+}
+
+fn recording_error(error: impl std::fmt::Display) -> StatusText {
+    StatusText::message("gui-narration-record-detail", [("detail", error.to_string())])
 }
 
 #[cfg(test)]

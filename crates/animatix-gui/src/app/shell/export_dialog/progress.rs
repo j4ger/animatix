@@ -41,19 +41,19 @@ impl GuiShell {
         ui.painter().text(
             egui::pos2(content_rect.center().x, center_y + 4.0),
             egui::Align2::CENTER_CENTER,
-            "Exporting…",
+            text(ui, "gui-export-in-progress"),
             TextRole::Title.font_id(),
             theme.palette.text.primary,
         );
 
         // Subtitle
         let format_label = match self.export_store.export_state.format {
-            ExportFormat::Image => "Rendering single frame",
-            ExportFormat::Video => "Rendering video frames",
-            ExportFormat::Gif => "Rendering GIF frames",
-            ExportFormat::WebM => "Rendering WebM frames",
-            ExportFormat::Mov => "Rendering MOV frames",
-            ExportFormat::WebP => "Rendering WebP frame",
+            ExportFormat::Image => text(ui, "gui-export-render-single-frame"),
+            ExportFormat::Video => text(ui, "gui-export-render-video-frames"),
+            ExportFormat::Gif => text(ui, "gui-export-render-gif-frames"),
+            ExportFormat::WebM => text(ui, "gui-export-render-webm-frames"),
+            ExportFormat::Mov => text(ui, "gui-export-render-mov-frames"),
+            ExportFormat::WebP => text(ui, "gui-export-render-webp-frame"),
         };
         ui.painter().text(
             egui::pos2(content_rect.center().x, center_y + 26.0),
@@ -83,9 +83,17 @@ impl GuiShell {
             self.export_store.export_state.format,
             ExportFormat::Image | ExportFormat::WebP
         ) {
-            "Frame 1/1".to_string()
+            text(ui, "gui-export-single-frame")
         } else {
-            format!("Frame {}/{}  ({:.0}%)", progress.min(total), total, pct * 100.0)
+            render(
+                ui,
+                "gui-export-frame-progress",
+                &[
+                    ("current", progress.min(total).to_string()),
+                    ("total", total.to_string()),
+                    ("percent", format!("{:.0}", pct * 100.0)),
+                ],
+            )
         };
         ui.painter().text(
             egui::pos2(content_rect.center().x, bar_y + 14.0),
@@ -100,7 +108,8 @@ impl GuiShell {
             let elapsed = start.elapsed().as_secs_f32();
             let mins = (elapsed / 60.0) as u32;
             let secs = (elapsed % 60.0) as u32;
-            let time_str = format!("Elapsed: {:02}:{:02}", mins, secs);
+            let time_str =
+                render(ui, "gui-export-elapsed", &[("time", format!("{mins:02}:{secs:02}"))]);
             ui.painter().text(
                 egui::pos2(content_rect.center().x, bar_y + 28.0),
                 egui::Align2::CENTER_TOP,
@@ -117,10 +126,20 @@ impl GuiShell {
             );
             ui.put(
                 warning_rect,
-                egui::Label::new(RichText::new(warning).color(theme.palette.status.warning))
-                    .truncate(),
+                egui::Label::new(
+                    RichText::new(warning.display(self.ui_store.view.language))
+                        .color(theme.palette.status.warning),
+                )
+                .truncate(),
             )
-            .on_hover_text(self.export_store.export_warnings.join("\n"));
+            .on_hover_text(
+                self.export_store
+                    .export_warnings
+                    .iter()
+                    .map(|warning| warning.display(self.ui_store.view.language))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            );
         }
 
         // Cancel button
@@ -131,7 +150,8 @@ impl GuiShell {
         );
         let cancel_clicked = ui
             .scope_builder(egui::UiBuilder::new().max_rect(btn_rect), |ui| {
-                ui.add(Button::secondary("Cancel")).clicked()
+                ui.add(Button::secondary(crate::app::i18n::text(ui, "gui-action-cancel")))
+                    .clicked()
             })
             .inner;
         if cancel_clicked {

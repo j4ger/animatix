@@ -9,6 +9,7 @@ use crate::app::components::{TabBar, Tag, layout};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;
+use crate::app::i18n::{StatusText, render, text};
 use crate::app::utils::text::{truncate_chars, truncate_middle};
 
 // ─── Export Configuration ───────────────────────────────────────────────────
@@ -58,7 +59,7 @@ pub(crate) enum ExportStatus {
     Idle,
     Running,
     Complete { path: PathBuf },
-    Failed(String),
+    Failed(StatusText),
 }
 
 mod actions;

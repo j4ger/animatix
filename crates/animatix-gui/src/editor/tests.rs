@@ -63,6 +63,7 @@ fn completion_item(label: &str, insert_text: &str) -> CompletionItem {
         label: label.to_owned(),
         kind: CompletionKind::Property,
         detail: None,
+        detail_message: None,
         documentation: None,
         insert_text: Some(insert_text.to_owned()),
     }
