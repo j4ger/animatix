@@ -178,6 +178,9 @@ scene.background_color = white [2s]
 **Relative:** `#+1s`  
 **Musical:** `#2b`, `#0.5b` — beats, resolved by `config { bpm: … }`
 
+A relative keyframe measures from the previous effective time header. An explicit
+time header can establish the base with an empty body.
+
 A beat stamp is a keyframe position expressed in the piece's own meter, so
 retuning the tempo moves the whole arrangement without editing a single stamp:
 with `config { bpm: 60 }`, `#2b` is 2 s; with `bpm: 120` it is 1 s. Without a

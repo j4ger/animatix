@@ -5,7 +5,6 @@ use std::path::Path;
 
 use super::{ComponentDef, Stmt};
 use crate::visit::{AstFolder, walk_fold_stmt};
-use crate::{ast::Time, narration::is_implicit_anchor};
 
 pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String>)> {
     let mut imports = Vec::new();
@@ -48,25 +47,10 @@ impl AstFolder for ImportStripper {
     }
 }
 
-/// An import-only body leaves nothing behind for these container variants.
+/// An import-only animation block leaves nothing behind. A time header can
+/// still establish the base for a subsequent relative timestamp.
 fn drops_when_empty(stmt: &Stmt) -> bool {
-    if stmt.is_cue_only_keyframe() {
-        return false;
-    }
-    // A standalone narration paragraph supplies the source identity for
-    // bindings that put their actions under a separate authored keyframe.
-    if matches!(stmt, Stmt::Keyframe { time: Time::SpeechMarker { marker, .. }, .. } if is_implicit_anchor(marker))
-    {
-        return false;
-    }
-    matches!(
-        stmt,
-        Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            if body.is_empty()
-    )
+    matches!(stmt, Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } if body.is_empty())
 }
 
 /// Rebuilt containers lose their position data, matching the previous
