@@ -270,6 +270,7 @@ static BINDINGS: &[PropertyBinding] = &[
         CharProgress,
         val!(f32 1.0)
     ),
+    b!("clip", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
     b!("code", V::String, F::ANIMATED, TextContent, val!(str "")),
     b!("color", V::Color, F::ASSIGNABLE_AI, Color, val!(color 1.0, 1.0, 1.0, 1.0)),
     b!(
@@ -434,6 +435,7 @@ static BINDINGS: &[PropertyBinding] = &[
         Tagged,
         val!(color 0.6, 0.6, 0.6, 0.8)
     ),
+    b!("isolate_opacity", V::Bool, F::empty(), NoStorage, val!(bool false)),
     b!("kind", V::String, F::empty(), PlotDomainGroup, val!(str "cartesian")),
     b!("label", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
     b!("label_at", V::Vec2, F::ASSIGNABLE_AI, LabelAt, val!(vec2 0.0, 0.0)),
@@ -713,8 +715,6 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("y_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
     b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
     b!("y_ticks", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
-    b!("clip", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
-    b!("isolate_opacity", V::BuildTimeOnly, F::empty(), NoStorage, val!(bool false)),
 ];
 
 mod lookup;

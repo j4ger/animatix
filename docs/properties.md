@@ -395,7 +395,7 @@ match bars and captions by key.
 | `cols` | `Num` | `U32` | — | — | `Grid` |
 | `vertical_align` | `Str` | `String` | — | — | `Row`, `Col` |
 | `clip` | `Actor(Actor)` | `BuildTimeOnly` | — | — | `Mask` |
-| `isolate_opacity` | `Bool` | `BuildTimeOnly` | — | — | `Group` |
+| `isolate_opacity` | `Bool` | `Bool` | — | — | `Group` |
 <!-- generated-property-table:containers:end -->
 
 `BarChart.gap` also accepts `"auto"` to derive spacing from the available chart
