@@ -67,6 +67,8 @@ pub enum AuthoredTypeHint {
     Transform,
     /// Four-number tuple.
     Vec4,
+    /// A reference to an actor.
+    Actor,
     /// Unconstrained expression type.
     Any,
 }
@@ -372,6 +374,7 @@ declare_property_descriptors! {
     "caption_page_transition" => (Applicable::Actors(&["Captions"]), F32),
     "shared_text_transition" => (Applicable::Actors(&["Text"]), String),
     "equation_source" => (Applicable::Actors(&["Equation"]), String),
+    "clip" => (Applicable::Actors(&["Mask"]), Generic, Actor),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

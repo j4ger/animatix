@@ -27,6 +27,7 @@ fn property_type_for_descriptor(desc: &animatix_core::property::PropertyDescript
         ),
         AuthoredTypeHint::Transform => transform_type(),
         AuthoredTypeHint::Vec4 => Type::Vec4,
+        AuthoredTypeHint::Actor => Type::Actor("Actor".to_string()),
         AuthoredTypeHint::Any => Type::Any,
     }
 }

@@ -4,6 +4,7 @@
 use super::*;
 
 mod decl;
+pub(super) use decl::bind_mask_clips;
 mod extensions;
 mod helpers;
 mod prepare;

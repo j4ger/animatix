@@ -135,6 +135,7 @@ pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut 
     // Resolve any hierarchy link whose child track was created by a path
     // that bypassed `World::spawn` (carry injection, direct inserts).
     timeline.world.finish_hierarchy();
+    super::super::actor::bind_mask_clips(timeline, diagnostics);
     bind_actor_points(timeline, diagnostics);
     if let Some(source) = timeline.modifier_programs.first().cloned() {
         timeline.prepared_modifiers =

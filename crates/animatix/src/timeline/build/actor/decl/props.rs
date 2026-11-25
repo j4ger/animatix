@@ -799,6 +799,9 @@ impl Timeline {
         if caps.callout {
             self.seed_callout_defaults(track_id, t_start_ms, t_end_ms, easing, diagnostics);
         }
+        if caps.child_processing == animatix_core::caps::ChildProcessingKind::Mask {
+            self.set_mask_clip(track_id, props, eval_env, diagnostics);
+        }
         // Connector declaration properties are written into the connector
         // geometry lanes here, in the generic body, so the actor keeps the whole
         // generic declaration tail (style, transforms, opacity, gradients).

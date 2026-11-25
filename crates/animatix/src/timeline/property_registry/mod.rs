@@ -713,6 +713,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("y_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
     b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
     b!("y_ticks", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
+    b!("clip", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
 ];
 
 mod lookup;

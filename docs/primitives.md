@@ -786,16 +786,18 @@ parameters, identity values, ROI rules, and the GPU ABI.
 ## Mask
 
 Clips its children to a shape. By default the clip is the Mask's own rectangular
-bounds; a child labelled `clip_shape` defines the clip geometry instead:
+bounds. Set `clip` to reference a direct child that supplies the clip geometry:
 
 ```animatix
-m: Mask, size: (120, 90), at: (400, 300) {
-  clip_shape: Ellipse, size: (60, 60)
+m: Mask, size: (120, 90), at: (400, 300), clip: window {
+  window: Ellipse, size: (60, 60)
   content: Rect, size: (300, 220), color: accent.primary
 }
 ```
 
-The `clip_shape` child is not painted itself. Its own transform applies to the clip
+Each instance resolves its own clip child, including in reusable components and plans.
+A reference outside the Mask is a build error. Existing scenes can omit `clip`
+and name the child `clip_shape`. The selected child is used only for clipping. Its own transform applies to the clip
 region, so `at`, `anchor`, `offset`, `rotation`, and `scale` on it move and scale the
 clip. Any primitive that produces vector geometry can be a clip shape — the built-in
 shapes (`Rect`, `Ellipse`, `Polygon`, `Path`, `Line`, `Arrow`, `Svg`) and extension

@@ -11,7 +11,7 @@ pub use super::dispatch::{TrackFieldMut, TrackFieldRef};
 pub use actions::{ActionCategory, ActionEvent};
 pub use geometry::{
     CalloutPlace, ConnectorEndpoint, ConnectorRouting, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
-    GeometryTracks, PlacementMode, PositionBinding, ResizeMode, SceneAnchor,
+    GeometryTracks, MaskClip, PlacementMode, PositionBinding, ResizeMode, SceneAnchor,
 };
 pub use highlight::HighlightTracks;
 pub use shape::ShapeTracks;

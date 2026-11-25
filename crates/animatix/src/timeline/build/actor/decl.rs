@@ -6,6 +6,8 @@ use super::*;
 use crate::ast::{InlineItem, Property};
 use props::DeclarationSeed;
 
+mod mask;
+pub(in crate::timeline::build) use mask::bind_mask_clips;
 mod props;
 
 impl Timeline {

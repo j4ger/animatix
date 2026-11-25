@@ -344,6 +344,20 @@ pub struct GeometryTracks {
     pub connector_arrow: Option<PropertyTrack<bool>>,
     /// Audio playback volume track.
     pub volume: Option<PropertyTrack<f32>>,
+    /// Explicit direct child providing a Mask's clip geometry.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub mask_clip: Option<MaskClip>,
+}
+
+/// A Mask's explicit clip provider. Entity identity is resolved per scene.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct MaskClip {
+    /// Resolved or forward-declared actor label.
+    pub(crate) label: String,
+    /// Bound direct child in this scene.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) id: Option<crate::timeline::EntityId>,
 }
 
 /// Endpoint of a smart connector (either an explicit point or a target actor anchor).

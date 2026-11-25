@@ -40,13 +40,16 @@ impl Timeline {
         // any shape (built-in or extension) works. Without one — or when the
         // behavior has no clip geometry — the clip falls back to a rect covering the
         // Mask's own size; the latter case warns instead of silently clipping wrong.
-        let clip_child_id = self
-            .world
-            .hierarchy(node_id)
-            .children
-            .iter()
-            .find(|id| self.world.label(**id).unwrap_or("") == "clip_shape")
-            .copied();
+        let clip_child_id = match &self.world.geometry(node_id).mask_clip {
+            Some(clip) => clip.id,
+            None => self
+                .world
+                .hierarchy(node_id)
+                .children
+                .iter()
+                .copied()
+                .find(|&id| self.world.label(id) == Some("clip_shape")),
+        };
         let fallback_clip = || {
             let w = half_size[0] as f64;
             let h = half_size[1] as f64;

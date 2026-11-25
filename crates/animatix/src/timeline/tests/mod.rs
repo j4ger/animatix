@@ -52,10 +52,11 @@ mod legend;
 #[cfg(test)]
 mod lookup;
 #[cfg(test)]
+mod mask;
+#[cfg(test)]
 mod media;
 #[cfg(test)]
 mod plot_transitions;
-#[cfg(test)]
 mod scene_eval;
 #[cfg(test)]
 mod scene_stats;
