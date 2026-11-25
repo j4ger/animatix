@@ -70,6 +70,7 @@ pub(crate) mod path_commands;
 pub mod path_progress;
 pub mod plan;
 pub(crate) mod plot;
+pub mod video;
 pub(crate) use build::plot::{BarChartLayout, parse_bar_chart_data_expr};
 pub(crate) use plot::BarDataTransition;
 mod position;
@@ -365,6 +366,7 @@ pub struct Timeline {
 #[derive(Clone)]
 pub(crate) struct FrameCacheEntry {
     time_ms: u64,
+    time_s: f64,
     /// Content signature of the read-only runtime-input overlay.
     runtime_input_key: u64,
     dimensions: SceneDimensions,
@@ -410,6 +412,7 @@ pub(crate) type FastPlotCache = std::cell::RefCell<
 /// contents.
 #[derive(Default)]
 pub(crate) struct EvalCaches {
+    pub(crate) frame_time_s: std::cell::Cell<f64>,
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
     /// Bumped by `invalidate_frame_cache`; exported as `Timeline::content_epoch` for frame signatures.
     content_epoch: std::cell::Cell<u64>,

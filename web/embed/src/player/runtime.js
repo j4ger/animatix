@@ -1,6 +1,7 @@
 // Shared loader for the single Animatix web SDK. The runtime module and its
 // capability chunks are page scoped; player instances remain element scoped.
 import { playerError } from "./errors.js";
+import { loadVideo } from "./video.js";
 
 const state = (globalThis[Symbol.for("animatix.sdk.runtime")] ??= {
   manifestUrl: null, started: false, promise: null,
@@ -554,30 +555,40 @@ export async function fetchOverlayFont(runtime, url, signal) {
   });
 }
 
-export async function fetchPreparedAssets(runtime, assets, signal) {
-  return Promise.all((assets ?? []).map(async (asset) => {
-    if (!asset?.id || typeof asset.url !== "string" || typeof asset.kind !== "string") {
-      throw playerError(new Error("invalid prepared asset descriptor"), "resource");
-    }
-    let url;
-    try { url = new URL(asset.url, runtime.root).href; } catch (error) { throw playerError(error, "resource"); }
-    let response;
-    try {
-      response = await fetch(url, { signal });
-    } catch (error) {
-      throw playerError(error, "resource");
-    }
-    if (!response.ok) throw playerError(new Error(`asset '${asset.id}' HTTP ${response.status}: ${url}`), "resource");
-    let payload;
-    try {
-      payload = asset.kind === "text" || asset.kind === "source-text" || asset.kind === "svg"
+export async function fetchPreparedAssets(runtime, assets, signal, videos = new Map()) {
+  // A failed sibling must also stop media requests that have yet to finish.
+  const pendingVideoLoads = new AbortController();
+  const cancelVideoLoads = () => pendingVideoLoads.abort();
+  if (signal?.aborted) cancelVideoLoads();
+  else signal?.addEventListener("abort", cancelVideoLoads, { once: true });
+  try {
+    return await Promise.all((assets ?? []).map(async (asset) => {
+      if (!asset?.id || typeof asset.url !== "string" || typeof asset.kind !== "string") {
+        throw playerError(new Error("invalid prepared asset descriptor"), "resource");
+      }
+      const url = new URL(asset.url, runtime.root).href;
+      if (asset.kind === "video") {
+        const video = await loadVideo(url, pendingVideoLoads.signal);
+        if (pendingVideoLoads.signal.aborted) {
+          video.release();
+          throw new DOMException("Operation cancelled", "AbortError");
+        }
+        videos.set(asset.id, video);
+        return { id: asset.id, payload: video.metadata };
+      }
+      const response = await fetch(url, { signal });
+      if (!response.ok) throw new Error(`asset '${asset.id}' HTTP ${response.status}: ${url}`);
+      const payload = asset.kind === "text" || asset.kind === "source-text" || asset.kind === "svg"
         ? await response.text()
         : new Uint8Array(await response.arrayBuffer());
-    } catch (error) {
-      throw playerError(error, "resource");
-    }
-    return { id: asset.id, payload };
-  }));
+      return { id: asset.id, payload };
+    }));
+  } catch (error) {
+    cancelVideoLoads();
+    throw playerError(error, "resource");
+  } finally {
+    signal?.removeEventListener("abort", cancelVideoLoads);
+  }
 }
 
 export async function fetchSource(url, signal) {

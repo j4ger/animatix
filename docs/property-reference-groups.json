@@ -202,7 +202,12 @@
       "url",
       "source",
       "volume",
-      "transcript"
+      "transcript",
+      "in_point",
+      "out_point",
+      "fit",
+      "crop",
+      "end_behavior"
     ]
   },
   {

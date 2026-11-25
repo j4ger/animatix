@@ -39,6 +39,7 @@ impl<'a> AudioInput<'a> {
             (input.duration > 0 && streams.len() == 1)
                 .then(|| input.duration as f64 / f64::from(ffi::AV_TIME_BASE))
         };
+        let duration_s = duration_s.map(|duration| (duration - segment.source_offset_s).max(0.0));
         let duration_s = match (segment.duration_s, duration_s) {
             (Some(trim), Some(media)) => Some(trim.min(media)),
             (trim, media) => trim.or(media),
@@ -319,10 +320,14 @@ fn add_input(
         graph,
         c"atrim",
         &name("trim")?,
-        &segment
-            .duration_s
-            .map(|duration| format!("end_sample={}", format.samples(duration)))
-            .unwrap_or_default(),
+        &match segment.duration_s {
+            Some(duration) => format!(
+                "start_sample={}:end_sample={}",
+                format.samples(segment.source_offset_s),
+                format.samples(segment.source_offset_s + duration),
+            ),
+            None => format!("start_sample={}", format.samples(segment.source_offset_s)),
+        },
     )?;
     let mut volume = filter(graph, c"volume", &name("volume")?, &gain_args(segment))?;
     let mut delay = filter(
@@ -332,9 +337,9 @@ fn add_input(
         &format!("delays={}S:all=1", format.samples(segment.start_time_s)),
     )?;
     source.link(0, &mut stereo, 0).map_err(media_error)?;
-    stereo.link(0, &mut timestamps, 0).map_err(media_error)?;
-    timestamps.link(0, &mut trim, 0).map_err(media_error)?;
-    trim.link(0, &mut volume, 0).map_err(media_error)?;
+    stereo.link(0, &mut trim, 0).map_err(media_error)?;
+    trim.link(0, &mut timestamps, 0).map_err(media_error)?;
+    timestamps.link(0, &mut volume, 0).map_err(media_error)?;
     volume.link(0, &mut delay, 0).map_err(media_error)?;
     delay.link(0, mix, index as u32).map_err(media_error)
 }

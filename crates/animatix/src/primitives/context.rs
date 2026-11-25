@@ -89,6 +89,8 @@ pub struct EvaluateCtx<'a> {
     pub label: &'a str,
     /// Current time in milliseconds.
     pub time_ms: u64,
+    /// Requested time in seconds, including sub-millisecond precision.
+    pub time_s: f64,
     /// Local transform (parent * position * rotation * scale).
     pub local_transform: kurbo::Affine,
     /// Inherited opacity multiplier.

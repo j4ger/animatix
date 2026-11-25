@@ -86,6 +86,7 @@ pub fn run(
             Some(std::path::Path::new(&file_label))
         },
         animatix::timeline::BuildOptions::default()
+            .with_asset_cache(animatix_render::video_assets::native_asset_cache())
             .with_context(context)
             .with_defines(set)
             .with_function_context(&function_context)

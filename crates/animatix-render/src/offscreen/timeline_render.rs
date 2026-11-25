@@ -19,20 +19,29 @@ pub(crate) fn render_timeline_into_frame_gpu(
     let mut recorder = crate::frame_gpu::SceneRecorder;
     let mut backend: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
         Some(&mut recorder);
-    let scene = if suppressed_actors.is_empty() {
-        timeline
-            .evaluate_program_with_debug(time_s, dimensions, debug_options, &mut backend)
-            .scene
+    let program = if suppressed_actors.is_empty() {
+        timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut backend)
     } else {
-        timeline
-            .evaluate_program_with_suppressed(
-                time_s,
-                dimensions,
-                debug_options,
-                &mut backend,
-                suppressed_actors,
-            )
-            .scene
+        timeline.evaluate_program_with_suppressed(
+            time_s,
+            dimensions,
+            debug_options,
+            &mut backend,
+            suppressed_actors,
+        )
     };
-    frame_gpu.render_frame_into(&scene, view, raster)
+    check_video_diagnostics(&program)?;
+    frame_gpu.render_frame_into(&program.scene, view, raster)
+}
+
+pub(super) fn check_video_diagnostics(
+    program: &animatix::timeline::scene_program::SceneProgram,
+) -> Result<(), String> {
+    if let Some(diagnostic) = program.diagnostics.iter().find(|item| {
+        item.is_error()
+            && item.code == animatix_syntax::diagnostics::DiagnosticCode::VideoClipFailure
+    }) {
+        return Err(diagnostic.message.clone());
+    }
+    Ok(())
 }

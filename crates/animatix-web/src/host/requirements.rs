@@ -500,6 +500,11 @@ impl Requirements<'_> {
                 self.caption_source(&prop.value);
             }
         }
+        if ty == "Video" {
+            for prop in props.iter().filter(|prop| prop.name == "source") {
+                self.asset("video", &prop.value, label);
+            }
+        }
         if ty == "Equation" || ty == "Fragment" {
             self.analysis.required_features |= FeatureMask::RICH_TEXT.bits();
         }

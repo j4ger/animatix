@@ -124,6 +124,7 @@ impl WasmPreparedProgram {
             return Err(JsError::new("asset id/payload lengths differ"));
         }
         let mut cache = AssetCache::new();
+        let mut videos = super::video::VideoFrames::new();
         let mut supplied = std::collections::HashSet::new();
         for (id, payload) in asset_ids.into_iter().zip(asset_payloads) {
             let id = id.as_string().ok_or_else(|| JsError::new("asset id must be a string"))?;
@@ -137,6 +138,11 @@ impl WasmPreparedProgram {
             match requirement.kind.as_str() {
                 "svg" => insert_svg(&mut cache, &id, &payload)?,
                 "image" => insert_image(&mut cache, &id, &payload)?,
+                "video" => {
+                    let video = super::video::BrowserVideoFrames::new(&id, payload)?;
+                    cache.insert_video(&id, video.clone());
+                    videos.insert(id, video);
+                },
                 "text" | "source-text" => {
                     let text = payload
                         .as_string()
@@ -163,7 +169,7 @@ impl WasmPreparedProgram {
         }
         let context = font_context(fonts)?;
         let built = host::build_prepared(&self.program, context, quality, Some(Arc::new(cache)));
-        player.install_built(built)
+        player.install_built(built, videos)
     }
 }
 

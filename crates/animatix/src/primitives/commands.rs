@@ -53,6 +53,17 @@ pub enum RenderCommand {
         /// Local-space placement offset.
         offset: [f64; 2],
     },
+    /// A video frame with its fitted image transform and local clip.
+    ClippedImage {
+        /// Decoded image data.
+        image: crate::timeline::image::SceneImage,
+        /// Full display size of the source image before clipping.
+        size: [f32; 2],
+        /// Offset of the full image in actor space.
+        offset: [f64; 2],
+        /// Visible portion in actor space.
+        clip: kurbo::Rect,
+    },
     /// A highlight layer drawn with a specific blend mode (for equation fragment highlights).
     HighlightLayer {
         /// The rounded rectangle geometry.
@@ -178,6 +189,16 @@ impl RenderCommand {
                 natural_size,
                 offset,
             } => execute_image(image, natural_size, offset, scene, transform, opacity),
+            RenderCommand::ClippedImage {
+                image,
+                size,
+                offset,
+                clip,
+            } => {
+                scene.push_clip(peniko::Fill::NonZero, *transform, clip);
+                execute_image(image, size, offset, scene, transform, opacity);
+                scene.pop_layer();
+            },
             RenderCommand::HighlightLayer {
                 rect,
                 color,
@@ -260,6 +281,7 @@ impl RenderCommand {
                     );
                 }
             },
+            RenderCommand::ClippedImage { clip, .. } => return Some(*clip),
             RenderCommand::HighlightLayer { rect, .. } => {
                 bounds = union(bounds, *rect);
             },

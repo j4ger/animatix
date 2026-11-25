@@ -240,10 +240,14 @@ impl AmxPlayer {
             assets,
             &self.vars,
         );
-        self.install_built(built)
+        self.install_built(built, Default::default())
     }
 
-    pub(super) fn install_built(&mut self, built: BuiltDocument) -> Result<JsValue, JsError> {
+    pub(super) fn install_built(
+        &mut self,
+        built: BuiltDocument,
+        videos: super::video::VideoFrames,
+    ) -> Result<JsValue, JsError> {
         let BuiltDocument { target, result } = built;
 
         if let Some(target) = target {
@@ -260,6 +264,8 @@ impl AmxPlayer {
             self.render_generation = self.render_generation.wrapping_add(1);
             self.dedup.invalidate();
             self.target = Some(target);
+            self.videos = videos;
+            self.prepared_video_time = None;
         }
 
         serde_wasm_bindgen::to_value(&result)

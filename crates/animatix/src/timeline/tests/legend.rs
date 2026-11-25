@@ -45,6 +45,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         label: "legend",
         caps: animatix_core::builtins::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
+        time_s: 0.0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {
@@ -188,6 +189,7 @@ fn test_legend_empty() {
         label: "empty_legend",
         caps: animatix_core::builtins::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
+        time_s: 0.0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {
@@ -406,6 +408,7 @@ fn test_legend_render_commands_produced() {
         label: "legend",
         caps: animatix_core::builtins::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
+        time_s: 0.0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {

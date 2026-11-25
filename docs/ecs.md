@@ -175,6 +175,7 @@ Rules:
 | `PlotPayload` | plot curves, surfaces, fields, domains, axis options | optional (`ComponentStore<PlotPayload>`) |
 | `SvgPayload` | parsed SVG tree and asset source metadata | optional (`ComponentStore<SvgPayload>`) |
 | `ImagePayload` | texture asset handle, dimensions, image source metadata | optional (`ComponentStore<ImagePayload>`) |
+| `VideoClip` | prepared asset reference, start, source range, fit, crop and end behavior | optional (`ComponentStore<VideoClip>`), scoped to the declaring scene |
 | `LocalBoundsComponent` | declaration-time local-space bounds used by frame evaluation | optional (`ComponentStore<LocalBoundsComponent>`) |
 | `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers (`ComponentStore<ContainerMetadata>`) |
 | `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts; sole source for hosted-child coordinate resolution) |
@@ -213,6 +214,7 @@ are the identity accessors, and `visible`, `locked`, `camera_follow`,
 - `audio_segments`: ordered export list consumed by `animatix-render` as
   `&[AudioSegment]`. An optional `actor_id` links a segment to its volume
   track in `World`; the segment does not duplicate the actor's component data.
+  A segment can have a nonzero source offset for clipped video audio.
   That id belongs to the owning timeline: cloning the timeline preserves its
   entity slots, while rebuilding a scene creates fresh segment associations.
   Carry bags do not serialize audio segments or their ids.

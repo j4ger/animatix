@@ -6,6 +6,7 @@
 - [Showcase](https://amx.j4ger.dev/showcase/) — play finished scenes live in the browser.
 - [Examples](../examples/README.md) — run and adapt `.amx` files.
 - [Desktop workbench](gui-workbench.md) — preview, review timing, and navigate to source.
+- [Video clips](video.md) — trim, crop, annotate and mix local footage.
 - [Narration](narration.md) — record, compare takes, and share a narrated scene.
 - [Build and run](contributing.md) — native tools, Nix shells, and export setup.
 - [Browser player](../web/README.md) — embed animations and build the website.

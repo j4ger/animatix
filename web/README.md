@@ -701,7 +701,12 @@ cd web/tools && npm install && npm run build:embed
   before preparing fonts and building the scene. `config { font_files: {...} }`
   supplies project TTF/OTF fonts. With `font_files_only: true`, the project
   faces determine the font set and fallback order in every host.
-- **Audio tracks are not played** (no Web Audio wiring yet).
+- **Video actors** use the browser's `<video>` decoder for playback and
+  scrubbing. A video URL must be same-origin or allow anonymous CORS. For
+  paused playback, `await player.seek(seconds)` waits for the sampled picture.
+  See the [Video authoring guide](../docs/video.md).
+- **Audio tracks and the audio in Video actors are muted** (no Web Audio
+  wiring yet).
 - **Video export** is native-only and requires FFmpeg. The web SDK exposes
   on-demand PNG encoding through `encode_rgba_png` for RGBA readbacks; this is
   not a browser video-export workflow.
@@ -724,6 +729,7 @@ The browser and desktop share scene evaluation, `FrameGpu` and the
 | Fonts | system scan plus bundled fonts | manifest faces plus optional `data-fonts` |
 | Extensions (`plugin-loading`) | ✓ | ✗ |
 | Audio | muxed at export | not played |
+| Video actor | rsmpeg with the `video` feature | browser playback and scrubbing |
 | Video export | FFmpeg with the `video` feature | not available |
 | Raster export | PNG / WebP | on-demand PNG encoding API |
 | Build quality | `Production` (export), `Draft` (GUI editing) | `quality` attribute: `draft` default, `preview`/`production` opt-in |

@@ -152,6 +152,7 @@ fn all_builtins_have_family_behavior_and_expected_build_extra() {
         "Image",
         "Svg",
         "Audio",
+        "Video",
         "Graph",
         "PlotCurve",
         "VectorField",

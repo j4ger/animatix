@@ -199,6 +199,7 @@ cnt.value = 100 [1s]
         label: "cnt",
         caps: timeline.world.caps(track),
         time_ms,
+        time_s: time_ms as f64 / 1000.0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {
@@ -289,6 +290,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         label: "label",
         caps: timeline.world.caps(track),
         time_ms,
+        time_s: time_ms as f64 / 1000.0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {
@@ -396,6 +398,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         label: "t",
         caps: timeline.world.caps(track),
         time_ms: 0,
+        time_s: 0.0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {
@@ -457,6 +460,7 @@ highlight(target: t, duration: 1s)
         label: "t",
         caps: timeline.world.caps(track),
         time_ms: 2000,
+        time_s: 2.0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {

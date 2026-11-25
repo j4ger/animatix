@@ -242,6 +242,7 @@ impl Timeline {
         let cached = self.eval_caches.frame_cache.borrow();
         let cached = cached.as_ref()?;
         if cached.time_ms != time_ms
+            || (self.asset_cache.has_video_assets() && cached.time_s != time_s)
             || cached.runtime_input_key != runtime_input_key
             || cached.dimensions != scene_dimensions
             || cached.has_modifiers != needs_frame_env
@@ -473,6 +474,8 @@ impl Timeline {
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = self.world.has_child_orders();
 
+        self.eval_caches.frame_time_s.set(time_s);
+
         // Clear stale runtime diagnostics from previous frame.
         self.clear_runtime_diagnostics();
 
@@ -683,6 +686,7 @@ impl Timeline {
         {
             *self.eval_caches.frame_cache.borrow_mut() = Some(crate::timeline::FrameCacheEntry {
                 time_ms: state.time_ms,
+                time_s: self.eval_caches.frame_time_s.get(),
                 runtime_input_key: state.runtime_input_key,
                 dimensions: state.scene_dimensions,
                 has_modifiers: state.needs_frame_env,

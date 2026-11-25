@@ -194,7 +194,11 @@ impl Timeline {
             // The scene camera is not a track, but its stamps are content: a
             // scene whose only motion is a push-in ends at the push, not at zero.
             .max(self.camera.max_keyframe_time_ms());
-        (max_ms as f64) / 1000.0
+        self.world
+            .video_clips
+            .iter()
+            .map(|(_, clip)| clip.end_s())
+            .fold((max_ms as f64) / 1000.0, f64::max)
     }
 
     /// Last valid caption boundary, including offsets and trims for bound narration.

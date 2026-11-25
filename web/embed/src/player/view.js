@@ -1,4 +1,5 @@
 import { playerLabels } from "./labels.js";
+import { releasePreparedBundle } from "./video.js";
 import * as core from "./core.js";
 const {
   FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
@@ -437,9 +438,10 @@ export class AmxPlayerView extends AmxPlayerBase {
       throw playerError(error, "resource");
     }
 
+    const videos = new Map();
     try {
       await runtime.ensureCapabilities(Number(analysis.required_features ?? 0) >>> 0);
-      const assets = await fetchPreparedAssets(runtime, analysis.assets ?? [], signal);
+      const assets = await fetchPreparedAssets(runtime, analysis.assets ?? [], signal, videos);
       const textAssets = (analysis.assets ?? []).filter((asset) => asset?.kind === "text" || asset?.kind === "source-text");
       if (textAssets.length) {
         if (typeof prepared.prepare_transcripts !== "function") {
@@ -476,9 +478,9 @@ export class AmxPlayerView extends AmxPlayerBase {
       const fontFaces = projectFontsOnly ? [] : selectFontFaces(runtime, analysis.fonts ?? {});
       const defaultFonts = await Promise.all(fontFaces.map((face) => fetchFontFace(runtime, face, signal)));
       const overlayFonts = projectFontsOnly ? [] : await Promise.all(this._fontUrls().map((url) => fetchOverlayFont(runtime, url, signal)));
-      return { prepared, analysis, assets, fontBytes: [...defaultFonts, ...overlayFonts], sourceUrl, modules, vars };
+      return { prepared, analysis, assets, videos, fontBytes: [...defaultFonts, ...overlayFonts], sourceUrl, modules, vars };
     } catch (error) {
-      prepared.free?.();
+      releasePreparedBundle({ prepared, videos });
       throw playerError(error, "resource");
     }
   }
@@ -555,11 +557,11 @@ export class AmxPlayerView extends AmxPlayerBase {
         this._time = this._duration;
       }
       this._renderScene();
-      oldBundle?.prepared?.free?.();
+      releasePreparedBundle(oldBundle);
       this._settleVarsWaiters(null, diags);
       return diags;
     } catch (error) {
-      candidate?.prepared?.free?.();
+      releasePreparedBundle(candidate);
       if (!this._isCurrentOperation(generation)) throw cancellationError("Operation superseded", error);
       const normalized = playerError(error, "build");
       if (normalized.kind !== "cancel") this._settleVarsWaiters(normalized);
@@ -607,8 +609,8 @@ export class AmxPlayerView extends AmxPlayerBase {
     // shell's held-frame cache must not keep the previous canvas.
     this._invalidateRestFrame();
     // A resolution change above reset the backing store to the scene's own
-    // size; put the display-matched scale back.
-    this._applyRenderScale();
+    // size. The caller installs the matching resources and playhead before drawing.
+    this._applyRenderScale(true, { redraw: false });
   }
 
   // ── build-time variables (`data-vars` / `setVars`) ────────────────
@@ -778,10 +780,10 @@ export class AmxPlayerView extends AmxPlayerBase {
       this._restTime = this._time;
       this._renderScene();
       this._syncControls();
-      previous?.prepared?.free?.();
+      releasePreparedBundle(previous);
       return diags;
     } catch (error) {
-      candidate?.prepared?.free?.();
+      releasePreparedBundle(candidate);
       throw error;
     } finally {
       if (generation === this._operationGeneration) this._operationController = null;

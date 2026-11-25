@@ -126,7 +126,9 @@ impl DocumentSession {
                 quality: Some(animatix::timeline::BuildQuality::Draft),
                 draft_cue_times: animatix::narration::DraftCueTimes::new(draft_cues),
                 function_context: Some(&result.function_context),
-                asset_cache,
+                asset_cache: Some(
+                    asset_cache.unwrap_or_else(animatix_render::video_assets::native_asset_cache),
+                ),
                 modifier_ir_caches,
                 extensions: Some(std::sync::Arc::clone(&self.extension_context)),
                 ..Default::default()

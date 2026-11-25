@@ -26,3 +26,5 @@ pub mod render_pipeline;
 pub(crate) mod test_support;
 pub mod testing;
 pub mod transition;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod video_assets;

@@ -447,6 +447,7 @@ impl Timeline {
             actor_id: Some(track_id),
             source: normalized_source,
             start_time_s,
+            source_offset_s: 0.0,
             duration_s,
             volume,
             volume_envelope: None,

@@ -10,24 +10,26 @@ pub struct SceneImage {
     pub natural_size: [f32; 2],
 }
 
+impl SceneImage {
+    /// Wrap tightly packed RGBA8 pixels for the renderer.
+    pub fn from_rgba8(width: u32, height: u32, pixels: Vec<u8>) -> Self {
+        Self {
+            data: peniko::ImageData {
+                data: pixels.into(),
+                format: peniko::ImageFormat::Rgba8,
+                alpha_type: peniko::ImageAlphaType::Alpha,
+                width,
+                height,
+            },
+            natural_size: [width as f32, height as f32],
+        }
+    }
+}
+
 #[cfg(feature = "image-decode")]
 fn scene_image(image: image::DynamicImage) -> SceneImage {
     let (width, height) = image.dimensions();
-    let rgba = image.to_rgba8();
-    let raw = rgba.into_raw();
-
-    let data = peniko::ImageData {
-        data: raw.into(),
-        format: peniko::ImageFormat::Rgba8,
-        alpha_type: peniko::ImageAlphaType::Alpha,
-        width,
-        height,
-    };
-
-    SceneImage {
-        data,
-        natural_size: [width as f32, height as f32],
-    }
+    SceneImage::from_rgba8(width, height, image.into_rgba8().into_raw())
 }
 
 /// Load an image from disk into a `SceneImage`.

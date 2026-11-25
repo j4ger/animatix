@@ -362,6 +362,20 @@ no enum variant, and no dispatch match arm to keep in sync.
 
 ---
 
+### Video input
+
+Native hosts install a `VideoLoader` on the existing asset cache. A prepared
+asset exposes display metadata and a timestamp-indexed frame interface. The
+engine keeps clip scheduling and viewport geometry in the ECS and issues an
+ordinary image draw with a clip. The `time_dependent` capability excludes
+video subtrees from static caching. The native provider in
+`animatix-render` decodes through rsmpeg and retains a bounded pool of
+seekable reader sessions. The native audio mix consumes the same trimmed
+source interval through `AudioSegment`. The Web host prepares source
+metadata before building, then uses `<video>` to seek to the active clips'
+source times and supplies the resulting RGBA frames to the synchronous
+renderer. See the [authoring guide](video.md).
+
 ## 7. Expression Evaluation
 
 Expressions are evaluated via `evaluate_expr` using an `Environment` (`Rc<RefCell<HashMap<String, Value>>>`). Build-time expressions are lowered to a typed tree IR via `compile_expr` and executed by the unified tree-walking VM (`evaluate_compiled_expr`), sharing the exact same VM, operator semantics, and built-ins as runtime modifier code and plot closures. The IR is optimized before execution (constant folding, dead-branch elimination, let-chain propagation); numeric modifier assignments and plot closures additionally compile to unboxed `FastScalarExpr` slot programs.

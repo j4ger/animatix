@@ -244,6 +244,7 @@ impl OffscreenRenderer {
             debug_options,
             &mut backend,
         );
+        super::timeline_render::check_video_diagnostics(&program)?;
         let probe_eval_ms = crate::probe::probe_ms(t_eval);
 
         let output_view = self.canvas_views(mapping)?.output.clone();

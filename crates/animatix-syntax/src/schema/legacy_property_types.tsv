@@ -179,3 +179,8 @@
 176	equation_source	Str
 177	clip	Actor(Actor)
 178	isolate_opacity	Bool
+179	in_point	Duration
+180	out_point	Duration
+181	fit	Str
+182	crop	Vec4
+183	end_behavior	Str

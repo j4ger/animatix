@@ -28,6 +28,8 @@ pub struct AssetCache {
     workspace_root: Option<PathBuf>,
     svg_paths: HashMap<String, Vec<VelloPath>>,
     images: HashMap<String, SceneImage>,
+    videos: HashMap<String, Arc<dyn super::video::VideoAsset>>,
+    video_loader: Option<Arc<dyn super::video::VideoLoader>>,
     transcripts: HashMap<String, Arc<str>>,
     font_files: HashMap<String, Arc<[u8]>>,
     project_dir: Option<PathBuf>,
@@ -161,6 +163,43 @@ impl AssetCache {
             self.record_usage(&key, actor_label);
             Ok(image)
         }
+    }
+
+    pub(crate) fn has_video_assets(&self) -> bool {
+        !self.videos.is_empty()
+    }
+
+    /// Provide the host implementation for probing and decoding video files.
+    pub fn set_video_loader(&mut self, loader: Arc<dyn super::video::VideoLoader>) {
+        self.video_loader = Some(loader);
+    }
+
+    /// Register a video already prepared by the host for a synchronous build.
+    pub fn insert_video(&mut self, url: &str, asset: Arc<dyn super::video::VideoAsset>) {
+        let key = self.normalize_asset_url(url);
+        self.metadata.remove(&key);
+        self.videos.insert(key, asset);
+    }
+
+    pub(crate) fn load_video_for(
+        &mut self,
+        path: &str,
+        label: &str,
+    ) -> Result<(String, Arc<dyn super::video::VideoAsset>), String> {
+        let key = self.normalize_asset_url(path);
+        let asset = if let Some(asset) = self.videos.get(&key) {
+            Arc::clone(asset)
+        } else {
+            let loader = self.video_loader.as_ref().ok_or(
+                "Video requires a prepared source in the browser or the native video feature.",
+            )?;
+            let asset = loader.open(Path::new(&key))?;
+            self.record_file_metadata(&key);
+            self.videos.insert(key.clone(), Arc::clone(&asset));
+            asset
+        };
+        self.record_usage(&key, label);
+        Ok((key, asset))
     }
 
     /// Pre-register an SVG source for `url` so a later `load_svg_for(url)` hits
@@ -300,6 +339,7 @@ impl AssetCache {
             .svg_paths
             .keys()
             .chain(self.images.keys())
+            .chain(self.videos.keys())
             .chain(self.transcripts.keys())
             .chain(self.font_files.keys())
         {
@@ -337,12 +377,6 @@ impl AssetCache {
         }
     }
 
-    // Only the `svg` and `image-decode` loaders record freshness metadata, so a
-    // build with neither reaches for it never. The reader (`file_metadata_matches`)
-    // stays compiled either way on purpose: with no records it conservatively
-    // invalidates every asset, which is the right answer for a profile that never
-    // records them rather than silently trusting stale copies.
-    #[cfg_attr(not(any(feature = "svg", feature = "image-decode")), allow(dead_code))]
     fn record_file_metadata(&mut self, path: &str) {
         if let Ok(metadata) = std::fs::metadata(path) {
             self.metadata.insert(
@@ -358,6 +392,7 @@ impl AssetCache {
     fn drop_asset(&mut self, path: &str) {
         self.svg_paths.remove(path);
         self.images.remove(path);
+        self.videos.remove(path);
         self.transcripts.remove(path);
         self.font_files.remove(path);
         self.usage.remove(path);

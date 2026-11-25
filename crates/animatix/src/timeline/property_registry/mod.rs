@@ -292,6 +292,14 @@ static BINDINGS: &[PropertyBinding] = &[
         val!(commands)
     ),
     b!("corner_radius", V::F32, F::PATH_AI, CornerRadius, val!(f32 0.0)),
+    b!(
+        "crop",
+        V::Vec4,
+        F::empty(),
+        NoStorage,
+        val!(vec4 0.0, 0.0, 1.0, 1.0),
+        ReadSource::None_
+    ),
     b!("dash_offset", V::F32, F::ASSIGNABLE_AI, DashOffset, val!(f32 0.0)),
     b!("dash_pattern", V::F32List, F::ASSIGNABLE_A, DashPattern, val!(f32_list)),
     b!("data", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "auto")),
@@ -309,6 +317,14 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("direction", V::String, F::empty(), NoStorage, val!(str "vertical")),
     b!("end", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!(
+        "end_behavior",
+        V::String,
+        F::empty(),
+        NoStorage,
+        val!(str "hide"),
+        ReadSource::None_
+    ),
+    b!(
         "equation_source",
         V::String,
         F::ASSIGNABLE_AI.union(F::NO_FRAME_OVERRIDE),
@@ -319,6 +335,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("fill_gradient", V::Gradient, F::ASSIGNABLE_A, FillGradient, val!(gradient)),
     b!("fill_opacity", V::F32, F::ASSIGNABLE_AI, FillOpacity, val!(f32 1.0)),
     b!("first_line", V::U32, F::empty(), Tagged, val!(u32 1)),
+    b!("fit", V::String, F::empty(), NoStorage, val!(str "contain"), ReadSource::None_),
     b!("fit_max_height", V::F32, F::empty(), Tagged, val!(f32 0.0)),
     b!("fit_max_lines", V::U32, F::empty(), Tagged, val!(u32 0)),
     b!("fit_min_size", V::F32, F::empty(), Tagged, val!(f32 0.0)),
@@ -428,6 +445,7 @@ static BINDINGS: &[PropertyBinding] = &[
     ),
     b!("icon", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
     b!("idle", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
+    b!("in_point", V::F32, F::empty(), NoStorage, val!(f32 0.0), ReadSource::None_),
     b!(
         "inactive_color",
         V::Color,
@@ -495,6 +513,7 @@ static BINDINGS: &[PropertyBinding] = &[
         ReadSource::None_
     ),
     b!("opacity", V::F32, F::PRESENCE_AI, Opacity, val!(f32 1.0)),
+    b!("out_point", V::F32, F::empty(), NoStorage, val!(f32 0.0), ReadSource::None_),
     b!("overflow", V::String, F::ASSIGNABLE_A, Overflow, val!(str "visible")),
     b!("padding", V::F32, F::empty(), ContainerLayoutGroup, val!(f32 0.0)),
     b!("parallax", V::F32, F::empty(), NoStorage, val!(f32 1.0)),

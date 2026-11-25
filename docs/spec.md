@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease_out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Video`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - For a fixed custom color use `hex_color("ff2d55")`, or `hex_color("ff2d5580")` with alpha. Use `rgb(...)` or `rgba(...)` to compute a color from expressions. Prefer scheme tokens such as `accent.primary` when following a palette.
 - Timeline operations are ordinary function calls with parentheses: `fade_in(target: title, duration: 1s, ease: ease_out)`. Positional arguments come before named arguments; animation targets are explicit `target:` or `targets:` parameters. `duration`, `delay`, and `ease` are ordinary parameters. Do not add a call-site `[ ... ]` suffix.
@@ -846,7 +846,7 @@ a: Rect, size: (500, 50), min_width: 100, max_item_width: 300, min_height: 20
 
 **Text-like:** `Text`, `Typst` (`Math` alias), `Code`, `Counter`
 
-**Media:** `Svg`, `Image`, `Audio`
+**Media:** `Svg`, `Image`, `Audio`, `Video`
 
 **Equation:** `Equation` (container), `Fragment` (child) — typeset equations with per-segment highlighting
 
@@ -1351,6 +1351,19 @@ frost.radius = 18 [900ms, ease: ease_in_out]
   `inapplicable-property` on a scope that paints nothing, instead of being dropped
   in silence. `corner_radius` is not reported: the frost's clip consumes it.
 
+### Video
+
+A `Video` declaration schedules a video clip at its absolute, relative
+or speech-anchored keyframe. It plays at 1× over the half-open source interval
+`[in_point, out_point)`. An unconfigured scene includes the clip's end in
+its inferred duration. An explicit scene duration limits both picture and
+sound. The engine samples video presentation timestamps, including variable
+frame rates. Native playback and export mix original audio with existing
+`Audio` actors when `volume` is raised above its default of `0`. The Web
+player displays the video picture in the same scene.
+
+See [Video properties](primitives.md#video) and the [authoring guide](video.md).
+
 ### Audio
 
 `Audio` is a non-visual actor that embeds an external audio file into the exported video.
@@ -1380,7 +1393,7 @@ During video export, all `Audio` actors from the current scene or scheduled comp
 
 **Text-like:** `Text`, `Typst` (`Math` alias), `Code`, `Counter`
 
-**Media:** `Svg`, `Image`, `Audio`
+**Media:** `Svg`, `Image`, `Audio`, `Video`
 
 **Plotting:** `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
 

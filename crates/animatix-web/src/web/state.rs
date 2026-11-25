@@ -41,6 +41,8 @@ pub struct AmxPlayer {
     pub(super) dims: SceneDimensions,
     pub(super) duration_s: f64,
     pub(super) target: Option<BuildTarget>,
+    pub(super) videos: super::video::VideoFrames,
+    pub(super) prepared_video_time: Option<u64>,
     pub(super) render_scale: f32,
     pub(super) dedup: animatix::timeline::frame_signature::FrameDedup,
     pub(super) render_generation: u64,

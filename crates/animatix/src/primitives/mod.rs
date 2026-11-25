@@ -132,6 +132,9 @@ pub use typst::TYPST;
 mod audio;
 pub use audio::AUDIO;
 
+mod video;
+use video::VIDEO;
+
 mod equation;
 pub use equation::EQUATION;
 mod fragment;
@@ -401,6 +404,12 @@ pub static BUILT_INS: &[BuiltIn] = &[
         &COUNTER,
         builtin::text::evaluate_counter,
         Some(builtin::text::build_extra_text_named),
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::VIDEO,
+        &VIDEO,
+        crate::timeline::video::evaluate_builtin,
+        Some(crate::timeline::video::build_extra),
     ),
 ];
 

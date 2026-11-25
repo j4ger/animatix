@@ -37,6 +37,7 @@ pub fn run(input: &Path) {
         &namespaces,
         Some(input),
         animatix::timeline::BuildOptions::default()
+            .with_asset_cache(animatix_render::video_assets::native_asset_cache())
             .with_context(context)
             .with_function_context(&function_context)
             .with_expanded(&expanded),

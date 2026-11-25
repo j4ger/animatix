@@ -49,6 +49,19 @@ impl Timeline {
             return;
         };
 
+        if plan.actor_type == "Video" && crate::timeline::video::is_clip_property(property) {
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::VideoClipFailure,
+                    DiagnosticPhase::Build,
+                    format!("Video.{property} is set at declaration time"),
+                )
+                .with_subject(&plan.subject)
+                .with_ast_span(span),
+            );
+            return;
+        }
+
         // Position/offset need compound-binding handling, then the actor's
         // primitive gets first refusal on the property, and the registry engine
         // handles everything else.

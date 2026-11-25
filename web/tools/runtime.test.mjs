@@ -11,6 +11,7 @@ import { bundleEngine } from "./bundle-engine.mjs";
 
 import { configureRuntime, createRuntimePlayer, decodedWasmResponse, fetchOverlayFont, fetchPreparedAssets, fetchMissingModules, loadIntegrityModule, runtimeBackend, runtimeBackendGeneration } from "../embed/src/player/runtime.js";
 import { cancellationError, dispatchPlayerError, playerError } from "../embed/src/player/errors.js";
+import { loadVideo } from "../embed/src/player/video.js";
 import { selectFontFaces } from "../embed/src/player/font-selection.js";
 
 // The embed build compiles static Fluent resources before bundling. Use the
@@ -181,6 +182,94 @@ test("rejected runtime inputs do not invalidate or redraw the last good frame", 
   assert.deepEqual(inputs, { phase: 0.25 });
   assert.deepEqual(draws, lastGoodDraws);
   assert.equal(player._renderRevision, revision);
+});
+
+test("a rapid video scrub presents only the newest pending seek", async () => {
+  const Playback = await loadPlaybackClass();
+  const { player } = runtimeInputPlayer(Playback);
+  player._syncControls = () => {};
+  const sampled = [];
+  const draws = [];
+  const pixels = new Uint8ClampedArray(4);
+  let finishFirst;
+  player._loadedBundle = { videos: new Map([["clip.mp4", {
+    sample(time) {
+      sampled.push(time);
+      if (sampled.length === 1) return new Promise(resolve => { finishFirst = resolve; });
+      return Promise.resolve(pixels);
+    },
+  }]]) };
+  player._player.video_frame_requests = time => [["clip.mp4", time, false]];
+  player._player.render_video_frame = (time, frames) => {
+    assert.equal(frames[0], pixels);
+    draws.push(time);
+  };
+
+  const first = player.seek(0.1);
+  const intermediate = player.seek(0.2);
+  const latest = player.seek(0.3);
+  assert.equal(await intermediate, false);
+  finishFirst(pixels);
+  assert.equal(await first, false);
+  assert.equal(await latest, true);
+  assert.deepEqual(sampled, [0.1, 0.3]);
+  assert.deepEqual(draws, [0.3]);
+});
+
+test("video sampling waits past seeked when the previous frame is still presented", async () => {
+  let callback;
+  let drawn = 0;
+  let color = 255;
+  const video = Object.assign(new EventTarget(), {
+    videoWidth: 1,
+    videoHeight: 1,
+    duration: 2,
+    readyState: 4,
+    seekable: { length: 1, start: () => 0, end: () => 2 },
+    requestVideoFrameCallback(next) { callback = next; return 1; },
+    cancelVideoFrameCallback() {},
+    removeAttribute() {},
+    load() {},
+  });
+  Object.defineProperty(video, "src", {
+    set() { queueMicrotask(() => video.dispatchEvent(new Event("loadeddata"))); },
+  });
+  Object.defineProperty(video, "currentTime", {
+    get: () => 1.5,
+    set() { queueMicrotask(() => video.dispatchEvent(new Event("seeked"))); },
+  });
+  const canvas = {
+    getContext: () => ({
+      drawImage() { drawn += 1; },
+      getImageData: () => ({ data: new Uint8ClampedArray([color, 0, 0, 255]) }),
+    }),
+  };
+  const globals = {
+    document: { createElement: tag => tag === "video" ? video : canvas },
+    requestAnimationFrame: () => 1,
+    cancelAnimationFrame: () => {},
+  };
+  const saved = Object.keys(globals).map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]);
+  let source;
+  try {
+    Object.assign(globalThis, globals);
+    source = await loadVideo("https://scene.example/clip.mp4");
+    const frame = source.sample(0.6, false);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(drawn, 0);
+    callback(0, { presentationTime: performance.now(), mediaTime: 1.375 });
+    assert.equal(drawn, 0);
+    color = 0;
+    callback(0, { presentationTime: performance.now(), mediaTime: 0.5 });
+    assert.deepEqual(await frame, new Uint8ClampedArray([0, 0, 0, 255]));
+    assert.equal(drawn, 1);
+  } finally {
+    source?.release();
+    for (const [name, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete globalThis[name];
+    }
+  }
 });
 
 test("runtime input methods require a ready, live player", async () => {

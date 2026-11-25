@@ -32,6 +32,7 @@ pub(super) fn sample_evaluate_ctx_with_payload<'a>(
         // Rect.
         caps: animatix_core::builtins::caps_for_type("Rect").unwrap_or_default(),
         time_ms: 0,
+        time_s: 0.0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: crate::timeline::SceneDimensions {

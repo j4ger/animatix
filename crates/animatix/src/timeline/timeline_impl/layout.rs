@@ -189,7 +189,6 @@ impl Timeline {
     pub(crate) fn resolve_audio_volume_envelopes(&mut self) {
         for seg in &mut self.audio_segments {
             if let Some(audio_id) = seg.actor_id
-                && self.world.actor_type(audio_id) == "Audio"
                 && let Some(vol_track) = &self.world.geometry(audio_id).volume
                 && !vol_track.keyframes.is_empty()
             {

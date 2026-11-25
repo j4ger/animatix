@@ -70,7 +70,12 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
         this._time = Math.min(this._time, this._cycle || this._duration);
         this._restTime = Math.min(this._restTime, this._duration);
         this._invalidateRestFrame();
-        if (!this._renderScene()) throw new Error("recovered backend did not present a frame");
+        const rendered = this._renderScene();
+        const presented = rendered instanceof Promise ? await rendered : rendered;
+        if (!this._isCurrentOperation(operation)) return;
+        if (!presented) {
+          throw new Error("recovered backend did not present a frame");
+        }
         this._discardRecoveryCanvas();
         this._playing = this._playing || this._backendResumeRequested;
         this._backendResumeRequested = false;
@@ -206,8 +211,9 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     this._time = Math.min(Math.max(time, 0), this._duration);
     this._restTime = this._time;
     this._invalidateRestFrame();
-    this._renderScene();
+    const render = this._renderScene();
     this._syncControls();
+    if (render instanceof Promise) return render;
   }
 
   /// Seconds in the compiled timeline (excludes a loop's hold rest). 0 until
@@ -355,7 +361,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   /// swapchain reconfigurations and texture reallocation churn while CSS stretches
   /// the canvas at compositor speed; settling immediately commits the new backing
   /// store and re-renders if paused.
-  _applyRenderScale(immediate = true) {
+  _applyRenderScale(immediate = true, { redraw = true } = {}) {
     const player = this._player;
     if (!player?.set_render_scale || !player.scene_width) return;
     if (!this.isConnected) return;
@@ -385,7 +391,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
       const wanted = Math.min(2.0, Math.max(0.25, cur * this._effectiveScale()));
       this._renderScale = player.set_render_scale(wanted);
       this._invalidateRestFrame();
-      if (!this._playing && this._state === "ready") {
+      if (redraw && !this._playing && this._state === "ready") {
         this._renderScene();
       }
     };
@@ -635,8 +641,65 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     // instead of staying blank forever.
     const stale = this._lastRenderWall === undefined || nowMs - this._lastRenderWall > 500;
     if (key === this._lastRenderKey && !stale) return true;
+    const videos = this._loadedBundle?.videos;
+    if (videos?.size) return this._queueVideoFrame(t, key, videos);
+    return this._presentFrame(key, () => this._player.render_frame(t), nowMs);
+  }
+
+  _queueVideoFrame(time, key, videos) {
+    const player = this._player;
+    const revision = this._renderRevision;
+    const active = this._activeVideoFrame;
+    const pending = this._pendingVideoFrame;
+    if (active?.player === player && active.key === key) return active.promise;
+    if (pending?.player === player && pending.key === key) return pending.promise;
+
+    let settle;
+    const promise = new Promise(resolve => { settle = resolve; });
+    const job = { player, key, promise, settle, time, revision, videos };
+    if (active) {
+      pending?.settle(false);
+      this._pendingVideoFrame = job;
+    } else {
+      void this._sampleVideoFrame(job);
+    }
+    return promise;
+  }
+
+  async _sampleVideoFrame(job) {
+    this._activeVideoFrame = job;
+    const { player, time, revision, key, videos } = job;
+    const current = () => player === this._player && revision === this._renderRevision && !this._backendSuspended;
+    let presented = false;
     try {
-      this._player.render_frame(t);
+      if (current()) {
+        const requests = player.video_frame_requests(time);
+        const frames = await Promise.all(requests.map(([id, sourceTime, beforeTrimEnd]) =>
+          videos.get(id).sample(sourceTime, beforeTrimEnd)));
+        if (current()) {
+          presented = this._presentFrame(key, () => player.render_video_frame(time, frames));
+        }
+      }
+    } catch (error) {
+      if (current()) {
+        const firstFailure = !this._renderFailures;
+        this._presentFrame(key, () => { throw error; });
+        if (firstFailure && this._state === "ready") {
+          dispatchPlayerError(this, this.getAttribute("src"), error, "resource");
+        }
+      }
+    } finally {
+      job.settle(presented);
+      this._activeVideoFrame = null;
+      const pending = this._pendingVideoFrame;
+      this._pendingVideoFrame = null;
+      if (pending) void this._sampleVideoFrame(pending);
+    }
+  }
+
+  _presentFrame(key, draw, nowMs = performance.now()) {
+    try {
+      draw();
       this._lastRenderKey = key;
       this._lastRenderWall = nowMs;
       this._renderFailures = 0;

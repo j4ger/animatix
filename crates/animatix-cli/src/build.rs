@@ -27,8 +27,11 @@ pub fn load_and_build(
             print_build_diagnostics(&diagnostics);
             if diagnostics.iter().any(|diagnostic| {
                 diagnostic.is_error()
-                    && diagnostic.code
-                        == animatix_syntax::diagnostics::DiagnosticCode::InvalidConfigValue
+                    && matches!(
+                        diagnostic.code,
+                        animatix_syntax::diagnostics::DiagnosticCode::InvalidConfigValue
+                            | animatix_syntax::diagnostics::DiagnosticCode::VideoClipFailure
+                    )
             }) {
                 std::process::exit(1);
             }
@@ -88,6 +91,7 @@ pub fn try_load_and_build_in(
         &namespaces,
         Some(input),
         animatix::timeline::BuildOptions::default()
+            .with_asset_cache(animatix_render::video_assets::native_asset_cache())
             .with_context(context)
             .with_defines(defines)
             .with_function_context(&function_context)

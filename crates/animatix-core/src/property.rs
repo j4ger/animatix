@@ -69,6 +69,8 @@ pub enum AuthoredTypeHint {
     Vec4,
     /// A reference to an actor.
     Actor,
+    /// Time duration such as `250ms` or `3s`.
+    Duration,
     /// Unconstrained expression type.
     Any,
 }
@@ -226,7 +228,7 @@ declare_property_descriptors! {
     // Authored solo flag: while any actor declares `solo: true`, every
     // non-solo subtree is hidden (recursively) in preview and export alike.
     "solo" => (Applicable::Everything, Bool),
-    "source" => (Applicable::Actors(&["Audio", "Captions"]), String),
+    "source" => (Applicable::Actors(&["Audio", "Captions", "Video"]), String),
     "standoff" => (Applicable::Callout, F32),
     "stroke" => (Applicable::AllStrokePaths, Vec4, Color),
     "stroke_progress" => (Applicable::AllStrokePaths, F32),
@@ -254,7 +256,7 @@ declare_property_descriptors! {
     "transform" => (Applicable::Everything, Generic, Transform),
     "url" => (Applicable::Actors(&["Image", "Svg"]), String),
     "vertical_align" => (Applicable::Actors(&["Col", "Row"]), String),
-    "volume" => (Applicable::Actors(&["Audio"]), F32),
+    "volume" => (Applicable::Actors(&["Audio", "Video"]), F32),
     "width" => (Applicable::SizedActors, F32),
     "word_spacing" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), F32),
     "x_domain" => (Applicable::PlotGeometry, Vec2),
@@ -376,6 +378,11 @@ declare_property_descriptors! {
     "equation_source" => (Applicable::Actors(&["Equation"]), String),
     "clip" => (Applicable::Actors(&["Mask"]), Generic, Actor),
     "isolate_opacity" => (Applicable::Actors(&["Group"]), Bool),
+    "in_point" => (Applicable::Actors(&["Video"]), F32, Duration),
+    "out_point" => (Applicable::Actors(&["Video"]), F32, Duration),
+    "fit" => (Applicable::Actors(&["Video"]), String),
+    "crop" => (Applicable::Actors(&["Video"]), Vec4, Vec4),
+    "end_behavior" => (Applicable::Actors(&["Video"]), String),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

@@ -732,6 +732,38 @@ fn preparation_discovers_imports_and_resolves_relative_assets() {
 }
 
 #[test]
+fn preparation_resolves_video_sources_in_imported_components() {
+    let source = r#"
+import "./media/clip.amx" as media
+# Main
+#0s
+play media::Intro
+"#;
+    let module = r#"
+pub component Clip(title: Str) {
+  panel: Group {
+    recording: Video, source: "./recording.mp4"
+  }
+}
+
+# Intro
+#0s
+clip: Clip, title: "Demo"
+"#;
+    let prepared = prepare_document(
+        source,
+        &[(PathBuf::from("media/clip.amx"), module.to_owned())],
+        &[],
+        Some("https://example.test/scenes/demo.amx"),
+    );
+    assert!(prepared.analysis.ok, "{:?}", prepared.analysis.diagnostics);
+    let assets = prepared.analysis.assets;
+    assert_eq!(assets.len(), 1, "{assets:?}");
+    assert_eq!(assets[0].kind, "video");
+    assert_eq!(assets[0].id, "https://example.test/scenes/media/recording.mp4");
+}
+
+#[test]
 fn preparation_expands_exported_components_in_imported_scenes_for_resources() {
     let source = r#"
 import "./scene.amx" as demo

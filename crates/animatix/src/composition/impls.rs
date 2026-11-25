@@ -150,8 +150,9 @@ impl BuildTarget {
     /// This is the one build implementation: every other entry point either
     /// builds [`BuildOptions`] for it or reports a composition-only result.
     ///
-    /// An asset cache is created from `source_path`'s directory when the caller
-    /// did not supply one, and every scene inherits it through `options`.
+    /// The asset cache uses `source_path`'s directory unless the caller
+    /// provided a different document base. Every scene inherits it through
+    /// `options`.
     /// Single-scene programs get the `PersistTargetNotCarried` warning because a
     /// lone timeline has no successor to carry into.
     pub fn build_with_options(
@@ -177,8 +178,12 @@ impl BuildTarget {
                     } else {
                         dir
                     };
+                    let cache = std::sync::Arc::make_mut(&mut cache);
+                    if cache.document_dir().is_none() {
+                        cache.set_document_dir(Some(dir));
+                    }
                     let dir = std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf());
-                    std::sync::Arc::make_mut(&mut cache).set_project_dir(&dir);
+                    cache.set_project_dir(&dir);
                 }
                 cache
             });

@@ -189,6 +189,7 @@ always {
         geometry: timeline.world.geometry(t_track),
         payload: payload.as_ref(),
         time_ms: 0,
+        time_s: 0.0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: crate::timeline::SceneDimensions {

@@ -80,24 +80,14 @@ evidence backlog; reproduce them against current code before assigning fixes.
 
 #### P2 — Video footage in explanatory animations
 
-- **Phase A: media contract and spike.** Specify a video actor's source, source
-  in/out points, timeline start, fit/crop, mute/volume and end-of-clip behavior.
-  Validate decoding, timestamp mapping and frame seeking before committing to a
-  backend. Keep GPU/decoder implementations in the presentation layer and media
-  state within the existing ECS contract.
-- **Phase B: native vertical slice.** Implement local-file playback, exact-time
-  scrubbing and offline export, including the clip's audio mixed with existing
-  Audio actors. Exercise overlays, scene transitions and seeks in both directions;
-  define the supported formats and VFR timestamp policy explicitly.
-- **Phase C: delivery and web boundary.** Integrate media import/inspection and
-  missing/unsupported-file diagnostics. Decide and document browser playback
-  support after the native slice; until supported, web builds must diagnose video
-  actors rather than silently omit them. Network streams and a general-purpose
-  nonlinear editor are outside this milestone.
-- **Acceptance:** a screen recording can be trimmed, cropped, annotated and
-  exported with synchronized audio; sampled frames match preview after random
-  seeks and repeated exports. Cover clip boundaries and variable-frame-rate input,
-  and measure decode/cache memory plus frame/export costs before rollout.
+- **Native acceptance.** Validate the [Video actor](video.md) in distributed
+  desktop packages, including real-time playback and audible seeking with
+  platform audio devices. Measure decode/cache memory and frame/export costs
+  for longer recordings and several clips in a composition.
+- **Workbench.** Add media import and richer clip inspection. Explore
+  background decoding and prefetch after measuring preview latency.
+- **Web follow-up.** Measure seek and frame transfer costs on longer footage
+  and mobile browsers. Explore audio mixing on the same timeline.
 
 ### User experience feedback follow-ups (2026-11-13)
 

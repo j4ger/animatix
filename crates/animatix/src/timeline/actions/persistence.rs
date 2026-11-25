@@ -94,6 +94,19 @@ impl BuiltinAction for Persist {
                 continue;
             }
 
+            if timeline
+                .world
+                .get_id(target)
+                .is_some_and(|id| timeline.world.video_clips.get(id).is_some())
+            {
+                diagnostics.push(Diagnostic::error(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    "Video clips belong to their declaring scene. Declare a clip in the successor scene.",
+                ).with_subject(target));
+                continue;
+            }
+
             // Warn only when an explicit `remove` (a `false` component) was
             // recorded earlier; an actor that was never targeted is not
             // "removed" and reads the same `false` through `persistence_flag`.

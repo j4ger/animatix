@@ -248,6 +248,16 @@ pub static AUDIO: PrimitiveInfo = PrimitiveInfo::new(
 .with_doc("Audio track playback and synchronization element.")
 .with_stub("source: \"sound.mp3\"");
 
+pub static VIDEO: PrimitiveInfo = PrimitiveInfo::new(
+    "Video",
+    "Video",
+    icon_glyphs::IMAGE,
+    ActorCategory::Media,
+    caps!(has_visual_content, time_dependent),
+)
+.with_doc("Timeline-scheduled local video clip.")
+.with_stub("source: \"recording.mp4\"");
+
 // Plots
 pub static GRAPH: PrimitiveInfo =
     PrimitiveInfo::new("Graph", "Graph", icon_glyphs::CHART_BAR, ActorCategory::Plot, GRAPH_CAPS)
@@ -515,4 +525,5 @@ pub static CATALOG: &[&PrimitiveInfo] = &[
     &CALLOUT,
     &LEGEND,
     &CONNECTOR,
+    &VIDEO,
 ];

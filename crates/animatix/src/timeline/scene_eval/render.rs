@@ -678,6 +678,7 @@ impl Timeline {
             id: child_id,
             label: self.world.label(child_id).unwrap_or(""),
             time_ms,
+            time_s: time_ms as f64 / 1000.0,
             local_transform: kurbo::Affine::IDENTITY,
             opacity: 1.0,
             scene_dimensions,

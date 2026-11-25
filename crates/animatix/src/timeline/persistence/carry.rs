@@ -49,6 +49,13 @@ fn collect_persistent_entries(
         return;
     }
 
+    // A clip is scheduled and mixed on its declaring scene's clock.
+    // Persistent parent layout can carry its other children independently.
+    if timeline.world.video_clips.get(id).is_some() {
+        tracing::warn!("Video actor '{label}' ends at its scene boundary");
+        return;
+    }
+
     // Build child entries first so their references can be moved in.
     let mut child_entries = BTreeMap::new();
     let animated_captions =

@@ -272,14 +272,14 @@ impl AudioEngine {
             let seg_end = if let Some(dur) = seg.duration_s {
                 seg.start_time_s + dur
             } else {
-                seg.start_time_s + audio.duration_s
+                seg.start_time_s + (audio.duration_s - seg.source_offset_s).max(0.0)
             };
 
             if time_s < seg.start_time_s || time_s >= seg_end {
                 continue;
             }
 
-            let offset_s = time_s - seg.start_time_s;
+            let offset_s = seg.source_offset_s + time_s - seg.start_time_s;
             let available_s = (seg_end - time_s).min(audio.duration_s - offset_s);
             if available_s <= 0.0 {
                 continue;
@@ -288,8 +288,8 @@ impl AudioEngine {
             let slice_s = available_s.min(slice_duration_s);
             let channels = audio.channels as usize;
             let sample_rate = audio.sample_rate as usize;
-            let start_sample = (offset_s * sample_rate as f64 * channels as f64) as usize;
-            let num_samples = (slice_s * sample_rate as f64 * channels as f64) as usize;
+            let start_sample = (offset_s * sample_rate as f64).round() as usize * channels;
+            let num_samples = (slice_s * sample_rate as f64).round() as usize * channels;
             let start_sample = start_sample.min(audio.samples.len());
             let end_sample = (start_sample + num_samples).min(audio.samples.len());
 
@@ -358,7 +358,7 @@ impl AudioEngine {
         let seg_end = if let Some(dur) = seg.duration_s {
             seg.start_time_s + dur
         } else {
-            seg.start_time_s + audio.duration_s
+            seg.start_time_s + (audio.duration_s - seg.source_offset_s).max(0.0)
         };
 
         // Check if this segment is audible at time_s
@@ -366,8 +366,8 @@ impl AudioEngine {
             return Ok(()); // Not yet or already finished
         }
 
-        let offset_s = time_s - seg.start_time_s;
-        let remaining_s = seg_end - seg.start_time_s - offset_s;
+        let offset_s = seg.source_offset_s + time_s - seg.start_time_s;
+        let remaining_s = seg_end - time_s;
 
         if remaining_s <= 0.0 {
             return Ok(());
@@ -381,8 +381,8 @@ impl AudioEngine {
         // Compute the sample range for this segment at the current time
         let channels = audio.channels as usize;
         let sample_rate = audio.sample_rate as usize;
-        let start_sample = (offset_s * sample_rate as f64 * channels as f64) as usize;
-        let num_samples = (remaining_s * sample_rate as f64 * channels as f64) as usize;
+        let start_sample = (offset_s * sample_rate as f64).round() as usize * channels;
+        let num_samples = (remaining_s * sample_rate as f64).round() as usize * channels;
         let start_sample = start_sample.min(audio.samples.len());
         let end_sample = (start_sample + num_samples).min(audio.samples.len());
 

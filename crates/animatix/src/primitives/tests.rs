@@ -262,6 +262,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         id: EntityId(0),
         label: "label",
         time_ms: 1500,
+        time_s: 1.5,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
         scene_dimensions: SceneDimensions {

@@ -1,3 +1,4 @@
+import { releasePreparedBundle } from "./video.js";
 import * as core from "./core.js";
 const {
   FRAME_RATE, DEBUG_BY_URL, REDUCED_MOTION,
@@ -77,7 +78,19 @@ export class AmxPlayerLoad extends AmxPlayerView {
         this._restTime = this._duration;
         this._time = this._duration;
       }
-      this._renderScene();
+      const firstFrame = this._renderScene();
+      if (firstFrame instanceof Promise) {
+        const presented = await firstFrame;
+        if (!this._isCurrentOperation(generation)) {
+          // The player was installed before the seek. Its new owner handles
+          // teardown if the element reloaded or was destroyed during the wait.
+          player = null;
+          return;
+        }
+        if (!presented && this._renderFailures) {
+          throw playerError(new Error("Could not present the initial video frame"), "resource");
+        }
+      }
 
       // Timeline landmarks for the scrubber (keyframes, scene starts,
       // transition windows) — the engine knows them, so the bar can show them.
@@ -182,7 +195,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
       this._showVeil(message, true);
       dispatchPlayerError(this, src, normalized);
     } finally {
-      candidate?.prepared?.free?.();
+      releasePreparedBundle(candidate);
       if (player && player !== this._player) this._freePlayer(player);
       if (generation === this._operationGeneration) this._operationController = null;
     }

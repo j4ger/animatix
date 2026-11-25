@@ -21,6 +21,9 @@ pub enum RenderError {
     /// Rendering a single frame failed.
     #[error("Frame render failed: {0}")]
     FrameRender(String),
+    /// A local video frame could not be decoded.
+    #[error("Video decode failed: {0}")]
+    VideoDecode(String),
     /// Failed to create the application window.
     #[error("Failed to create window: {0}")]
     WindowCreation(String),

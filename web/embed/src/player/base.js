@@ -1,3 +1,4 @@
+import { releasePreparedBundle } from "./video.js";
 import * as core from "./core.js";
 import { cancellationError, dispatchPlayerError } from "./errors.js";
 const {
@@ -292,7 +293,7 @@ export class AmxPlayerBase extends HTMLElement {
     this.pause?.();
     this._freePlayer();
     this._player = null;
-    this._loadedBundle?.prepared?.free?.();
+    releasePreparedBundle(this._loadedBundle);
     this._loadedBundle = null;
     this._state = "destroyed";
     if (this._canvas) this._canvas.width = this._canvas.height = 1;
@@ -316,7 +317,7 @@ export class AmxPlayerBase extends HTMLElement {
     this._backendUnregister = null;
     this._pendingBackendReload = null;
     this._freePlayer();
-    this._loadedBundle?.prepared?.free?.();
+    releasePreparedBundle(this._loadedBundle);
     this._state = "idle";
     this._player = null;
     this._time = 0;

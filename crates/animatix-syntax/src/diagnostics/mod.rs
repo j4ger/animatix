@@ -38,6 +38,8 @@ pub enum DiagnosticCode {
     ParseError,
     /// The render step failed.
     RenderFailure,
+    /// A local video clip could not be prepared or decoded.
+    VideoClipFailure,
     /// A modifier key is not supported in the current context.
     UnsupportedModifierKey,
     /// An assignment property is not supported.

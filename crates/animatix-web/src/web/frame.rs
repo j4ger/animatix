@@ -35,6 +35,9 @@ impl AmxPlayer {
         if !self.has_document() {
             return Ok(());
         }
+        if !self.has_video_samples(time_s) {
+            return Err(JsError::new("prepare video samples before rendering this frame"));
+        }
         if let Some(webgl) = self.webgl.clone() {
             let mut frame_gpu = webgl.frame_gpu.borrow_mut();
             return self.render_frame_inner(&webgl.device, &webgl.queue, &mut frame_gpu, time_s);
@@ -60,8 +63,6 @@ impl AmxPlayer {
     ) -> FrameSignature {
         let (raster_width, raster_height) = raster_dims(self.dims, self.render_scale);
         FrameSignature {
-            // Quantised exactly like the engine's own scene cache: a difference
-            // the evaluator cannot see must not make the dedup redraw.
             time_ms: (time_s * 1000.0) as u64,
             scene_width: self.dims.width,
             scene_height: self.dims.height,
@@ -98,7 +99,8 @@ impl AmxPlayer {
         // embed asks for it 60 times a second. Skip the tick before acquiring
         // anything: a skipped tick does no GPU work and the canvas keeps its image.
         let signature = self.frame_signature(time_s, width, height);
-        if self.dedup.is_presented(&signature) {
+        // Video sampling can distinguish times within a millisecond.
+        if self.videos.is_empty() && self.dedup.is_presented(&signature) {
             self.frames_deduped += 1;
             return Ok(());
         }
@@ -298,11 +300,7 @@ fn render_document_inner(
             // other's pass state) and the compositor blends them. Actors that
             // share a `shared_id` are suppressed in both scene rasters and
             // drawn once in a floating FLIP overlay above the blend.
-            let to_local = composition
-                .scene_start_times
-                .get(&blend.to_scene)
-                .map(|start| ctx.time_s - start)
-                .unwrap_or(local_time_s);
+            let to_local = blend.to_local;
             let from_timeline = &composition
                 .scenes
                 .get(&blend.from_scene)

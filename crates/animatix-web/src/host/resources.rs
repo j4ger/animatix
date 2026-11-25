@@ -4,8 +4,8 @@ use std::path::Path;
 
 use animatix::extension_context::ExtensionContext;
 use animatix::timeline::{Environment, EvalError, Value};
-use animatix_syntax::ast::{Expr, Property, Stmt};
-use animatix_syntax::visit::{AstFolder, walk_fold_stmt};
+use animatix_syntax::ast::{Expr, InlineItem, Property, Stmt};
+use animatix_syntax::visit::{AstFolder, walk_fold_inline_item, walk_fold_stmt};
 use url::Url;
 
 pub(super) const RESOLVE_RESOURCE: &str = "__host::resolve_resource";
@@ -27,6 +27,14 @@ impl ResourceOrigin {
 
     fn resolve(&self, value: Expr) -> Expr {
         Expr::call(RESOLVE_RESOURCE, vec![Expr::Str(self.base.clone()), value])
+    }
+
+    fn resolve_video_source(&self, ty: &str, props: &mut [Property]) {
+        if ty == "Video" {
+            for prop in props.iter_mut().filter(|prop| prop.name == "source") {
+                prop.value = self.resolve(prop.value.clone());
+            }
+        }
     }
 }
 
@@ -57,6 +65,9 @@ impl AstFolder for ResourceOrigin {
 
     fn fold_stmt(&mut self, statement: Stmt) -> Stmt {
         let mut statement = walk_fold_stmt(self, statement);
+        if let Stmt::ActorDecl { ty, props, .. } = &mut statement {
+            self.resolve_video_source(ty, props);
+        }
         if let Stmt::Assignment {
             property, value, ..
         } = &mut statement
@@ -65,6 +76,16 @@ impl AstFolder for ResourceOrigin {
             *value = self.resolve(value.clone());
         }
         statement
+    }
+
+    fn fold_inline_item(&mut self, item: InlineItem) -> InlineItem {
+        let mut item = walk_fold_inline_item(self, item);
+        if let InlineItem::Labeled { ty, props, .. } | InlineItem::Anonymous { ty, props, .. } =
+            &mut item
+        {
+            self.resolve_video_source(ty, props);
+        }
+        item
     }
 }
 

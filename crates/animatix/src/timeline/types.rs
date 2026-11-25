@@ -247,6 +247,8 @@ pub struct AudioSegment {
     pub source: String,
     /// Start time within the global timeline in seconds.
     pub start_time_s: f64,
+    /// Time to skip at the beginning of the decoded audio stream.
+    pub source_offset_s: f64,
     /// Playback duration in seconds.
     pub duration_s: Option<f64>,
     /// Playback volume multiplier (1.0 = full volume).

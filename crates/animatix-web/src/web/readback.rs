@@ -46,6 +46,9 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
     if player.target.is_none() {
         return Err("no document loaded".to_string());
     }
+    if !player.has_video_samples(time_s) {
+        return Err("prepare video samples before reading back this frame".to_string());
+    }
     if let Some(webgl) = player.webgl.clone() {
         let mut frame_gpu = webgl.frame_gpu.borrow_mut();
         return readback_with(

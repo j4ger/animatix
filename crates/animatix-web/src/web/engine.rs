@@ -35,6 +35,8 @@ impl AmxPlayer {
             dims: SceneDimensions::default(),
             duration_s: 0.1,
             target: None,
+            videos: Default::default(),
+            prepared_video_time: None,
             render_scale: 0.85,
             dedup: animatix::timeline::frame_signature::FrameDedup::new(),
             render_generation: 0,

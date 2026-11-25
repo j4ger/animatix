@@ -19,6 +19,7 @@ mod readback;
 mod resource_probe;
 mod state;
 mod text_probe;
+mod video;
 mod webgl;
 
 pub use api::{build_id, engine_commit, engine_version, highlight_source};

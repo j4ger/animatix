@@ -40,6 +40,7 @@ impl Timeline {
                 id: node_id,
                 label: node_label,
                 time_ms,
+                time_s: self.eval_caches.frame_time_s.get(),
                 local_transform,
                 opacity,
                 scene_dimensions: frame.scene_dimensions,
@@ -71,7 +72,11 @@ impl Timeline {
                 Err(e) => {
                     self.eval_caches.runtime_diagnostics.borrow_mut().push(
                         crate::diagnostics::Diagnostic::error(
-                            crate::diagnostics::DiagnosticCode::RenderFailure,
+                            if matches!(e, crate::renderer::error::RenderError::VideoDecode(_)) {
+                                crate::diagnostics::DiagnosticCode::VideoClipFailure
+                            } else {
+                                crate::diagnostics::DiagnosticCode::RenderFailure
+                            },
                             crate::diagnostics::DiagnosticPhase::Render,
                             format!("failed to evaluate '{node_label}' at t={time_ms}ms: {e}"),
                         ),

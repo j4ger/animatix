@@ -164,6 +164,42 @@ photo: Image { url: "checker.png", at: (640, 360), size: (180, 180) }
 
 Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).
 
+## Video
+
+A video clip placed on the scene timeline. Declare it at the keyframe
+where it should start, then animate its position, size, opacity or original
+sound level with the regular actor properties.
+
+| Property | Type | Default | Behavior |
+| --- | --- | --- | --- |
+| `source` | Str | Required | MP4 or MOV path relative to the scene file. The Web player also accepts a video URL. |
+| `in_point` | Duration | `0s` | Inclusive start on the source clock. |
+| `out_point` | Duration | End of the video stream | Exclusive end on the source clock. |
+| `size` | Vec2 | Source display size | Width and height of the viewport in scene units. |
+| `fit` | Str | `"contain"` | `"contain"` fits the crop inside the viewport. `"cover"` fills the viewport and trims the excess. |
+| `crop` | Vec4 | `(0, 0, 1, 1)` | Source rectangle `(x, y, width, height)` normalized to the display-oriented source, with its origin at the top left. |
+| `volume` | Num | `0` | Original audio gain on native hosts, from 0 to 1. Keyframe it independently of the visual opacity. |
+| `end_behavior` | Str | `"hide"` | `"hide"` makes the picture transparent at the end. `"hold"` keeps the final in-range frame through the scene. Both stop the original sound. |
+
+```animatix
+#2s
+  demo: Video, source: "recording.mp4", in_point: 3s, out_point: 10s,
+    at: (540, 820), size: (900, 680), fit: "cover",
+    crop: (0.05, 0.10, 0.90, 0.80), volume: 0.25
+
+#+500ms
+  demo.volume = 0.1 [300ms]
+```
+
+The clip in this example plays from scene time `2s` to `9s`. An absolute,
+relative or speech-anchored keyframe can set the start. The source, range, fit,
+crop and end behavior are declaration-time settings. Use another actor to play
+a different clip, even when it references the same file. Clips draw through
+the ordinary scene compositing path, so groups, masks, overlays and scene
+transitions can combine them with other actors.
+
+See [Video clips](video.md) for playback and export requirements.
+
 ## Audio
 
 A non-visual actor: it embeds an audio file into the exported video and can anchor keyframes to its transcript. It draws nothing.

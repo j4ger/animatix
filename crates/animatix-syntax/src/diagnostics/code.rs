@@ -17,6 +17,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::SourceLoadFailure => write!(f, "source-load-failure"),
             DiagnosticCode::ParseError => write!(f, "parse-error"),
             DiagnosticCode::RenderFailure => write!(f, "render-failure"),
+            DiagnosticCode::VideoClipFailure => write!(f, "video-clip-failure"),
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::UnsupportedAssignmentProperty => {
                 write!(f, "unsupported-assignment-property")
