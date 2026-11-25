@@ -19,7 +19,8 @@ the workbench can also read an existing word-timed file such as
 `clip.speech.json` beside `clip.wav`.
 
 The workbench keeps recordings beside the source in a same-named `.amxn`
-file. Expand a paragraph's history to hear earlier reads and see the script as
+file backed by redb. Opening an earlier SQLite `.amxn` shows a history error
+and leaves the file intact. Expand a paragraph's history to hear earlier reads and see the script as
 it was recorded. Recordings are saved as they are captured, so completed audio
 blocks can be recovered after an interruption. Use the normal scene save to
 keep changes to the active voiceover. **Save As** copies the recording history

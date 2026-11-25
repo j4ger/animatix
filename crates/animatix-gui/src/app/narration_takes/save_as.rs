@@ -41,10 +41,7 @@ impl SaveAsNarration {
             }
         }
         if let Some(source_history) = source_history {
-            let staged =
-                tempfile::NamedTempFile::new_in(&new).map_err(|error| error.to_string())?;
-            source_history.backup(staged.path()).map_err(|error| error.to_string())?;
-            staged.persist_noclobber(&history).map_err(|error| error.to_string())?;
+            source_history.backup(&history).map_err(|error| error.to_string())?;
             change.installed = Some(history);
         }
         Ok(change)
@@ -93,6 +90,7 @@ mod tests {
             text: "Hello.".into(),
             kind: "recorded",
         };
+        live.snapshot("saved source", &[], true).unwrap();
         live.start_recording(&take, 24_000, 1).unwrap();
         live.append_recording(&take.id, &[1, 2], 1).unwrap();
         live.finish_recording(&take.id, true).unwrap();
@@ -105,8 +103,33 @@ mod tests {
         SaveAsNarration::prepare(&original, &new, text).unwrap().commit();
         assert_eq!(fs::read(second.path().join("narration/main-aabbccdd.wav")).unwrap(), b"wav");
         let copied = History::open(&new, false).unwrap().unwrap();
+        assert!(copied.bindings("saved source").unwrap().0);
+        copied.snapshot("new destination source", &[], true).unwrap();
+        assert!(!live.bindings("new destination source").unwrap().0);
         copied.issue(&take.id, Some("different")).unwrap();
         assert!(live.takes().unwrap()[0].issue.is_none());
         assert!(SaveAsNarration::prepare(&original, &new, text).is_err());
+    }
+
+    #[test]
+    fn save_as_preserves_unreadable_source_and_occupied_destination_histories() {
+        let folder = tempfile::tempdir().unwrap();
+        let original = folder.path().join("source.amx");
+        let fork = folder.path().join("fork.amx");
+        let legacy = b"SQLite format 3\0legacy fixture";
+        fs::write(path_for(&original), legacy).unwrap();
+
+        assert!(SaveAsNarration::prepare(&original, &fork, "").is_err());
+        assert_eq!(fs::read(path_for(&original)).unwrap(), legacy);
+        assert!(!path_for(&fork).exists());
+
+        let live = folder.path().join("live.amx");
+        let history = History::open(&live, true).unwrap().unwrap();
+        history.snapshot("saved source", &[], true).unwrap();
+        fs::write(path_for(&fork), legacy).unwrap();
+
+        assert!(SaveAsNarration::prepare(&live, &fork, "").is_err());
+        assert_eq!(fs::read(path_for(&fork)).unwrap(), legacy);
+        assert!(history.bindings("saved source").unwrap().0);
     }
 }

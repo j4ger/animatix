@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::{OptionalExtension, params};
+use redb::ReadableTable;
+use serde::{Deserialize, Serialize};
 
-use super::{History, Result};
+use super::{Error, History, MIXES, Result, TAKES};
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(in crate::app::narration_takes) struct Mix {
     pub audio_digest: String,
     pub transcript_digest: String,
@@ -22,57 +23,33 @@ pub(in crate::app::narration_takes) fn relative(path: &Path) -> String {
 
 impl History {
     pub fn mix(&self, audio: &Path, timing: &Path) -> Result<Option<Mix>> {
-        let db = self.connect()?;
+        let tx = self.read()?;
+        let mixes = tx.open_table(MIXES)?;
         let audio = relative(audio);
         let timing = relative(timing);
-        let matched = db
-            .query_row(
-                "SELECT audio_digest, transcript_digest, layout FROM mixes
-            WHERE audio = ?1 AND transcript = ?2",
-                params![audio, timing],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .optional()?;
-        let Some((audio_digest, transcript_digest, layout)) = matched else {
-            return Ok(None);
-        };
-        let mut statement = db.prepare(
-            "SELECT selector, take_id FROM mix_parts
-            WHERE audio = ?1 AND transcript = ?2",
-        )?;
-        let parts = statement
-            .query_map(params![audio, timing], |row| Ok((row.get(0)?, row.get(1)?)))?
-            .collect::<rusqlite::Result<HashMap<_, _>>>()?;
-        Ok(Some(Mix {
-            audio_digest,
-            transcript_digest,
-            layout,
-            parts,
-        }))
+        Ok(mixes
+            .get((audio.as_str(), timing.as_str()))?
+            .map(|entry| serde_json::from_slice(entry.value()))
+            .transpose()?)
     }
 
     pub fn store_mix(&self, audio: &Path, timing: &Path, mix: &Mix) -> Result<()> {
-        let mut db = self.write_db()?;
-        let tx = db.transaction()?;
-        let audio = relative(audio);
-        let timing = relative(timing);
-        let added = tx.execute(
-            "INSERT OR IGNORE INTO mixes VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                audio,
-                timing,
-                mix.audio_digest,
-                mix.transcript_digest,
-                mix.layout
-            ],
-        )?;
-        if added > 0 {
-            for (selector, take) in &mix.parts {
-                tx.execute(
-                    "INSERT INTO mix_parts VALUES (?1, ?2, ?3, ?4)",
-                    params![audio, timing, selector, take],
-                )?;
+        let tx = self.write()?;
+        {
+            let mut mixes = tx.open_table(MIXES)?;
+            let audio = relative(audio);
+            let timing = relative(timing);
+            let key = (audio.as_str(), timing.as_str());
+            if mixes.get(key)?.is_some() {
+                return Ok(());
             }
+            let takes = tx.open_table(TAKES)?;
+            for take in mix.parts.values() {
+                if takes.get(take.as_str())?.is_none() {
+                    return Err(Error::Invalid("Voiceover mix refers to a missing take."));
+                }
+            }
+            mixes.insert(key, serde_json::to_vec(mix)?.as_slice())?;
         }
         tx.commit()?;
         Ok(())

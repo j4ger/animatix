@@ -49,3 +49,19 @@ pub(super) struct NarrationTakes {
     audition: Option<Audition>,
     capture: Option<(Capture, Request, Origin)>,
 }
+
+#[cfg(test)]
+pub(super) fn seed_history_for_save_as_test(source: &std::path::Path) -> PathBuf {
+    let history = history::History::open(source, true).unwrap().unwrap();
+    let take = history::Take {
+        id: "test-take".into(),
+        paragraph: "test-paragraph".into(),
+        scene: None,
+        text: "Hello.".into(),
+        kind: "recorded",
+    };
+    history.start_recording(&take, 8_000, 1).unwrap();
+    history.append_recording(&take.id, &[-1, 2], 1).unwrap();
+    history.finish_recording(&take.id, true).unwrap();
+    history::path_for(source)
+}

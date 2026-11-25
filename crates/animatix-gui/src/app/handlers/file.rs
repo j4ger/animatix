@@ -812,6 +812,8 @@ mod tests {
         let source = "#0s\nbox: Rect, size: (100, 100)\n";
         std::fs::write(&original, source).unwrap();
 
+        let history = crate::app::narration_takes::seed_history_for_save_as_test(&original);
+        let original_history = std::fs::read(&history).unwrap();
         let document = DocumentSession::from_source(original.clone(), source.to_string()).unwrap();
         let editor = EditorBuffer::new(&original, document.source_text.clone());
         let mut store = DocumentStore::new(document, editor);
@@ -839,19 +841,38 @@ mod tests {
             &mut workspace_store,
             &mut preview_store,
             &mut plugin_manager,
-            target,
+            target.clone(),
         );
 
         assert_eq!(store.source.file_path(), original.as_path());
         assert_eq!(store.source.editor.document_path(), original.as_path());
         assert!(store.source.is_dirty());
+        assert_eq!(std::fs::read(history).unwrap(), original_history);
+        assert!(!target.with_extension("amxn").exists());
         assert!(
             effects.iter().any(|effect| matches!(
                 effect,
-                Effect::Toast(toast) if toast.message.starts_with("Save As failed")
+                Effect::Notice(ToastLevel::Error, message)
+                    if message.canonical().starts_with("Save As failed")
+                        && message.display(crate::app::i18n::Language::SimplifiedChinese)
+                            .starts_with("另存为失败")
             )),
-            "expected a Save As failure toast, got {effects:?}"
+            "expected a localized Save As failure, got {effects:?}"
         );
+
+        let fork = dir_path.join("fork.amx");
+        let _ = handle_save_as(
+            &mut store,
+            &mut workspace_store,
+            &mut preview_store,
+            &mut plugin_manager,
+            fork.clone(),
+        );
+        assert_eq!(store.source.file_path(), fork.as_path());
+        assert_eq!(store.source.editor.document_path(), fork.as_path());
+        assert!(!store.source.is_dirty());
+        assert_eq!(std::fs::read_to_string(&fork).unwrap(), source);
+        assert!(fork.with_extension("amxn").is_file());
     }
 
     #[test]

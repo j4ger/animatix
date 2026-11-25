@@ -5,26 +5,48 @@ mod tests;
 
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
+use redb::{
+    Builder, ConcurrencyMode, Database, Key, ReadOnlyDatabase, ReadTransaction, ReadableDatabase,
+    ReadableTable, Table, TableDefinition, Value, WriteTransaction,
+};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub(super) use self::mixes::Mix;
 use super::bindings::Binding;
 
-const APPLICATION_ID: i64 = 0x414D584E;
-const VERSION: i64 = 1;
+const VERSION: u64 = 1;
+const UNSUPPORTED: &str = "This voiceover history has an unsupported format.";
+const IN_USE: &str = "This voiceover is open for editing in another window.";
+
+// The singleton stores the format version, saved source digest, and last take sequence.
+const STATE: TableDefinition<(), (u64, &str, u64)> =
+    TableDefinition::new("animatix_narration_state");
+const SNAPSHOTS: TableDefinition<&str, &[u8]> = TableDefinition::new("source_snapshots");
+const TAKES: TableDefinition<&str, &[u8]> = TableDefinition::new("takes");
+const STREAMS: TableDefinition<(&str, u8), (u32, u16, u64)> = TableDefinition::new("audio_streams");
+const CHUNKS: TableDefinition<(&str, u8, u64), &[u8]> = TableDefinition::new("audio_chunks");
+const ALIGNMENTS: TableDefinition<&str, (&[u8], &[u8])> = TableDefinition::new("alignments");
+const MIXES: TableDefinition<(&str, &str), &[u8]> = TableDefinition::new("mixes");
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum Error {
-    #[error("{0}")]
-    Sql(#[from] rusqlite::Error),
-    #[error("{0}")]
+    #[error(transparent)]
+    Database(#[from] redb::DatabaseError),
+    #[error(transparent)]
+    Transaction(#[from] redb::TransactionError),
+    #[error(transparent)]
+    Table(#[from] redb::TableError),
+    #[error(transparent)]
+    Storage(#[from] redb::StorageError),
+    #[error(transparent)]
+    Commit(#[from] redb::CommitError),
+    #[error(transparent)]
     Io(#[from] std::io::Error),
-    #[error("{0}")]
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
-    #[error("{0}")]
+    #[error(transparent)]
     Wave(#[from] hound::Error),
     #[error("{0}")]
     Invalid(&'static str),
@@ -32,9 +54,9 @@ pub(super) enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub(super) struct History {
-    path: PathBuf,
-    writer: Option<File>,
+pub(super) enum History {
+    Writable { db: Database, _lease: File },
+    ReadOnly(ReadOnlyDatabase),
 }
 
 #[derive(Clone)]
@@ -44,6 +66,34 @@ pub(super) struct Take {
     pub scene: Option<String>,
     pub text: String,
     pub kind: &'static str,
+}
+
+#[derive(Clone, Copy, PartialEq, Deserialize, Serialize)]
+enum Status {
+    Recording,
+    Complete,
+    Interrupted,
+}
+
+impl Status {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Recording => "recording",
+            Self::Complete => "complete",
+            Self::Interrupted => "interrupted",
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct TakeRecord {
+    paragraph: String,
+    scene: Option<String>,
+    text: String,
+    kind: String,
+    status: Status,
+    sequence: u64,
+    issue: Option<String>,
 }
 
 pub(super) struct TakeSummary {
@@ -68,44 +118,44 @@ pub(super) fn path_for(source: &Path) -> PathBuf {
 
 impl History {
     pub fn open(source: &Path, create: bool) -> Result<Option<Self>> {
-        let source_parent = fs::canonicalize(
-            source
-                .parent()
-                .filter(|path| !path.as_os_str().is_empty())
-                .unwrap_or(Path::new(".")),
-        )?;
+        let source_parent = fs::canonicalize(parent(source))?;
         let name = source.file_name().ok_or(Error::Invalid("Save the scene before recording."))?;
         let path = path_for(&source_parent.join(name));
         if !create && !path.try_exists()? {
             return Ok(None);
         }
-        let writer = Self::lease(&path)?;
-        if !path.try_exists()? {
-            if writer.is_none() {
-                return Err(Error::Invalid(
-                    "This voiceover is open for editing in another window.",
-                ));
+        let Some(lease) = Self::lease(&path)? else {
+            let history = Self::open_read_only(&path)?.ok_or(Error::Invalid(IN_USE))?;
+            return Ok(Some(history));
+        };
+        if path.try_exists()? {
+            // Inspect the application format before opening for writes. When redb
+            // reports an interrupted commit, let the writer recover the database.
+            match Self::open_read_only(&path) {
+                Ok(_) | Err(Error::Database(redb::DatabaseError::RepairAborted)) => {},
+                Err(error) => return Err(error),
             }
-            let file = tempfile::NamedTempFile::new_in(&source_parent)?;
-            let mut db = Connection::open(file.path())?;
-            let transaction = db.transaction()?;
-            transaction.execute_batch(include_str!("history/schema.sql"))?;
-            transaction.commit()?;
-            db.close().map_err(|(_, error)| error)?;
-            file.as_file().sync_all()?;
-            file.persist_noclobber(&path).map_err(|error| error.error)?;
+        } else {
+            if !create {
+                return Ok(None);
+            }
+            install(&path, |tx| {
+                tx.open_table(STATE)?.insert((), (VERSION, "", 0))?;
+                tx.open_table(SNAPSHOTS)?;
+                tx.open_table(TAKES)?;
+                tx.open_table(STREAMS)?;
+                tx.open_table(CHUNKS)?;
+                tx.open_table(ALIGNMENTS)?;
+                tx.open_table(MIXES)?;
+                Ok(())
+            })?;
         }
-        let history = Self { path, writer };
-        let db = history.connect()?;
-        history.check_version(&db)?;
-        if history.is_writable() {
-            db.execute(
-                "DELETE FROM takes WHERE status = 'recording' AND NOT EXISTS
-                (SELECT 1 FROM audio_streams WHERE take_id = takes.id AND frames > 0)",
-                [],
-            )?;
-            db.execute("UPDATE takes SET status = 'interrupted' WHERE status = 'recording'", [])?;
-        }
+        let history = Self::Writable {
+            db: builder().open(path)?,
+            _lease: lease,
+        };
+        history.check_version()?;
+        history.recover_recordings()?;
         Ok(Some(history))
     }
 
@@ -129,167 +179,217 @@ impl History {
     }
 
     pub fn read_only(source: &Path) -> Result<Option<Self>> {
-        let path = path_for(source);
+        Self::open_read_only(&path_for(source))
+    }
+
+    fn open_read_only(path: &Path) -> Result<Option<Self>> {
         if !path.try_exists()? {
             return Ok(None);
         }
-        let history = Self { path, writer: None };
-        history.check_version(&history.connect()?)?;
+        let history = Self::ReadOnly(builder().open_read_only(path)?);
+        history.check_version()?;
         Ok(Some(history))
     }
 
-    fn check_version(&self, db: &Connection) -> Result<()> {
-        let application: i64 = db.pragma_query_value(None, "application_id", |row| row.get(0))?;
-        let version: i64 = db.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if application != APPLICATION_ID || version != VERSION {
-            return Err(Error::Invalid("This voiceover history has an unsupported format."));
-        }
-        Ok(())
-    }
-
-    fn connect(&self) -> Result<Connection> {
-        let flags = if self.is_writable() {
-            OpenFlags::SQLITE_OPEN_READ_WRITE
-        } else {
-            OpenFlags::SQLITE_OPEN_READ_ONLY
+    fn check_version(&self) -> Result<()> {
+        let tx = self.read()?;
+        let state = match tx.open_table(STATE) {
+            Ok(state) => state,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Err(Error::Invalid(UNSUPPORTED)),
+            Err(error) => return Err(error.into()),
         };
-        let db = Connection::open_with_flags(&self.path, flags)?;
-        db.busy_timeout(Duration::from_millis(500))?;
-        db.pragma_update(None, "foreign_keys", true)?;
-        db.pragma_update(None, "trusted_schema", false)?;
-        if self.is_writable() {
-            db.pragma_update(None, "synchronous", "FULL")?;
+        if state.get(())?.is_some_and(|entry| entry.value().0 == VERSION) {
+            Ok(())
+        } else {
+            Err(Error::Invalid(UNSUPPORTED))
         }
-        Ok(db)
     }
 
-    fn write_db(&self) -> Result<Connection> {
-        if !self.is_writable() {
-            return Err(Error::Invalid("This voiceover is open for editing in another window."));
+    fn read(&self) -> Result<ReadTransaction> {
+        Ok(match self {
+            Self::Writable { db, .. } => db.begin_read()?,
+            Self::ReadOnly(db) => db.begin_read()?,
+        })
+    }
+
+    fn write(&self) -> Result<WriteTransaction> {
+        match self {
+            Self::Writable { db, .. } => Ok(db.begin_write()?),
+            Self::ReadOnly(_) => Err(Error::Invalid(IN_USE)),
         }
-        self.connect()
     }
 
     pub fn is_writable(&self) -> bool {
-        self.writer.is_some()
+        matches!(self, Self::Writable { .. })
     }
 
     pub fn snapshot(&self, source: &str, rows: &[Binding], saved: bool) -> Result<()> {
-        let digest = digest(source.as_bytes());
-        let mut db = self.write_db()?;
-        let tx = db.transaction()?;
+        let hash = digest(source.as_bytes());
+        let bytes = serde_json::to_vec(rows)?;
+        let tx = self.write()?;
+        tx.open_table(SNAPSHOTS)?.insert(hash.as_str(), bytes.as_slice())?;
         if saved {
-            tx.execute("UPDATE source_snapshots SET saved = 0 WHERE saved = 1", [])?;
-        }
-        tx.execute(
-            "INSERT INTO source_snapshots VALUES (?1, ?2)
-            ON CONFLICT(digest) DO UPDATE SET saved = max(saved, excluded.saved)",
-            params![digest, saved],
-        )?;
-        tx.execute("DELETE FROM paragraph_bindings WHERE snapshot = ?1", [&digest])?;
-        {
-            let mut statement =
-                tx.prepare("INSERT INTO paragraph_bindings VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?;
-            for (ordinal, row) in rows.iter().enumerate() {
-                statement.execute(params![
-                    digest,
-                    ordinal,
-                    row.scene,
-                    row.selector,
-                    row.text,
-                    row.id
-                ])?;
-            }
+            let mut state = tx.open_table(STATE)?;
+            let (_, _, sequence) = state.get(())?.ok_or(Error::Invalid(UNSUPPORTED))?.value();
+            state.insert((), (VERSION, hash.as_str(), sequence))?;
         }
         tx.commit()?;
         Ok(())
     }
 
     pub fn bindings(&self, source: &str) -> Result<(bool, Vec<Binding>)> {
-        let db = self.connect()?;
-        let hash = digest(source.as_bytes());
-        let matched = db
-            .query_row("SELECT 1 FROM source_snapshots WHERE digest = ?1", [&hash], |_| Ok(()))
-            .optional()?
-            .is_some();
-        let mut statement = db.prepare(
-            "SELECT scene, selector, text, paragraph FROM paragraph_bindings
-            WHERE snapshot = (SELECT digest FROM source_snapshots WHERE digest = ?1 OR saved = 1
-                              ORDER BY digest = ?1 DESC LIMIT 1) ORDER BY ordinal",
-        )?;
-        let rows = statement
-            .query_map([hash], |row| {
-                Ok(Binding {
-                    scene: row.get(0)?,
-                    selector: row.get(1)?,
-                    text: row.get(2)?,
-                    id: row.get(3)?,
-                })
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok((matched, rows))
+        let tx = self.read()?;
+        let snapshots = tx.open_table(SNAPSHOTS)?;
+        if let Some(exact) = snapshots.get(digest(source.as_bytes()).as_str())? {
+            return Ok((true, serde_json::from_slice(exact.value())?));
+        }
+        let state = tx.open_table(STATE)?;
+        let entry = state.get(())?.ok_or(Error::Invalid(UNSUPPORTED))?;
+        let (_, saved, _) = entry.value();
+        let rows = snapshots
+            .get(saved)?
+            .map(|rows| serde_json::from_slice(rows.value()))
+            .transpose()?
+            .unwrap_or_default();
+        Ok((false, rows))
     }
 
-    fn add_take(tx: &Connection, take: &Take, status: &str) -> Result<()> {
-        let time =
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
-        tx.execute(
-            "INSERT INTO takes VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL)",
-            params![
-                take.id,
-                take.paragraph,
-                take.scene,
-                take.text,
-                take.kind,
-                status,
-                time
-            ],
-        )?;
-        Ok(())
+    fn add_take(tx: &WriteTransaction, take: &Take, status: Status) -> Result<()> {
+        let mut takes = tx.open_table(TAKES)?;
+        if takes.get(take.id.as_str())?.is_some() {
+            return Err(Error::Invalid("This voiceover take already exists."));
+        }
+        if !matches!(take.kind, "recorded" | "imported" | "synthesized") {
+            return Err(Error::Invalid("Invalid voiceover take kind."));
+        }
+        let mut state = tx.open_table(STATE)?;
+        let entry = state.get(())?.ok_or(Error::Invalid(UNSUPPORTED))?;
+        let (_, saved, sequence) = entry.value();
+        let saved = saved.to_owned();
+        drop(entry);
+        let sequence =
+            sequence.checked_add(1).ok_or(Error::Invalid("Too many voiceover takes."))?;
+        state.insert((), (VERSION, saved.as_str(), sequence))?;
+        let row = TakeRecord {
+            paragraph: take.paragraph.clone(),
+            scene: take.scene.clone(),
+            text: take.text.clone(),
+            kind: take.kind.into(),
+            status,
+            sequence,
+            issue: None,
+        };
+        put_take(&mut takes, &take.id, &row)
     }
 
     pub fn issue(&self, id: &str, issue: Option<&str>) -> Result<()> {
-        self.write_db()?
-            .execute("UPDATE takes SET issue = ?2 WHERE id = ?1", params![id, issue])?;
+        let tx = self.write()?;
+        {
+            let mut takes = tx.open_table(TAKES)?;
+            if let Some(mut row) = get_take(&takes, id)? {
+                row.issue = issue.map(str::to_owned);
+                put_take(&mut takes, id, &row)?;
+            }
+        }
+        tx.commit()?;
         Ok(())
     }
 
     pub fn takes(&self) -> Result<Vec<TakeSummary>> {
-        let db = self.connect()?;
-        let mut statement = db.prepare(
-            "SELECT takes.id, paragraph, scene, text, kind, status, issue,
-                EXISTS(SELECT 1 FROM alignments WHERE take_id = takes.id),
-                CAST(audio_streams.frames AS REAL) / audio_streams.rate
-            FROM takes JOIN audio_streams ON audio_streams.take_id = takes.id AND role = 0
-            WHERE audio_streams.frames > 0 AND status != 'recording'
-            ORDER BY created_ms DESC, takes.rowid DESC",
-        )?;
-        let rows = statement
-            .query_map([], |row| {
-                Ok(TakeSummary {
-                    id: row.get(0)?,
-                    paragraph: row.get(1)?,
-                    scene: row.get(2)?,
-                    text: row.get(3)?,
-                    kind: row.get(4)?,
-                    status: row.get(5)?,
-                    issue: row.get(6)?,
-                    aligned: row.get(7)?,
-                    seconds: row.get(8)?,
-                })
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows)
+        let tx = self.read()?;
+        let takes = tx.open_table(TAKES)?;
+        let streams = tx.open_table(STREAMS)?;
+        let alignments = tx.open_table(ALIGNMENTS)?;
+        let mut summaries = Vec::new();
+        for entry in takes.iter()? {
+            let (id, row) = entry?;
+            let id = id.value();
+            let Some(stream) = streams.get((id, audio::RAW))? else {
+                continue;
+            };
+            let (rate, _, frames) = stream.value();
+            let row: TakeRecord = serde_json::from_slice(row.value())?;
+            if frames > 0 && row.status != Status::Recording {
+                summaries.push((
+                    row.sequence,
+                    TakeSummary {
+                        id: id.to_owned(),
+                        paragraph: row.paragraph,
+                        scene: row.scene,
+                        text: row.text,
+                        kind: row.kind,
+                        status: row.status.as_str().into(),
+                        issue: row.issue,
+                        aligned: alignments.get(id)?.is_some(),
+                        seconds: frames as f64 / f64::from(rate),
+                    },
+                ));
+            }
+        }
+        summaries.sort_unstable_by_key(|(sequence, _)| std::cmp::Reverse(*sequence));
+        Ok(summaries.into_iter().map(|(_, summary)| summary).collect())
     }
 
     pub fn backup(&self, destination: &Path) -> Result<()> {
-        let from = self.connect()?;
-        let mut to = Connection::open(destination)?;
-        let backup = rusqlite::backup::Backup::new(&from, &mut to)?;
-        backup.run_to_completion(64, Duration::from_millis(10), None)?;
-        drop(backup);
-        to.close().map_err(|(_, error)| error)?;
-        File::open(destination)?.sync_all()?;
-        Ok(())
+        let read = self.read()?;
+        install(destination, |write| {
+            copy_table(&read, write, STATE)?;
+            copy_table(&read, write, SNAPSHOTS)?;
+            copy_table(&read, write, TAKES)?;
+            copy_table(&read, write, STREAMS)?;
+            copy_table(&read, write, CHUNKS)?;
+            copy_table(&read, write, ALIGNMENTS)?;
+            copy_table(&read, write, MIXES)?;
+            Ok(())
+        })
     }
+}
+
+fn get_take(table: &Table<'_, &str, &[u8]>, id: &str) -> Result<Option<TakeRecord>> {
+    Ok(table.get(id)?.map(|row| serde_json::from_slice(row.value())).transpose()?)
+}
+
+fn put_take(table: &mut Table<'_, &str, &[u8]>, id: &str, row: &TakeRecord) -> Result<()> {
+    table.insert(id, serde_json::to_vec(row)?.as_slice())?;
+    Ok(())
+}
+
+fn builder() -> Builder {
+    let mut builder = Database::builder();
+    // The project lease limits editing to one window. Other windows and Save As
+    // can still read committed snapshots from the open database.
+    builder.set_concurrency_mode(ConcurrencyMode::SingleWriter);
+    builder
+}
+
+fn parent(path: &Path) -> &Path {
+    path.parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+}
+
+fn install(path: &Path, populate: impl FnOnce(&WriteTransaction) -> Result<()>) -> Result<()> {
+    let file = tempfile::NamedTempFile::new_in(parent(path))?;
+    let db = builder().create(file.path())?;
+    let tx = db.begin_write()?;
+    populate(&tx)?;
+    tx.commit()?;
+    db.close()?;
+    file.as_file().sync_all()?;
+    file.persist_noclobber(path).map_err(|error| error.error)?;
+    Ok(())
+}
+
+fn copy_table<K: Key + 'static, V: Value + 'static>(
+    read: &ReadTransaction,
+    write: &WriteTransaction,
+    table: TableDefinition<'_, K, V>,
+) -> Result<()> {
+    let source = read.open_table(table)?;
+    let mut destination = write.open_table(table)?;
+    for entry in source.iter()? {
+        let (key, value) = entry?;
+        destination.insert(key.value(), value.value())?;
+    }
+    Ok(())
 }

@@ -2,7 +2,7 @@
 
 The GUI combines source editing, preview, and timing review. The `.amx` source
 and its referenced files define scene playback and export. The companion
-`.amxn` database holds the workbench's recording history.
+`.amxn` redb database holds the workbench's recording history.
 
 ## Workflow
 

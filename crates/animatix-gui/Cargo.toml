@@ -43,7 +43,7 @@ tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
 notify = { version = "7.0.0", default-features = false, features = ["macos_fsevent"] }
 rfd = "0.15"
 rodio = "0.20"
-rusqlite = { version = "0.37", features = ["backup", "bundled"] }
+redb = "5.0.0"
 # Preview decodes AAC and ISO BMFF directly so the demuxer can seek on a File.
 symphonia = { version = "0.5", default-features = false, features = ["aac", "isomp4", "mp3"] }
 # eframe's wgpu feature selects the desktop backend defaults.
