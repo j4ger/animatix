@@ -240,6 +240,8 @@ pub struct Timeline {
     /// Each spawned entity receives a typed `PlanOwnership` component; this
     /// stack contains only the current placement tokens, never actor data.
     pub(crate) build_plan_ownership: Vec<world::PlanOwnership>,
+    /// Typed placement requests awaiting the scene's completed authored tracks.
+    pending_handoffs: Vec<actions::handoff::PendingHandoff>,
     /// Runtime primitive registry used by builds that supply extensions.
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
     /// Dense, O(1) indexable behavior registry for built-ins and extensions.

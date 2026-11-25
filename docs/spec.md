@@ -496,6 +496,19 @@ Component methods use a receiver and the same parentheses and argument rules:
 `button.pulse(amount: 1.2, duration: 200ms)`. A method is callable across module
 boundaries only when declared `pub fn`.
 
+### Same-scene actor handoff
+
+`handoff(target: proxy, from: source, to: destination, duration: 400ms)`
+uses three predeclared Groups with matching local artwork. Set their initial
+opacities to 0, 1, and 0 respectively. The proxy is a static root Group at
+`(0, 0)` with identity transform. Declare it in the intended painter order.
+At the cue the source yields to the proxy, then the destination takes over at
+the end. Parent transforms are sampled at the two handoff times when the scene
+is built. Only ordinary Group, Rect, and Text subtrees are accepted. Endpoints
+support translation and positive uniform scale. The compiler reports unsupported
+camera, live modifier, and compositing cases. Each actor participates in one
+handoff.
+
 ### Easing
 
 An easing is a scalar map over progress between two values. It modulates travel

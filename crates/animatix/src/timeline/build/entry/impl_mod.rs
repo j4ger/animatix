@@ -52,6 +52,8 @@ impl Timeline {
         // 4. Lower `always` bodies to IR and validate their property references.
         super::walk::lower_modifiers(&mut timeline, options.modifier_ir_caches, &mut diagnostics);
 
+        crate::timeline::actions::handoff::bake(&mut timeline, &mut diagnostics);
+
         // 5. Post-walk validation: reveals, duration/loop seam, registrations.
         super::validate::validate_reveals(&timeline, &mut diagnostics);
         super::validate::validate_duration_and_seam(&mut timeline, &mut diagnostics);

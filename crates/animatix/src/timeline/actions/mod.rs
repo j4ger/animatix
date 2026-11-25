@@ -47,6 +47,7 @@ pub use invocation::BuiltinInvocation;
 
 mod dispatch;
 mod guards;
+pub(crate) mod handoff;
 mod targets;
 
 use animatix_core::builtins::callable::TimelineBuiltin as BuiltinActionKind;

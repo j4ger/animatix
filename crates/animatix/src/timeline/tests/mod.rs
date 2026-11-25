@@ -44,6 +44,8 @@ mod graph_contracts;
 #[cfg(test)]
 mod group_relative_sizes;
 #[cfg(test)]
+mod handoff;
+#[cfg(test)]
 mod keyframe_times;
 #[cfg(test)]
 mod layout;

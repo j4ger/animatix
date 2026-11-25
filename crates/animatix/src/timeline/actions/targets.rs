@@ -42,7 +42,7 @@ pub(crate) fn expand_group_targets(
 ) -> Vec<String> {
     // These actions operate on containers, not leaves (or need the root label
     // for metadata/flag purposes — expand would lose the container identity).
-    let container_actions = ["reorder", "swap", "persist", "remove"];
+    let container_actions = ["reorder", "swap", "persist", "remove", "handoff"];
     if container_actions.contains(&verb) {
         return targets.to_vec();
     }

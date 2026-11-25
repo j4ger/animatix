@@ -60,11 +60,13 @@ pub enum TimelineBuiltin {
     Swap,
     /// Set a container's child order.
     Reorder,
+    /// Transfer between two scene placements through a frontmost proxy.
+    Handoff,
 }
 
 impl TimelineBuiltin {
     /// Every built-in timeline operation, in catalog order.
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 26] = [
         Self::FadeIn,
         Self::WipeIn,
         Self::Move,
@@ -90,6 +92,7 @@ impl TimelineBuiltin {
         Self::Unhighlight,
         Self::Swap,
         Self::Reorder,
+        Self::Handoff,
     ];
 
     /// Resolve a canonical unqualified name.
@@ -351,6 +354,24 @@ fn timeline_catalog() -> Vec<CallableDescriptor> {
             "Set a container's child order.",
             vec![param("order", T::List(Box::new(T::Actor)))],
         ),
+        CallableDescriptor {
+            category: "Motion".into(),
+            help: "Move an authored root proxy between two ordinary Groups in the current scene."
+                .into(),
+            ..descriptor(
+                "handoff",
+                [
+                    vec![
+                        param("target", T::Actor),
+                        param("from", T::Actor),
+                        param("to", T::Actor),
+                    ],
+                    timing(),
+                ]
+                .concat(),
+                T::Timeline,
+            )
+        },
     ]
 }
 

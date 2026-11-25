@@ -46,6 +46,7 @@ impl Timeline {
             local_time_scope_end_ms: 0,
             plan_clock_rate: 1.0,
             build_plan_ownership: Vec::new(),
+            pending_handoffs: Vec::new(),
             next_auto_color_index: 0,
             layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),

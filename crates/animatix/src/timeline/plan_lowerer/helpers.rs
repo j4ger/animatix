@@ -225,6 +225,16 @@ pub(super) fn builtin_invocation(
                     return None;
                 }
             },
+            "from" | "to" if call.name == "handoff" => {
+                let Value::ActorRef(actor) = value else {
+                    diagnostics.push(plan_timing_error(
+                        &format!("handoff '{name}' expects an actor reference"),
+                        span,
+                    ));
+                    return None;
+                };
+                targets.push(actor.label().to_owned());
+            },
             "order" if call.name == "reorder" => {
                 let Value::List(items) = value else {
                     diagnostics.push(plan_timing_error("'order' expects a list of actors", span));
