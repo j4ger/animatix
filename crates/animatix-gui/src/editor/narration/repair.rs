@@ -158,7 +158,7 @@ impl EditorBuffer {
         if !session.manual {
             return false;
         }
-        let paragraph = &index.paragraphs[paragraph_index];
+        let paragraph = &index.projections.paragraphs[paragraph_index];
         let target = &index.targets[binding.target];
         if paragraph.scene != target.scene {
             return true;
@@ -169,7 +169,7 @@ impl EditorBuffer {
                 {
                     return None;
                 }
-                let phrase = index.script[paragraph_index]
+                let phrase = index.projections.script[paragraph_index]
                     .phrase_selection(paragraph, selection.range.clone())?;
                 anchor_for_phrase(paragraph, Some(phrase), binding.key.edge())
             });
@@ -218,7 +218,7 @@ impl EditorBuffer {
                 egui::ScrollArea::vertical().max_height(250.0).show(ui, |ui| {
                     let lines = LineIndex::new(self.text());
                     for (ordinal, candidate) in binding.candidates.iter().enumerate() {
-                        let paragraph = &index.paragraphs[candidate.paragraph];
+                        let paragraph = &index.projections.paragraphs[candidate.paragraph];
                         let line = lines.byte_to_line_col(paragraph.span.start).0 + 1;
                         ui.label(render(
                             ui,
@@ -375,7 +375,7 @@ mod tests {
         assert_eq!(source.text(), original);
 
         let chosen = binding.candidates.iter().find(|c| c.phrase.start == displayed[1]).unwrap();
-        let paragraph = &index.paragraphs[chosen.paragraph];
+        let paragraph = &index.projections.paragraphs[chosen.paragraph];
         let replacement =
             anchor_for_phrase(paragraph, Some(chosen.phrase.clone()), binding.key.edge()).unwrap();
         assert_eq!(replacement.edge, AnchorEdge::End);

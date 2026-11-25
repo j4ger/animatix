@@ -233,6 +233,7 @@ fn type_mismatch_not_triggered_for_any() {
 fn lint_config_does_not_suppress_errors() {
     let source = "// lint-disable: parse-0\n#0s\ntitle: Text";
     let parse_errors = vec![ParseError {
+        source_path: None,
         message: "test error".to_string(),
         line: 1,
         column: 1,

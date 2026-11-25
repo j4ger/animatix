@@ -1,7 +1,6 @@
 //! Conservative token-backed positions for authored top-level timing headers.
 use super::markers::TimingMarker;
-use animatix_syntax::ast::Span;
-use animatix_syntax::token::{TokenKind, tokenize};
+pub(super) use crate::app::document::source_timing::locate;
 
 /// Cache tokenization by source and direct-marker identity, not by frame time.
 pub(super) fn locate_cached(ui: &egui::Ui, source: &str, markers: &mut [TimingMarker]) {
@@ -27,70 +26,6 @@ pub(super) fn locate_cached(ui: &egui::Ui, source: &str, markers: &mut [TimingMa
     locate(source, markers);
     let lines: Vec<_> = markers.iter().map(|marker| marker.line).collect();
     ui.data_mut(|data| data.insert_temp(id, (revision, lines)));
-}
-
-/// Validate the entire direct-header sequence against the current source.
-/// Parsed spans can belong to a last-good AST, and implicit #0 keyframes or
-/// other mismatches must never steal a later authored header's location.
-pub(super) fn locate(source: &str, markers: &mut [TimingMarker]) {
-    for marker in markers.iter_mut() {
-        marker.line = None;
-    }
-    let paragraphs = animatix_syntax::narration::paragraphs(source);
-    let mut authored = Vec::new();
-    for marker in markers {
-        if let Some((_, name)) = marker.expression.split_once('@')
-            && animatix_syntax::narration::is_implicit_anchor(name)
-        {
-            let key =
-                animatix_syntax::narration::decode_anchor(name).expect("validated implicit marker");
-            if let Some(paragraph) =
-                paragraphs.iter().find(|p| p.scene == marker.scene && key.matches_paragraph(p))
-            {
-                marker.line =
-                    Some(source[..paragraph.span.start].bytes().filter(|b| *b == b'\n').count());
-            }
-        } else {
-            authored.push(marker);
-        }
-    }
-    let tokens: Vec<_> = tokenize(source)
-        .into_iter()
-        .filter(|token| !matches!(token.kind, TokenKind::Comment(_)))
-        .collect();
-    let expected: Vec<Vec<_>> = authored
-        .iter()
-        .map(|marker| tokenize(&marker.expression).into_iter().map(|token| token.kind).collect())
-        .collect();
-    let mut found = Vec::new();
-    let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate() {
-        match token.kind {
-            TokenKind::LBrace => depth += 1,
-            TokenKind::RBrace => depth = depth.saturating_sub(1),
-            TokenKind::Hash if depth == 0 => {
-                let candidate = expected
-                    .iter()
-                    .filter(|pattern| {
-                        tokens.get(index..index + pattern.len()).is_some_and(|actual| {
-                            actual.iter().zip(pattern.iter()).all(|(a, b)| &a.kind == b)
-                        })
-                    })
-                    .max_by_key(|pattern| pattern.len());
-                if let Some(pattern) = candidate {
-                    found.push((pattern, Span::from_byte_span(source, token.span).start_line - 1));
-                }
-            },
-            _ => {},
-        }
-    }
-    if found.len() == expected.len()
-        && found.iter().zip(&expected).all(|((actual, _), expected)| *actual == expected)
-    {
-        for (marker, (_, line)) in authored.into_iter().zip(found) {
-            marker.line = Some(line);
-        }
-    }
 }
 
 #[cfg(test)]

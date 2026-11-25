@@ -350,3 +350,177 @@ fn format_source_reformats_unformatted_source() {
     assert!(editor.format_source(), "valid unformatted source should be reformatted");
     assert!(editor.text().contains("size: (100, 100)"));
 }
+
+#[test]
+fn visual_cells_follow_authored_headers_with_incomplete_code_and_unicode() {
+    use super::cells::Kind;
+    let cells_for = |source: &str| {
+        let analyzer = super::analyzer_for_path(Path::new("headers.amx"), source);
+        crate::highlighting::SourceLayout::new(
+            source,
+            &egui::Style::default(),
+            Some(&analyzer),
+            None,
+            &[],
+            None,
+            &[],
+        )
+        .cells
+    };
+    let text = "let note = $$
+#4s
+$$
+
+# Intro
+#0s
+#cue:start
+// #3s
+
+#+2b
+  label.opacity =";
+    let cells = cells_for(text);
+    let ranges: Vec<_> = cells.iter().map(|c| (c.start, c.end, c.kind)).collect();
+    assert_eq!(
+        ranges,
+        [
+            (0, 3, Kind::Setup),
+            (4, 5, Kind::Scene),
+            (5, 8, Kind::Time),
+            (9, 11, Kind::Time)
+        ]
+    );
+    let text = "#voice@intro\r\n#cue:start\r\n// 中文🎬\r\n#step\r\n#pause\r\n";
+    let cells = cells_for(text);
+    assert_eq!(
+        cells.iter().map(|c| (c.start, c.end)).collect::<Vec<_>>(),
+        [(0, 3), (3, 4), (4, 5)]
+    );
+}
+
+#[test]
+fn cross_cell_keyboard_selection_paste_and_undo_share_one_buffer() {
+    let ctx = Context::default();
+    let initial = "#0s
+// 中文🎬
+#2s
+// after
+";
+    let mut editor = EditorBuffer::new(Path::new("cells.amx"), initial.to_owned());
+    let (id, _, _) = show(&mut editor, &ctx, vec![], true);
+    set_cursor(&ctx, id, 0);
+    let key = |key, modifiers| Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers,
+    };
+    show(&mut editor, &ctx, vec![key(Key::ArrowDown, Modifiers::ALT)], false);
+    let pos = egui::text_edit::TextEditState::load(&ctx, id)
+        .unwrap()
+        .cursor
+        .char_range()
+        .unwrap();
+    assert_eq!(pos.primary.index.0, initial[..initial.find("#2s").unwrap()].chars().count());
+    show(&mut editor, &ctx, vec![key(Key::ArrowUp, Modifiers::SHIFT)], false);
+    let selection = egui::text_edit::TextEditState::load(&ctx, id)
+        .unwrap()
+        .cursor
+        .char_range()
+        .unwrap();
+    assert!(!selection.is_empty());
+    show(&mut editor, &ctx, vec![Event::Paste("// pasted\n".into())], false);
+    assert_eq!(
+        editor.text(),
+        "#0s
+// pasted
+#2s
+// after
+"
+    );
+    show(&mut editor, &ctx, vec![undo_event()], false);
+    assert_eq!(editor.text(), initial);
+}
+
+#[test]
+fn typing_coalesces_analysis_and_explicit_queries_use_the_current_draft() {
+    let mut editor = EditorBuffer::new(Path::new("typing.amx"), "#0s".into());
+    for input in ["#0s\na:", "#0s\na: Rect"] {
+        editor.text = input.into();
+        editor.after_source_replaced();
+        assert!(editor.analyzer.get().is_none());
+    }
+    assert_eq!(editor.analyzer().source(), "#0s\na: Rect");
+    assert!(editor.analyzer.get().is_some());
+    editor.finish_analysis();
+    assert!(editor.analysis_due.is_none());
+}
+
+#[test]
+fn semantic_cells_share_ranges_with_search_diagnostics_and_deferred_edits() {
+    use crate::highlighting::{
+        FindHighlight, HighlightDiagnostic, HighlightSeverity, SourceLayout,
+    };
+    let source = include_str!("fixtures/cell-highlighting.amx");
+    let mut editor = EditorBuffer::new(Path::new("cell-highlighting.amx"), source.into());
+    let start = source.find("spring(6, 9)").unwrap();
+    editor.diagnostics = vec![HighlightDiagnostic {
+        start,
+        end: start + 6,
+        severity: HighlightSeverity::Warning,
+    }];
+    editor.find_highlights = vec![FindHighlight {
+        start,
+        end: start + 6,
+        current: true,
+    }];
+    let ctx = Context::default();
+    show(&mut editor, &ctx, vec![], true);
+    let cache = editor.highlight_cache.as_ref().unwrap();
+    let cell_lines =
+        |layout: &SourceLayout| layout.cells.iter().map(|c| c.start + 1).collect::<Vec<_>>();
+    assert_eq!(cell_lines(&cache.layout), [1, 7, 11, 14, 17, 19, 23]);
+    let section_at = |byte| {
+        cache
+            .layout
+            .job
+            .sections
+            .iter()
+            .find(|s| s.byte_range.start.0 <= byte && byte < s.byte_range.end.0)
+            .unwrap()
+    };
+    let decorated = &section_at(start).format;
+    assert!(decorated.underline.width > 0.0);
+    assert_ne!(decorated.background, egui::Color32::TRANSPARENT);
+    let bare = source.find("ease: spring]").unwrap() + "ease: ".len();
+    assert_eq!(decorated.color, section_at(bare).format.color);
+    assert_ne!(
+        decorated.color,
+        section_at(source.find("spring: Ellipse").unwrap()).format.color
+    );
+    let draft = format!("// edit 🎬\n{source}");
+    let layout =
+        SourceLayout::new(&draft, &egui::Style::default(), None, Some(cache), &[], None, &[]);
+    assert_eq!(cell_lines(&layout), [1, 2, 8, 12, 15, 18, 20, 24]);
+    let draft = format!("let hidden = r###\"\n{source}\"###");
+    let layout =
+        SourceLayout::new(&draft, &egui::Style::default(), None, Some(cache), &[], None, &[]);
+    assert_eq!(cell_lines(&layout), [1]);
+}
+
+#[test]
+fn local_timeline_headers_and_multiline_keyframe_segments_do_not_split_cells() {
+    let text =
+        "fn show() -> Timeline { return #{\n#1s\ntile: Rect\n} }\n# // 中文🎬\n0s\n#cue:mark\n#+2s";
+    let a = super::analyzer_for_path(Path::new("nested.amx"), text);
+    let layout = crate::highlighting::SourceLayout::new(
+        text,
+        &egui::Style::default(),
+        Some(&a),
+        None,
+        &[],
+        None,
+        &[],
+    );
+    assert_eq!(layout.cells.iter().map(|c| c.start + 1).collect::<Vec<_>>(), [1, 5, 8]);
+}

@@ -53,6 +53,9 @@ pub struct MarkerDto {
     /// The public anchor name for a cue, qualified by scene in compositions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    /// One-based line of an authored keyframe in the editable entry file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
     /// Span length in seconds (transitions only, else 0).
     pub dur: f64,
 }

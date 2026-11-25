@@ -90,6 +90,12 @@ export async function highlightSource(source) {
   return module.highlight_source(source);
 }
 
+/** Token-only UTF-16 ranges for immediate editor feedback. */
+export async function highlightLexical(source) {
+  const { module } = await loadRuntime();
+  return module.highlight_lexical(source);
+}
+
 function backendCandidates(preference, availableBackends) {
   const requested = preference === "auto" ? ["webgpu", "webgl2"] : [preference];
   return availableBackends ? requested.filter((backend) => availableBackends.includes(backend)) : requested;

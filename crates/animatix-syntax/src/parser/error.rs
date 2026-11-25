@@ -29,6 +29,8 @@ pub(super) fn rule_error<'src>(
 /// A structured parse error with human-readable location and context.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseError {
+    /// Module owning this location when parsed through a module graph.
+    pub source_path: Option<std::path::PathBuf>,
     /// Human-readable error message.
     pub message: String,
     /// Byte span in the source where the error occurred.
@@ -147,6 +149,7 @@ impl ParseError {
         let context: Vec<String> = err.contexts().map(|(pattern, _)| pattern.to_string()).collect();
 
         Self {
+            source_path: None,
             message,
             span: start..end,
             line,

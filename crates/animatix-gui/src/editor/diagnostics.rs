@@ -7,8 +7,12 @@ impl EditorBuffer {
     /// Keep parser/build diagnostics and analyzer diagnostics on the same
     /// document coordinate system so one TextEdit can decorate every line.
     pub fn set_diagnostics(&mut self, diagnostics: &[animatix_syntax::diagnostics::Diagnostic]) {
+        if self.analysis_due.is_some_and(|due| due <= std::time::Instant::now()) {
+            self.finish_analysis();
+        }
+        let ready = self.analyzer.get().map(|analyzer| analyzer.diagnostics()).unwrap_or_default();
         let line_index = animatix_syntax::token::LineIndex::new(&self.text);
-        let mut ranges = Vec::with_capacity(diagnostics.len() + self.analyzer.diagnostics().len());
+        let mut ranges = Vec::with_capacity(diagnostics.len() + ready.len());
         for diagnostic in diagnostics {
             let Some(line) = diagnostic.location.line else {
                 continue;
@@ -44,7 +48,7 @@ impl EditorBuffer {
                 });
             }
         }
-        for diagnostic in self.analyzer.diagnostics() {
+        for diagnostic in ready {
             let start = line_index.line_col_to_byte(diagnostic.line, diagnostic.col);
             let end_col =
                 if diagnostic.end_line == diagnostic.line && diagnostic.end_col <= diagnostic.col {
@@ -65,7 +69,6 @@ impl EditorBuffer {
         ranges.dedup();
         if self.diagnostics != ranges {
             self.diagnostics = ranges;
-            self.highlight_cache = None;
         }
     }
 }

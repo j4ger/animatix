@@ -1,6 +1,32 @@
 use super::helpers::*;
 use super::*;
 
+fn parse_module(path: &Path, source: &str) -> Result<Vec<Stmt>, ModuleError> {
+    let parsed = parse_source_complete(source);
+    let mut errors = parsed.errors;
+    for issue in parsed.token_issues {
+        let (line, column) = crate::token::byte_to_line_col(source, issue.span.start);
+        errors.push(ParseError {
+            source_path: None,
+            message: issue.kind.to_string(),
+            line: line + 1,
+            column: column + 1,
+            span: issue.span.start..issue.span.end,
+            expected: Vec::new(),
+            found: None,
+            context: Vec::new(),
+            presentation: None,
+        });
+    }
+    if errors.is_empty() {
+        return Ok(parsed.ast.unwrap_or_default());
+    }
+    for error in &mut errors {
+        error.source_path = Some(path.to_owned());
+    }
+    Err(ModuleError::ParseErrors(errors))
+}
+
 impl ModuleGraph {
     /// Rewrite already parsed statements while preserving source paths and spans.
     ///
@@ -172,11 +198,7 @@ impl ModuleGraph {
             .get(&key)
             .map(str::to_owned)
             .ok_or_else(|| ModuleError::FileNotFound(key.clone()))?;
-        let parsed = parse_source_complete(&source);
-        if !parsed.errors.is_empty() {
-            return Err(ModuleError::ParseErrors(parsed.errors));
-        }
-        let statements = parsed.ast.unwrap_or_default();
+        let statements = parse_module(&key, &source)?;
         let imports = collect_imports(&statements);
         let id = self.alloc_id();
         let symbols = crate::symbol_table::SymbolTable::build(&statements);
@@ -293,14 +315,7 @@ impl ModuleGraph {
             fs::read_to_string(&key).map_err(|_| ModuleError::FileNotFound(key.clone()))?
         };
 
-        let parsed = parse_source_complete(&source);
-        let parse_errors = parsed.errors;
-
-        if !parse_errors.is_empty() {
-            return Err(ModuleError::ParseErrors(parse_errors));
-        }
-
-        let statements = parsed.ast.unwrap_or_default();
+        let statements = parse_module(&key, &source)?;
 
         // Convert byte spans captured during parsing into line/col spans.
 

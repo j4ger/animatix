@@ -9,7 +9,7 @@ use crate::app::components::button::Button;
 use crate::app::document::narration::{NarrationTrack, VoiceoverHistory, voiceover};
 use crate::app::document::version::SourceEpoch;
 use crate::editor::source_patch::SourcePatch;
-use crate::highlighting::highlight_source;
+use crate::highlighting::lexical_layout;
 
 impl EditorBuffer {
     pub(crate) fn show_script(
@@ -28,14 +28,14 @@ impl EditorBuffer {
             self.show_repair_control(ui, &index);
             self.show_binding_choices(ui, &index, epoch, commands);
             let mut last_scene = None;
-            for (ordinal, paragraph) in index.paragraphs.iter().enumerate() {
+            for (ordinal, paragraph) in index.projections.paragraphs.iter().enumerate() {
                 if let Some(scene) = paragraph.scene.as_deref()
                     && last_scene != Some(scene)
                 {
                     ui.heading(scene);
                     last_scene = Some(scene);
                 }
-                let script = &index.script[ordinal];
+                let script = &index.projections.script[ordinal];
                 let mut text = script.text.clone();
                 let id =
                     egui::Id::unique(("script-paragraph", self.instance_id, generation, ordinal));
@@ -65,7 +65,7 @@ impl EditorBuffer {
                 {
                     let mut candidate = self.text().to_owned();
                     candidate.replace_range(range.clone(), &replacement);
-                    if paragraphs(&candidate).len() == index.paragraphs.len() {
+                    if paragraphs(&candidate).len() == index.projections.paragraphs.len() {
                         self.projection_edit(range, &replacement);
                     } else if let Some(patch) = SourcePatch::new(
                         self,
@@ -125,15 +125,21 @@ impl EditorBuffer {
                 return;
             }
         }
-        let index = self.narration_index();
+        let index = self.narration_projections();
         let generation = self.narration.widgets_generation;
+        self.ensure_highlight_cache(ui);
+        let full = &self.highlight_cache.as_ref().expect("source layout prepared").layout.job;
         let mut text = index.code.text.clone();
         let output = egui::ScrollArea::both()
             .id_salt(("code-projection-scroll", self.instance_id, generation))
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, _wrap: f32| {
-                    let job = highlight_source(buffer.as_str(), ui.style(), &[], None, &[]);
+                    let job = if buffer.as_str() == index.code.text {
+                        index.code.layout(full)
+                    } else {
+                        lexical_layout(buffer.as_str(), ui.style())
+                    };
                     ui.fonts_mut(|fonts| fonts.layout_job(job))
                 };
                 egui::TextEdit::multiline(&mut text)
@@ -168,7 +174,7 @@ impl EditorBuffer {
         commands: &mut ActionQueue,
         voiceover_status: &str,
     ) {
-        let paragraph = &index.paragraphs[ordinal];
+        let paragraph = &index.projections.paragraphs[ordinal];
         let selection = self
             .narration
             .selection
@@ -182,7 +188,7 @@ impl EditorBuffer {
         } else {
             crate::app::i18n::text(ui, "gui-narration-bind-paragraph")
         };
-        let anchor = anchor_for(paragraph, &index.script[ordinal], selection);
+        let anchor = anchor_for(paragraph, &index.projections.script[ordinal], selection);
         let has_targets = index.targets.iter().any(|target| target.scene == paragraph.scene);
         ui.horizontal_wrapped(|ui| {
             if !self.manual_repair_action(ui, index, ordinal, epoch, commands) {

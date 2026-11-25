@@ -1,7 +1,7 @@
 import {playbackError, readableError} from '../lib/errors';
 import {withTimeout} from '../lib/requests';
 import {clientUi} from '../lib/client-ui';
-import type {SourceHighlighter} from '../lib/source-highlight';
+import type {SourceSdk} from '../lib/source-highlight';
 import type {TimelineMarker} from '../../../embed/src/player/timeline.js';
 
 const t = clientUi();
@@ -18,7 +18,7 @@ type Player = HTMLElement & {
 };
 
 const loading = new WeakMap<HTMLElement, Promise<Player>>();
-const imports = new Map<string, Promise<{highlightSource?: SourceHighlighter}>>();
+const imports = new Map<string, Promise<SourceSdk>>();
 
 export function loadPlayerModule(module: string) {
   let pending = imports.get(module);

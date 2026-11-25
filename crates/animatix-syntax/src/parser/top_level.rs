@@ -72,11 +72,19 @@ pub(crate) fn parser<'src>(
     let cue_name = hash()
         .ignore_then(select! { TokenKind::Ident(name) if name == "cue" => () })
         .ignore_then(colon())
-        .ignore_then(ident().labelled("cue name"));
+        .ignore_then(ident().labelled("cue name"))
+        .map_with(|name, extra| {
+            crate::occurrence::record_header(extra.span(), crate::highlight::HeaderKind::Cue);
+            name
+        });
     let keyframe = hash()
         .ignore_then(plus().or_not())
         .then(time)
         .then_ignore(colon().or_not())
+        .map_with(|header, extra| {
+            crate::occurrence::record_header(extra.span(), crate::highlight::HeaderKind::Keyframe);
+            header
+        })
         .then(cue_name.repeated().collect::<Vec<_>>())
         .then(common::scoped(stmt.clone().repeated().collect::<Vec<_>>()))
         .map_with(
@@ -127,18 +135,6 @@ pub(crate) fn parser<'src>(
             span,
         });
 
-    let step_marker = hash()
-        .ignore_then(select! {
-            TokenKind::Keyword(k) if k == "step" || k == "pause" => (),
-            TokenKind::Ident(i) if i == "step" || i == "pause" => (),
-        })
-        .then(number().or_not())
-        .map(|(_, num)| Stmt::Step {
-            index: num.map(|n| n as u64),
-            span: None,
-        })
-        .labelled("step marker");
-
     // Recovery synchronization point: a token that can begin a fresh top-level
     // statement. When a statement fails to parse, the recovery strategy skips
     // forward to the next such token instead of abandoning the whole file, so
@@ -153,7 +149,7 @@ pub(crate) fn parser<'src>(
     };
 
     choice((
-        step_marker,
+        common::step_marker(),
         keyframe,
         narration,
         scene_decl,

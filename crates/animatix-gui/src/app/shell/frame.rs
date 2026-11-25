@@ -205,10 +205,12 @@ impl GuiShell {
             .rect;
 
         // Update cursor time from editor position (bi-directional sync)
-        self.ui_store.cursor_time_s =
-            self.document_store.source.editor.cursor_line.and_then(|line| {
-                self.document_store.source.document.timeline_index.time_s_for_line(line)
-            });
+        self.ui_store.cursor_time_s = self
+            .document_store
+            .source
+            .editor
+            .cursor_line
+            .and_then(|line| self.document_store.source.document.source_timing.at_line(line));
 
         self.handle_actions(commands);
 

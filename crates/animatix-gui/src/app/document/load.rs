@@ -6,7 +6,7 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use animatix::timeline::{SceneDimensions, TimelineIndex};
+use animatix::timeline::SceneDimensions;
 use animatix_analyzer::ExtensionManifest;
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
@@ -94,8 +94,7 @@ impl DocumentSession {
             extension_manifest,
             workspace_root: None,
             plugin_epoch: 0,
-            timeline_index: TimelineIndex::default(),
-            keyframe_lines: Vec::new(),
+            source_timing: Default::default(),
             components: HashMap::new(),
             module_fns: HashMap::new(),
             last_source_hash: 0,

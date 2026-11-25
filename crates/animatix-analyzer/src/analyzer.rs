@@ -35,6 +35,7 @@ impl Analyzer {
             parse_errors: Vec::new(),
             parse_warnings: Vec::new(),
             tokens: Vec::new(),
+            headers: Vec::new(),
             token_issues: Vec::new(),
             occurrences: Vec::new(),
             symbols: SymbolTable::default(),
@@ -140,6 +141,7 @@ impl Analyzer {
         self.parse_warnings = parsed.warnings;
         self.occurrences = parsed.occurrences;
         self.tokens = parsed.tokens;
+        self.headers = parsed.headers;
         self.token_issues = parsed.token_issues;
     }
 

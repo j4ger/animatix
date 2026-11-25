@@ -3,8 +3,33 @@ import type {Translate} from './fluent';
 
 interface PlayerDiagnostic {
   line?: number;
+  column?: number;
+  span?: readonly [number, number];
   message?: string;
   code?: string;
+}
+
+/** Rust spans are UTF-8 bytes; textarea selection uses UTF-16 code units. */
+export function diagnosticSelection(source: string, diagnostic: PlayerDiagnostic) {
+  if (!diagnostic.line) return;
+  const lines = source.split('\n');
+  const lineStart = lines.slice(0, diagnostic.line - 1).reduce((start, line) => start + line.length + 1, 0);
+  if (diagnostic.span) {
+    const [from, to] = diagnostic.span;
+    let bytes = 0, units = 0, start = 0;
+    for (const ch of source) {
+      if (bytes >= from && bytes >= to) break;
+      const cp = ch.codePointAt(0)!;
+      bytes += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+      units += ch.length;
+      if (bytes <= from) start = units;
+    }
+    return {from: Math.max(0, start - lineStart), length: Math.max(0, units - start)};
+  }
+  if (diagnostic.column) {
+    const line = [...(lines[diagnostic.line - 1] ?? '')];
+    return {from: line.slice(0, diagnostic.column - 1).join('').length, length: line[diagnostic.column - 1]?.length ?? 0};
+  }
 }
 
 interface PlaybackError extends Error {

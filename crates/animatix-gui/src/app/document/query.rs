@@ -8,8 +8,8 @@ impl DocumentSession {
     /// Find the 0-indexed source line of the keyframe whose absolute time
     /// is closest to and ≤ `time_s`. Returns `None` if no keyframe exists.
     pub fn find_keyframe_line_at(&self, time_s: f64) -> Option<usize> {
-        self.active_timeline()?;
-        self.timeline_index.line_for_time((time_s * 1000.0) as u64)
+        let scene = self.composition.as_ref().and_then(|c| super::review_scene_at_time(c, time_s));
+        self.source_timing.playing_line(time_s, scene.as_deref())
     }
 
     pub fn is_composition(&self) -> bool {

@@ -63,6 +63,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 // The single shared source editor.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
+                    playhead_time: self.preview_store.preview.playback.current_time_s(),
                     voiceover_history: self.voiceover_history,
                     source_epoch: self.document_store.source.epoch(),
                     editor: &mut self.document_store.source.editor,

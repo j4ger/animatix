@@ -54,12 +54,18 @@
 .source-highlight[data-highlighted] .source-line-text { visibility: visible; }
 .source-highlight[data-highlighted] textarea { background: transparent; color: transparent; caret-color: var(--ink); }
 .source-highlight[data-highlighted] textarea::selection { background: var(--accent-soft); color: var(--ink); }
-.source-line-text :is([data-role="keyframe"], [data-role="cue"]) { color: var(--accent); }
+.source-line-text :is([data-role="keyframe"], [data-role^="keyframe."]) { color: var(--accent); }
 .source-line-text [data-role="comment"] { color: var(--muted); }
 .source-line-text :is([data-role="keyword"], [data-role="boolean"], [data-role="wildcard"]) { color: light-dark(#7e3387, #d8aff1); }
-.source-line-text :is([data-role="type"], [data-role="function"]) { color: light-dark(#135c75, #92d8ed); }
-.source-line-text :is([data-role="property"], [data-role="parameter"]) { color: light-dark(#504aa0, #b9b8f1); }
+.source-line-text [data-role="type"] { color: light-dark(#135c75, #92d8ed); }
+.source-line-text [data-role="property"] { color: light-dark(#504aa0, #b9b8f1); }
 .source-line-text [data-role="string"] { color: light-dark(#456318, #c7dc97); }
+.source-line-text [data-role="label"] { color: light-dark(#234e9c, #9bbcff); }
+.source-line-text [data-role="function"] { color: light-dark(#604091, #d5abfd); }
+.source-line-text [data-role="parameter"] { color: light-dark(#865020, #f7c48e); }
+.source-line-text [data-role="enumMember"] { color: light-dark(#843656, #f6a8ca); }
+.source-line-text [data-role="modifier"] { color: light-dark(#18674a, #8cd4b3); }
+.source-line-text [data-role="cue"] { color: light-dark(#80601b, #e9d184); }
 .source-line-text [data-role="number"] { color: light-dark(#985123, #efbd89); }
 @media (forced-colors: active) {
   .source-highlight[data-highlighted] textarea { color: CanvasText; }

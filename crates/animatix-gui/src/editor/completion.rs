@@ -87,7 +87,7 @@ impl EditorBuffer {
         let abs_byte = char_to_byte_offset(&self.text, caret);
         let index = animatix_syntax::token::LineIndex::new(&self.text);
         let (line, col_utf16) = index.byte_to_line_col_utf16(abs_byte);
-        let items = self.analyzer.completions_at(line, col_utf16);
+        let items = self.analyzer().completions_at(line, col_utf16);
         let trigger_text = self
             .text
             .chars()
@@ -128,7 +128,7 @@ mod tests {
                 .iter()
                 .any(|item| item.kind == animatix_analyzer::CompletionKind::Property)
         );
-        let expected = editor.analyzer.completions_at(0, utf16_col);
+        let expected = editor.analyzer().completions_at(0, utf16_col);
         let labels: Vec<_> = items.iter().map(|item| item.label.as_str()).collect();
         let expected_labels: Vec<_> = expected.iter().map(|item| item.label.as_str()).collect();
         assert_eq!(labels, expected_labels);

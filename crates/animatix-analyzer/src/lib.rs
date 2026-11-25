@@ -85,6 +85,7 @@ pub struct Analyzer {
     tokens: Vec<Token>,
     /// Lexical issues (currently unterminated string literals) that explain
     /// otherwise-confusing downstream parse errors.
+    headers: Vec<animatix_syntax::highlight::Header>,
     token_issues: Vec<animatix_syntax::token::TokenIssue>,
     occurrences: Vec<animatix_syntax::occurrence::Occurrence>,
     symbols: SymbolTable,

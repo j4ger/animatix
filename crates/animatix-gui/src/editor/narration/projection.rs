@@ -212,6 +212,28 @@ impl CodeProjection {
         Self { text, pieces }
     }
 
+    /// Clip full-source sections into visible pieces, preserving UTF-8 ranges
+    /// and all independent TextFormat layers across hidden narration.
+    pub fn layout(&self, full: &egui::text::LayoutJob) -> egui::text::LayoutJob {
+        let mut result = egui::text::LayoutJob::default();
+        let mut sections = full.sections.iter().peekable();
+        for (visible, start) in &self.pieces {
+            let end = start + visible.len();
+            while let Some(section) = sections.peek() {
+                let from = section.byte_range.start.0.max(*start);
+                let to = section.byte_range.end.0.min(end);
+                if from < to {
+                    result.append(&full.text[from..to], 0.0, section.format.clone());
+                }
+                if section.byte_range.end.0 > end {
+                    break;
+                }
+                sections.next();
+            }
+        }
+        result
+    }
+
     pub fn edit(
         &self,
         source: &str,
@@ -258,6 +280,29 @@ mod tests {
         assert_eq!(edited, "#1s\r\n/// 开场\r\n#3s\r\n");
         assert!(view.edit(source, "#3s\r\n", &paragraphs).is_none());
         assert!(view.edit(source, "#1s#2s\r\n", &paragraphs).is_none());
+    }
+
+    #[test]
+    fn code_layout_keeps_find_and_diagnostic_formats_after_hidden_unicode() {
+        let source = "#1s\r\n/// 开场🎬\r\n#2s\r\n";
+        let paragraphs = paragraphs(source);
+        let view =
+            CodeProjection::new(source, &[ScriptProjection::new(source, &paragraphs[0], None)]);
+        let mut full = egui::text::LayoutJob::default();
+        let marked = egui::TextFormat {
+            background: egui::Color32::BLUE,
+            underline: egui::Stroke::new(1.5, egui::Color32::RED),
+            ..Default::default()
+        };
+        let second = source.find("#2s").unwrap();
+        full.append(&source[..second], 0.0, egui::TextFormat::default());
+        full.append(&source[second..], 0.0, marked.clone());
+        let result = view.layout(&full);
+        assert_eq!(result.text, view.text);
+        let last = result.sections.last().unwrap();
+        assert_eq!(&result.text[last.byte_range.start.0..last.byte_range.end.0], "#2s\r\n");
+        assert_eq!(last.format.background, marked.background);
+        assert_eq!(last.format.underline, marked.underline);
     }
 
     #[test]

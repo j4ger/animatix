@@ -2,18 +2,21 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use animatix_analyzer::Analyzer;
-use egui::text::LayoutJob;
 use egui::text::{CCursor, CCursorRange};
 use egui::text_edit::TextEditState;
-use egui::{Align, Id, Key, Pos2, Rect, Response, ScrollArea, Vec2};
+use egui::{Align, Id, Key, Pos2, Rect, Response, ScrollArea};
 
 use crate::app::design_tokens::typography::TextRole;
 use crate::completion_popup::{CompletionInput, CompletionPopup};
 use crate::editor::completion::CompletionAnchor;
-use crate::highlighting::{FindHighlight, HighlightCache, HighlightDiagnostic, highlight_source};
+use crate::highlighting::{FindHighlight, HighlightCache, HighlightDiagnostic, SourceLayout};
 
+mod cell_view;
+pub(crate) mod cells;
 mod completion;
 mod diagnostics;
 mod find_match;
@@ -22,12 +25,18 @@ pub(crate) mod source_patch;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use cell_view::CellPlayback;
+
 static NEXT_EDITOR_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorBuffer {
     text: String,
     document_path: PathBuf,
-    analyzer: Analyzer,
+    // Queries explicitly requiring the current document can complete the deferred
+    // analysis. Retain its import and extension state across draft revisions.
+    analyzer: OnceLock<Analyzer>,
+    previous_analyzer: Mutex<Option<Analyzer>>,
+    analysis_due: Option<Instant>,
     completion: CompletionPopup,
     completion_anchor: Option<CompletionAnchor>,
     /// Caret position where an automatically opened popup was dismissed.
@@ -55,7 +64,9 @@ impl EditorBuffer {
         let instance_id = NEXT_EDITOR_INSTANCE.fetch_add(1, Ordering::Relaxed);
         let text_edit_id = Id::unique(("animatix-source-editor", path, instance_id, 0_u64));
         Self {
-            analyzer: analyzer_for_path(path, &text),
+            analyzer: OnceLock::from(analyzer_for_path(path, &text)),
+            previous_analyzer: Mutex::new(None),
+            analysis_due: None,
             text,
             document_path: path.to_path_buf(),
             completion: CompletionPopup::new(),
@@ -88,7 +99,9 @@ impl EditorBuffer {
         self.document_path = path.to_path_buf();
         self.text = text;
         self.clear_narration_anchor_changes();
-        self.analyzer = analyzer_for_path(path, &self.text);
+        self.analyzer = OnceLock::from(analyzer_for_path(path, &self.text));
+        self.previous_analyzer = Mutex::new(None);
+        self.analysis_due = None;
         self.reset_ephemeral_state();
         self.advance_widget_generation();
     }
@@ -100,13 +113,18 @@ impl EditorBuffer {
         self.retire_widget_state();
         self.source_revision = self.source_revision.wrapping_add(1);
         self.text = text;
-        self.analyzer.update(&self.text);
+        self.defer_analysis();
+        self.finish_analysis();
         self.reset_ephemeral_state();
         self.advance_widget_generation();
     }
 
     pub fn set_extension_manifest(&mut self, manifest: animatix_analyzer::ExtensionManifest) {
-        self.analyzer.set_extension_manifest(manifest);
+        self.finish_analysis();
+        self.analyzer
+            .get_mut()
+            .expect("analysis is current")
+            .set_extension_manifest(manifest);
     }
 
     pub fn text(&self) -> &str {
@@ -149,7 +167,30 @@ impl EditorBuffer {
     }
 
     pub fn analyzer(&self) -> &Analyzer {
-        &self.analyzer
+        self.analyzer.get_or_init(|| {
+            let mut previous = self
+                .previous_analyzer
+                .lock()
+                .expect("editor analysis")
+                .take()
+                .expect("previous analysis retained across edits");
+            previous.update(&self.text);
+            previous
+        })
+    }
+
+    fn defer_analysis(&mut self) {
+        if let Some(previous) = self.analyzer.take() {
+            *self.previous_analyzer.get_mut().expect("editor analysis") = Some(previous);
+        }
+        self.analysis_due = Some(Instant::now() + Duration::from_millis(120));
+    }
+
+    fn finish_analysis(&mut self) {
+        if self.analysis_due.take().is_some() {
+            self.analyzer();
+            self.highlight_cache = None;
+        }
     }
 
     /// Format valid source with the canonical DSL formatter.
@@ -168,28 +209,30 @@ impl EditorBuffer {
         false
     }
 
-    /// Render one ordinary multiline text field. The outer ScrollArea owns
-    /// both axes so long source lines and long documents remain navigable.
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        self.show_cells(ui, &mut cell_view::CellPlayback::default())
+    }
+
+    pub(crate) fn show_cells(
+        &mut self,
+        ui: &mut egui::Ui,
+        playback: &mut CellPlayback<'_>,
+    ) -> Response {
         self.clear_retired_widget_state(ui.ctx());
         let mut completion_changed = self.process_completion_input(ui.ctx());
-        self.ensure_highlight_cache(ui.style());
+        self.ensure_highlight_cache(ui);
         let cache = self.highlight_cache.as_ref().expect("highlight cache prepared");
         let cache_source = cache.source.as_str();
-        let cache_job = &cache.job;
+        let cached_layout = &cache.layout;
         let line_count = cache.line_count;
         let max_line_chars = cache.max_line_chars;
         let edit_id = self.text_edit_id;
         let scroll_salt = ("source-editor-scroll", self.instance_id, self.state_generation);
-        let diagnostics = self.diagnostics.clone();
-        let finds = self.find_highlights.clone();
-        let highlighted_line = self.highlighted_line;
-        let style = ui.style().clone();
         let font_id = TextRole::Mono.font_id();
-        let line_height = ui.fonts_mut(|fonts| fonts.row_height(&font_id));
-        let mut laid_out_edit: Option<(String, LayoutJob)> = None;
+        let line_height = (ui.fonts_mut(|fonts| fonts.row_height(&font_id)) + 5.0).max(20.0);
+        let mut laid_out_edit: Option<(String, SourceLayout)> = None;
         let mut edit_caret_rect = None;
-        let pending_line = self.pending_scroll_to_line.take();
+        let mut pending_line = self.pending_scroll_to_line.take();
         let pending_cursor = self.pending_cursor_char.take();
         let should_focus = std::mem::take(&mut self.pending_cursor_focus);
         let mut edit_state = TextEditState::load(ui.ctx(), edit_id).unwrap_or_default();
@@ -198,78 +241,107 @@ impl EditorBuffer {
                 .cursor
                 .set_char_range(Some(CCursorRange::one(CCursor::new(char_idx))));
         }
+        if self.editor_has_focus(ui.ctx()) {
+            pending_line =
+                cell_view::navigate_headers(ui, &mut edit_state, &self.text, &cached_layout.cells)
+                    .or(pending_line);
+        }
         edit_state.store(ui.ctx(), edit_id);
 
         let available = ui.available_size_before_wrap();
         let char_width = ui.fonts_mut(|fonts| fonts.glyph_width(&TextRole::Mono.font_id(), '0'));
-        let content_width = (max_line_chars as f32 * char_width + 24.0).max(available.x);
-        let content_height = (line_count as f32 * line_height + 8.0).max(available.y);
+        let gutter = cell_view::gutter_width(line_count);
+        let viewport_width = (available.x - gutter - 10.0).max(40.0);
+        let wrap = available.x < 520.0;
+        let text_width = if wrap {
+            viewport_width
+        } else {
+            (max_line_chars as f32 * char_width + 12.0).max(viewport_width)
+        };
         let scroll = ScrollArea::both().id_salt(scroll_salt).auto_shrink([false, false]).show(
             ui,
             |scroll_ui| {
-                scroll_ui
-                    .allocate_ui_with_layout(
-                        Vec2::new(content_width, content_height),
-                        egui::Layout::top_down(Align::Min),
-                        |edit_ui| {
-                            let mut layouter =
-                                |layouter_ui: &egui::Ui,
-                                 buffer: &dyn egui::TextBuffer,
-                                 wrap_width: f32| {
-                                    let source = buffer.as_str();
-                                    let mut job = if source == cache_source {
-                                        cache_job.clone()
-                                    } else {
-                                        let job = highlight_source(
-                                            source,
-                                            &style,
-                                            &diagnostics,
-                                            highlighted_line,
-                                            &finds,
-                                        );
-                                        laid_out_edit = Some((source.to_owned(), job.clone()));
-                                        job
-                                    };
-                                    for section in &mut job.sections {
-                                        section.format.line_height = Some(line_height);
-                                    }
-                                    job.wrap.max_width = wrap_width;
-                                    layouter_ui.fonts_mut(|fonts| fonts.layout_job(job))
+                let background = scroll_ui.painter().add(egui::Shape::Noop);
+                let left = scroll_ui.next_widget_position().x;
+                let frame = egui::Frame::NONE.inner_margin(egui::Margin {
+                    left: gutter as i8,
+                    right: 5,
+                    top: 3,
+                    bottom: 3,
+                });
+                frame
+                    .show(scroll_ui, |edit_ui| {
+                        let mut layouter =
+                            |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, width: f32| {
+                                let source = buffer.as_str();
+                                let layout = if source == cache_source {
+                                    cached_layout
+                                } else {
+                                    &laid_out_edit
+                                        .insert((
+                                            source.to_owned(),
+                                            SourceLayout::new(
+                                                source,
+                                                ui.style(),
+                                                None,
+                                                Some(cache),
+                                                &[],
+                                                None,
+                                                &[],
+                                            ),
+                                        ))
+                                        .1
                                 };
-                            let output = egui::TextEdit::multiline(&mut self.text)
-                                .id(edit_id)
-                                .code_editor()
-                                .desired_width(content_width)
-                                .desired_rows(cache.line_count.max(1))
-                                .frame(egui::Frame::NONE)
-                                .margin(0.0)
-                                .layouter(&mut layouter)
-                                .show(edit_ui);
-                            let cursor = output.cursor_range.map(|range| range.primary);
-                            edit_caret_rect = cursor.map(|cursor| {
-                                output
-                                    .galley
-                                    .pos_from_cursor(cursor)
-                                    .translate(output.galley_pos.to_vec2())
-                            });
-                            if let Some(line) = pending_line {
-                                let char_index = char_index_at_line_start(&self.text, line);
-                                let target = output
-                                    .galley
-                                    .pos_from_cursor(CCursor::new(char_index))
-                                    .translate(output.galley_pos.to_vec2());
-                                let viewport = edit_ui.clip_rect();
-                                edit_ui.scroll_to_rect(
-                                    Rect::from_min_max(
-                                        Pos2::new(viewport.left(), target.top()),
-                                        Pos2::new(viewport.right(), target.bottom()),
-                                    ),
-                                    Some(Align::Center),
-                                );
-                            }
-                            output
-                        },
-                    )
+                                cell_view::galley(
+                                    ui,
+                                    layout,
+                                    line_height,
+                                    if wrap { width } else { f32::INFINITY },
+                                )
+                            };
+                        let output = egui::TextEdit::multiline(&mut self.text)
+                            .id(edit_id)
+                            .code_editor()
+                            .desired_width(text_width)
+                            .desired_rows(line_count.max(1))
+                            .frame(egui::Frame::NONE)
+                            .margin(0.0)
+                            .layouter(&mut layouter)
+                            .show(edit_ui);
+                        let layout = laid_out_edit
+                            .as_ref()
+                            .filter(|(source, _)| *source == self.text)
+                            .map_or(cached_layout, |(_, layout)| layout);
+                        cell_view::paint(
+                            edit_ui,
+                            &output,
+                            &layout.cells,
+                            left,
+                            background,
+                            playback,
+                            self.text == cache_source,
+                        );
+                        let pos = output.galley_pos.to_vec2();
+                        edit_caret_rect = output
+                            .cursor_range
+                            .map(|r| output.galley.pos_from_cursor(r.primary).translate(pos));
+                        if let Some(line) = pending_line {
+                            let char_index = char_index_at_line_start(&self.text, line);
+                            let target = output
+                                .galley
+                                .pos_from_cursor(CCursor::new(char_index))
+                                .translate(pos);
+                            let viewport = edit_ui.clip_rect();
+                            edit_ui.scroll_to_rect(
+                                Rect::from_min_max(
+                                    Pos2::new(viewport.left(), target.top()),
+                                    Pos2::new(viewport.right(), target.bottom()),
+                                ),
+                                Some(Align::Center),
+                            );
+                        }
+                        output
+                    })
                     .inner
             },
         );
@@ -302,11 +374,6 @@ impl EditorBuffer {
         if source_changed {
             self.after_source_replaced();
             response.mark_changed();
-            if let Some((source, job)) = laid_out_edit
-                && source == self.text
-            {
-                self.cache_layout_for_current_source(job, ui.style());
-            }
         }
 
         if self.editor_has_focus(ui.ctx()) {
@@ -332,13 +399,21 @@ impl EditorBuffer {
 
     pub(super) fn after_source_replaced(&mut self) {
         self.source_revision = self.source_revision.wrapping_add(1);
-        self.analyzer.update(&self.text);
-        self.highlight_cache = None;
+        self.defer_analysis();
         self.completion_anchor = None;
         self.completion_auto_armed = None;
     }
 
-    fn ensure_highlight_cache(&mut self, style: &egui::Style) {
+    fn ensure_highlight_cache(&mut self, ui: &egui::Ui) {
+        if let Some(due) = self.analysis_due {
+            let remaining = due.saturating_duration_since(Instant::now());
+            if remaining.is_zero() || self.analyzer.get().is_some() {
+                self.finish_analysis();
+            } else {
+                ui.ctx().request_repaint_after(remaining);
+            }
+        }
+        let style = ui.style();
         let dark_mode = style.visuals.dark_mode;
         let fresh = self.highlight_cache.as_ref().is_some_and(|cache| {
             cache.source == self.text
@@ -351,9 +426,11 @@ impl EditorBuffer {
         if fresh {
             return;
         }
-        let job = highlight_source(
+        let job = SourceLayout::new(
             &self.text,
             style,
+            self.analyzer.get(),
+            self.highlight_cache.as_ref(),
             &self.diagnostics,
             self.highlighted_line,
             &self.find_highlights,
@@ -361,7 +438,7 @@ impl EditorBuffer {
         self.cache_layout_for_current_source(job, style);
     }
 
-    fn cache_layout_for_current_source(&mut self, job: LayoutJob, style: &egui::Style) {
+    fn cache_layout_for_current_source(&mut self, job: SourceLayout, style: &egui::Style) {
         self.highlight_cache = Some(HighlightCache::new(
             self.text.clone(),
             style.visuals.dark_mode,

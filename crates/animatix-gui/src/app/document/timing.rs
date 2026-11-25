@@ -51,10 +51,18 @@ pub fn timeline_keyframe_times_s(
 /// `Composition::evaluate` retains the outgoing scene during its boundary epsilon.
 pub(crate) fn review_scene_at_time(composition: &Composition, time_s: f64) -> Option<String> {
     let (scene, _, blend) = composition.evaluate(time_s);
-    let scene = match blend {
-        Some(blend) if blend.progress >= 1.0 => blend.to_scene,
-        _ => scene,
-    };
+    if let Some(blend) = blend {
+        // The picker seeks to start + duration. Compare in that same clock:
+        // (end - start) / duration can round below 1.0 at the exact end.
+        let start = composition.scene_start_times.get(&blend.to_scene).copied().unwrap_or(0.0);
+        let duration_ms = composition
+            .edges
+            .get(&blend.from_scene)
+            .map_or(0, |edge| edge.transition.duration_ms);
+        if time_s >= start + duration_ms as f64 / 1000.0 {
+            return Some(blend.to_scene);
+        }
+    }
     (!scene.is_empty()).then_some(scene)
 }
 

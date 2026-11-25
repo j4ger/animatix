@@ -31,6 +31,10 @@ pub enum OccurrenceKind {
     ImportAlias,
     /// Match wildcard `_`.
     Wildcard,
+    /// Named modifier key.
+    Modifier,
+    /// Built-in easing or transition in its grammar position.
+    EnumMember,
     /// Any other identifier reference.
     Variable,
 }
@@ -66,6 +70,8 @@ impl OccurrenceKind {
             OccurrenceKind::Function => "function",
             OccurrenceKind::ImportAlias => "importalias",
             OccurrenceKind::Wildcard => "wildcard",
+            OccurrenceKind::Modifier => "modifier",
+            OccurrenceKind::EnumMember => "enumMember",
             OccurrenceKind::Variable => "variable",
         }
     }
@@ -79,6 +85,7 @@ struct ScopeFrame {
 
 struct ParserState {
     occurrences: Vec<Occurrence>,
+    headers: Vec<crate::highlight::Header>,
     scope_stack: Vec<ScopeFrame>,
     next_scope: u32,
 }
@@ -88,10 +95,13 @@ thread_local! {
 }
 
 /// Run `f` while recording parser-side occurrences.
-pub(crate) fn with_occurrences<T>(f: impl FnOnce() -> T) -> (T, Vec<Occurrence>) {
+pub(crate) fn with_occurrences<T>(
+    f: impl FnOnce() -> T,
+) -> (T, Vec<Occurrence>, Vec<crate::highlight::Header>) {
     PARSER_STATE.with(|stack| {
         stack.borrow_mut().push(ParserState {
             occurrences: Vec::new(),
+            headers: Vec::new(),
             scope_stack: vec![ScopeFrame {
                 id: 1,
                 parent: None,
@@ -100,8 +110,12 @@ pub(crate) fn with_occurrences<T>(f: impl FnOnce() -> T) -> (T, Vec<Occurrence>)
         });
     });
     let result = f();
-    let mut occurrences = PARSER_STATE
-        .with(|stack| stack.borrow_mut().pop().map(|state| state.occurrences).unwrap_or_default());
+    let (mut occurrences, mut headers) = PARSER_STATE.with(|stack| {
+        let state = stack.borrow_mut().pop().expect("active parser state");
+        (state.occurrences, state.headers)
+    });
+    headers.sort_by_key(|h| (h.span.start, h.span.end));
+    headers.dedup();
 
     // Parser alternatives can record the same token more than once. Keep one
     // occurrence per byte range, preferring declaration and more specific
@@ -120,7 +134,43 @@ pub(crate) fn with_occurrences<T>(f: impl FnOnce() -> T) -> (T, Vec<Occurrence>)
             },
         }
     }
-    (result, unique)
+    (result, unique, headers)
+}
+
+pub(crate) fn record_header(span: ByteSpan, kind: crate::highlight::HeaderKind) {
+    PARSER_STATE.with(|stack| {
+        if let Some(state) = stack.borrow_mut().last_mut() {
+            state.headers.push(crate::highlight::Header { span, kind });
+        }
+    });
+}
+
+pub(crate) fn mark_enum_value(value: &crate::ast::Expr, span: ByteSpan) {
+    use crate::ast::Expr;
+    let name = match value {
+        Expr::Ident(name) => name,
+        Expr::Call(callee, _) => match callee.as_ref() {
+            Expr::Ident(name) => name,
+            _ => return,
+        },
+        _ => return,
+    };
+    PARSER_STATE.with(|stack| {
+        if let Some(state) = stack.borrow_mut().last_mut() {
+            // The name may be parenthesized. Use the first recorded occurrence
+            // inside this value, retaining its exact token span.
+            if let Some(item) = state
+                .occurrences
+                .iter_mut()
+                .rev()
+                .take_while(|item| item.span.start >= span.start)
+                .filter(|item| item.name == *name && item.span.end <= span.end)
+                .min_by_key(|item| item.span.start)
+            {
+                item.kind = OccurrenceKind::EnumMember;
+            }
+        }
+    });
 }
 
 /// Enter a new lexical scope while parsing.
@@ -195,6 +245,7 @@ fn is_better_occurrence(new: &Occurrence, old: &Occurrence) -> bool {
 
 fn occurrence_priority(kind: OccurrenceKind) -> u8 {
     match kind {
+        OccurrenceKind::Modifier | OccurrenceKind::EnumMember => 101,
         OccurrenceKind::Label => 100,
         OccurrenceKind::Type => 96,
         OccurrenceKind::Function => 94,

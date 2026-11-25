@@ -260,8 +260,7 @@ impl RebuildWorker {
                         timeline: session.timeline,
                         composition: session.composition,
                         diagnostics: session.diagnostics,
-                        timeline_index: session.timeline_index,
-                        keyframe_lines: session.keyframe_lines,
+                        source_timing: session.source_timing,
                         duration_s,
                         scene_dimensions,
                     })

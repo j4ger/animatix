@@ -5,7 +5,7 @@ use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 pub fn handle_select_scene(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
-    _ui_store: &mut UiStore,
+    ui_store: &mut UiStore,
     scene: String,
 ) -> Vec<Effect> {
     if let Some(composition) = document_store.source.document.composition.as_ref()
@@ -24,14 +24,26 @@ pub fn handle_select_scene(
             preview_store.preview.playback.clamp_time();
             preview_store.preview.playback.is_playing = false;
             preview_store.preview_dirty = true;
-            return vec![Effect::Status(crate::app::i18n::StatusText::message(
+            let mut effects = Vec::new();
+            if ui_store.editor_sync_enabled
+                && let Some(line) = document_store
+                    .source
+                    .document
+                    .source_timing
+                    .playing_line(target_time, Some(&scene))
+            {
+                effects.push(Effect::EditorScroll(line));
+                effects.push(Effect::EditorHighlight(line));
+            }
+            effects.push(Effect::Status(crate::app::i18n::StatusText::message(
                 "gui-playback-selected-scene",
                 [
                     ("scene", scene),
                     ("time", format!("{:.2}", preview_store.preview.playback.current_time_s)),
                     ("duration", format!("{:.2}", preview_store.preview.playback.duration_s)),
                 ],
-            ))];
+            )));
+            return effects;
         }
     }
     vec![]

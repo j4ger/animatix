@@ -42,6 +42,7 @@ impl SourceView {
 pub(super) struct NarrationEditor {
     view: SourceView,
     index: Option<(u64, Arc<Index>)>,
+    projections: Option<(u64, Arc<Projections>)>,
     widgets_generation: u64,
     reveal: Option<RevealedPhrase>,
     selection: Option<ScriptSelection>,
@@ -69,16 +70,20 @@ struct Binding {
     anchor: NarrationAnchor,
 }
 
-struct Index {
+struct Projections {
     paragraphs: Vec<NarrationParagraph>,
     script: Vec<ScriptProjection>,
     code: CodeProjection,
+}
+
+struct Index {
+    projections: Arc<Projections>,
     targets: Vec<TimingTarget>,
     stale_bindings: Vec<StaleBinding>,
     scenes: Vec<(String, usize)>,
 }
 
-impl Index {
+impl Projections {
     fn new(source: &str) -> Self {
         let paragraphs = paragraphs(source);
         let script: Vec<_> = paragraphs
@@ -90,12 +95,25 @@ impl Index {
             })
             .collect();
         let code = CodeProjection::new(source, &script);
-        let (targets, scenes) = targets::inspect_source(source);
-        let stale_bindings = stale_bindings(&targets, &paragraphs);
         Self {
             paragraphs,
             script,
             code,
+        }
+    }
+}
+
+impl Index {
+    #[cfg(test)]
+    fn new(source: &str) -> Self {
+        Self::with_projections(source, Arc::new(Projections::new(source)))
+    }
+
+    fn with_projections(source: &str, projections: Arc<Projections>) -> Self {
+        let (targets, scenes) = targets::inspect_source(source);
+        let stale_bindings = stale_bindings(&targets, &projections.paragraphs);
+        Self {
+            projections,
             targets,
             stale_bindings,
             scenes,
@@ -158,13 +176,25 @@ impl EditorBuffer {
         }
     }
 
+    fn narration_projections(&mut self) -> Arc<Projections> {
+        if let Some((revision, projections)) = &self.narration.projections
+            && self.source_revision == *revision
+        {
+            return Arc::clone(projections);
+        }
+        let projections = Arc::new(Projections::new(self.text()));
+        self.narration.projections = Some((self.source_revision, Arc::clone(&projections)));
+        projections
+    }
+
     fn narration_index(&mut self) -> Arc<Index> {
         if let Some((revision, index)) = &self.narration.index
             && self.source_revision == *revision
         {
             return Arc::clone(index);
         }
-        let index = Arc::new(Index::new(self.text()));
+        let projections = self.narration_projections();
+        let index = Arc::new(Index::with_projections(self.text(), projections));
         self.narration.index = Some((self.source_revision, Arc::clone(&index)));
         index
     }
@@ -174,7 +204,7 @@ impl EditorBuffer {
         let Some(key) = decode_anchor(marker) else {
             return false;
         };
-        let index = self.narration_index();
+        let index = self.narration_projections();
         let mut matched = index.paragraphs.iter().enumerate().filter(|(_, paragraph)| {
             paragraph.scene.as_deref() == scene && key.matches_paragraph(paragraph)
         });
@@ -333,10 +363,24 @@ mod tests {
     use std::path::Path;
 
     #[test]
+    fn code_edits_refresh_projections_without_building_script_timing() {
+        let mut editor = EditorBuffer::new(Path::new("view.amx"), "#0s\norb: Rect".into());
+        let first = editor.narration_projections();
+        assert!(editor.narration.index.is_none());
+        assert!(Arc::ptr_eq(&first, &editor.narration_projections()));
+        editor.projection_edit(4..7, "box");
+        let next = editor.narration_projections();
+        assert!(!Arc::ptr_eq(&first, &next));
+        assert!(editor.narration.index.is_none());
+        let timing = editor.narration_index();
+        assert!(Arc::ptr_eq(&next, &timing.projections));
+    }
+
+    #[test]
     fn repeated_cjk_phrase_round_trips_to_the_selected_source_occurrence() {
         let source = "# Opening\n/// 开场，欢迎开场。\n#1s\n";
         let mut editor = EditorBuffer::new(Path::new("opening.amx"), source.to_owned());
-        let index = editor.narration_index();
+        let index = editor.narration_projections();
         let paragraph = &index.paragraphs[0];
         let script = &index.script[0];
         let start = script.text.rfind("开场").unwrap();
@@ -357,7 +401,7 @@ mod tests {
     fn overlapping_cjk_selection_binds_its_exact_range() {
         let source = "/// 哈哈哈\n#1s\n";
         let mut editor = EditorBuffer::new(Path::new("overlap.amx"), source.to_owned());
-        let index = editor.narration_index();
+        let index = editor.narration_projections();
         let selection = "哈".len().."哈哈哈".len();
         let anchor =
             anchor_for(&index.paragraphs[0], &index.script[0], Some(selection.clone())).unwrap();

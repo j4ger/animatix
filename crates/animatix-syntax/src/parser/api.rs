@@ -49,7 +49,7 @@ pub fn parse_type_annotation(source: &str) -> Option<TypeAnnotation> {
     }
     let spanned = token_parser::spanned(&tokens);
     let input = token_parser::as_input(&spanned);
-    let ((annotation, errors), _) = crate::occurrence::with_occurrences(|| {
+    let ((annotation, errors), _, _) = crate::occurrence::with_occurrences(|| {
         super::stmt::type_annotation_parser()
             .then_ignore(end())
             .parse(input)
@@ -147,7 +147,7 @@ fn parser_impl<'src>(
     let source_index = source.map(crate::token::LineIndex::new).map(Arc::new);
     let expr = expr::parser(Rc::clone(&warnings), source_index.clone());
     let property = common::property(expr.clone());
-    let modifier = common::modifier(expr.clone(), common::time());
+    let modifier = common::modifier(expr.clone(), common::time(), false);
     let modifiers = common::modifiers(modifier);
     let inline_items = inline::parser(
         expr.clone(),
@@ -163,5 +163,6 @@ fn parser_impl<'src>(
         inline_items,
         source_index.clone(),
     );
-    top_level::parser(stmt, property, modifiers, common::time_with_expr(expr), source_index)
+    let transitions = common::modifiers(common::modifier(expr.clone(), common::time(), true));
+    top_level::parser(stmt, property, transitions, common::time_with_expr(expr), source_index)
 }

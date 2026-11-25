@@ -49,7 +49,7 @@ pub(crate) fn ident<'src>() -> IdentParser<'src> {
 
 /// Parse a keyword token as a bare identifier value, so keyword-named
 /// enumeration values are expressible (e.g. `[strategy: match]`).
-pub(crate) fn keyword_ident<'src>() -> impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> {
+pub(crate) fn keyword_ident<'src>() -> ExprParser<'src> {
     select! { crate::token::TokenKind::Keyword(k) => Expr::Ident(k.as_str().to_string()) }.boxed()
 }
 
@@ -269,21 +269,30 @@ pub(crate) fn property<'src>(
 pub(crate) fn modifier<'src>(
     expr: impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> + Clone + 'src,
     time: impl Parser<'src, StrInput<'src>, Time, ParserExtra<'src>> + Clone + 'src,
+    play_transition: bool,
 ) -> ModifierParser<'src> {
     choice((
-        ident_occ(crate::occurrence::OccurrenceKind::Property)
-            .or(select! { crate::token::TokenKind::Keyword(k) => k })
+        ident().or(select! { crate::token::TokenKind::Keyword(k) => k })
+            .map_with(|name, extra| (name, extra.span()))
             .then_ignore(token_parser::colon())
-            .then(choice((time.clone().map(time_to_expr), keyword_ident().or(expr.clone()))))
-            .map(|(name, value)| Modifier {
-                name: Some(name),
-                value,
+            .then(expr_with_span(choice((time.clone().map(time_to_expr), keyword_ident().or(expr.clone())))))
+            .map(|((name, key), (value, span))| {
+                if name == "ease" && parse_easing_expr(&value).is_some() {
+                    crate::occurrence::mark_enum_value(&value, span);
+                }
+                crate::occurrence::record(crate::occurrence::OccurrenceKind::Modifier, name.clone(), key);
+                Modifier { name: Some(name), value }
             }),
         time.clone().map(|t| Modifier {
             name: None,
             value: time_to_expr(t),
         }),
-        expr.clone().map(|value| Modifier { name: None, value }),
+        expr_with_span(expr.clone()).map(move |(value, span)| {
+            if play_transition && matches!(&value, Expr::Ident(name) if crate::transition_registry::find(name).is_some()) {
+                crate::occurrence::mark_enum_value(&value, span);
+            }
+            Modifier { name: None, value }
+        }),
     ))
     .boxed()
 }
@@ -343,4 +352,23 @@ pub(crate) fn extract_easing(modifiers: &mut Vec<Modifier>) -> Option<crate::eas
         true
     });
     easing
+}
+
+/// A numbered or unnumbered slide step at a statement boundary.
+pub(crate) fn step_marker<'src>() -> StmtParser<'src> {
+    token_parser::hash()
+        .ignore_then(select! {
+            crate::token::TokenKind::Keyword(k) if k == "step" || k == "pause" => (),
+            crate::token::TokenKind::Ident(i) if i == "step" || i == "pause" => (),
+        })
+        .then(token_parser::number().or_not())
+        .map_with(|(_, num), extra| {
+            crate::occurrence::record_header(extra.span(), crate::highlight::HeaderKind::Keyframe);
+            Stmt::Step {
+                index: num.map(|n| n as u64),
+                span: None,
+            }
+        })
+        .labelled("step marker")
+        .boxed()
 }

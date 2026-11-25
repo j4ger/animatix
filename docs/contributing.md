@@ -213,12 +213,18 @@ dependencies. Rich text enters through `animatix-text/rich-text` only.
 
 | Change | Additional validation |
 | --- | --- |
-| Syntax or highlighting | Update the lossless tokenizer in `crates/animatix-syntax/src/token/`; test syntax, analyzer, GUI and LSP together. |
+| Syntax or highlighting | Use the lossless tokenizer for lexical roles and the parser for contextual identifier and time-header ranges. Test the shared ranges, GUI, web UTF-16 offsets and LSP multiline tokens together. |
 | Runtime, layout or rendering | Render representative frames and review a storyboard; run the relevant render and example gates. |
 | Demo or site scene | Review composition, clipping, cue timing and the final held frame. Use `check`, `storyboard`, `audit` and regression baselines; see [scene audit](audit.md). |
 | Site playback or fallback UI | Run `site-build` and `web-site-smoke` in their listed shells. Use `SMOKE_DEPTH=deep` for changes shared across work, lesson and technique pages. |
 | Hot path | Record `tools/quality/perf-bench.sh compare` evidence. This is a manual measurement, not a PR gate; see [performance evaluation](performance_evaluation.md). |
 | Documentation | The `doc-links` gate runs `tools/docs/check-docs.sh` for links, source paths and stale roadmap wording. The separate `doc` gate validates Rustdoc and generated property tables. |
+
+The source editor colors an active draft from lexical tokens while semantic highlighting is
+pending. The GUI and Playground coalesce ordinary typing for 120 ms; explicit native
+completion queries still use the current draft. Playground cell selection follows the
+compiled document's authored marker lines and clears while its displayed draft differs.
+The native editor uses the analyzer’s header roles for cells and token colors. While analysis is pending, unchanged header lines retain their cells when the lexer still sees a source header. Search backgrounds and diagnostic underlines share the same projected GUI source ranges.
 
 Public examples live in `web/content/scenes/` and have a Playground entry. Use temporary harness artifacts for
 unfinished projects and human review; keep focused regression fixtures beside

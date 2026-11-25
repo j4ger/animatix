@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use animatix::composition::Composition;
-use animatix::timeline::{SceneDimensions, Timeline, TimelineIndex};
+use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::Diagnostic;
 use animatix_syntax::module::{ComponentEntry, FnTemplate, Namespace};
@@ -20,8 +20,7 @@ pub struct RebuildOutput {
     pub timeline: Option<Timeline>,
     pub composition: Option<Composition>,
     pub diagnostics: Vec<Diagnostic>,
-    pub timeline_index: TimelineIndex,
-    pub keyframe_lines: Vec<usize>,
+    pub(crate) source_timing: super::source_timing::SourceTiming,
     pub duration_s: f64,
     pub scene_dimensions: SceneDimensions,
 }

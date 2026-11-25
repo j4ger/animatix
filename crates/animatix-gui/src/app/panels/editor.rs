@@ -16,6 +16,7 @@ pub(crate) struct EditorContext<'a> {
     pub editor: &'a mut EditorBuffer,
     pub diagnostics: &'a [Diagnostic],
     pub document: &'a crate::app::document::DocumentSession,
+    pub playhead_time: f64,
     pub source_epoch: SourceEpoch,
     pub commands: &'a mut ActionQueue,
 }
@@ -190,7 +191,18 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
 
         ctx.editor.set_diagnostics(ctx.diagnostics);
         let changed = match ctx.editor.source_view() {
-            SourceView::Full => ctx.editor.show(ui).changed(),
+            SourceView::Full => {
+                let mut playback = crate::editor::CellPlayback {
+                    timing: Some(&ctx.document.source_timing),
+                    line: ctx.document.find_keyframe_line_at(ctx.playhead_time),
+                    seek: None,
+                };
+                let changed = ctx.editor.show_cells(ui, &mut playback).changed();
+                if let Some(time) = playback.seek {
+                    ctx.commands.push_back(Command::ScrubTo(time).into());
+                }
+                changed
+            },
             SourceView::Script => {
                 ctx.editor.show_script(
                     ui,

@@ -303,6 +303,53 @@ fn load_result_markers_expose_timeline_landmarks() {
 }
 
 #[test]
+fn authored_lines_use_resolved_times_and_exclude_local_plans() {
+    let source = "fn show() -> Timeline { return #{\n#1s\nlocal: Rect\n} }\n#0s\norb: Rect\n#+2s\norb.opacity = 0.5\n#2s\norb.opacity = 1";
+    let doc = build_document_with_modules(
+        source,
+        &[],
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+    );
+    assert!(doc.result.ok, "{:?}", doc.result.diagnostics);
+    let lines: Vec<_> = doc
+        .result
+        .markers
+        .iter()
+        .filter_map(|m| m.line.map(|line| (line, m.t)))
+        .collect();
+    assert_eq!(lines, [(5, 0.0), (7, 2.0), (9, 2.0)]);
+}
+
+#[test]
+fn syntax_errors_are_navigable_only_in_their_source_document() {
+    let source = "#0s\nx: Text, text: \"中文🎬";
+    let prepared = prepare_document(source, &[], &[], None);
+    assert!(!prepared.analysis.ok);
+    let diagnostic = prepared
+        .analysis
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains("unterminated string"))
+        .unwrap();
+    assert_eq!(
+        (diagnostic.line, diagnostic.column, diagnostic.span),
+        (Some(2), Some(16), Some([source.find('"').unwrap(), source.len()]))
+    );
+    let modules = [(PathBuf::from("bad.amx"), source.to_owned())];
+    let imported = prepare_document("import \"bad.amx\"\n#0s", &modules, &[], None);
+    assert!(!imported.analysis.ok);
+    assert!(
+        imported
+            .analysis
+            .diagnostics
+            .iter()
+            .any(|d| d.line.is_none() && d.message.contains("bad.amx:2:16"))
+    );
+}
+
+#[test]
 fn load_result_exposes_step_pause_points_and_markers() {
     let source = r#"
 #0s

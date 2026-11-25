@@ -5,7 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use animatix::composition::BuildTarget;
-use animatix::timeline::{SceneDimensions, TimelineIndex};
+use animatix::timeline::SceneDimensions;
 use animatix_syntax::source_index::SourceIndex;
 
 use super::DocumentSession;
@@ -68,6 +68,8 @@ impl DocumentSession {
             && self.last_rebuild_error.is_none()
             && (self.timeline.is_some() || self.composition.is_some())
         {
+            // Undo may restore the last built text before the debounced build runs.
+            self.source_timing = super::source_timing::SourceTiming::from_document(self);
             return Ok(());
         }
 
@@ -85,8 +87,7 @@ impl DocumentSession {
                 self.timeline = None;
                 self.composition = None;
                 self.active_scene = None;
-                self.timeline_index = TimelineIndex::default();
-                self.keyframe_lines = Vec::new();
+                self.source_timing = Default::default();
                 self.diagnostics = diagnostics_from_module_error(&err, &self.file_path);
                 self.duration_s = 0.1;
                 self.scene_dimensions = SceneDimensions::default();
@@ -192,9 +193,7 @@ impl DocumentSession {
             },
         }
 
-        // Build timeline index from source text (bi-directional sync)
-        self.timeline_index = TimelineIndex::build(&self.source_text);
-        self.keyframe_lines = self.timeline_index.keyframes.iter().map(|(_, line)| *line).collect();
+        self.source_timing = super::source_timing::SourceTiming::from_document(self);
 
         // Relative asset URLs need the document/workspace base directories.
         self.apply_asset_base_dirs();
@@ -235,8 +234,7 @@ impl DocumentSession {
         self.module_fns = output.module_fns;
         self.source_index = Some(output.source_index);
         self.diagnostics = output.diagnostics;
-        self.timeline_index = output.timeline_index;
-        self.keyframe_lines = output.keyframe_lines;
+        self.source_timing = output.source_timing;
         self.duration_s = output.duration_s;
         self.scene_dimensions = output.scene_dimensions;
         self.last_source_hash = source_hash;

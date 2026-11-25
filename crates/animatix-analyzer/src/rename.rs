@@ -84,6 +84,7 @@ fn non_renameable_role(kind: OccurrenceKind) -> Option<&'static str> {
         OccurrenceKind::Property => Some("a property name"),
         OccurrenceKind::Function => Some("a function name"),
         OccurrenceKind::Scene => Some("a scene name"),
+        OccurrenceKind::Modifier | OccurrenceKind::EnumMember => Some("a built-in modifier"),
         OccurrenceKind::Wildcard => Some("a wildcard"),
     }
 }
@@ -138,6 +139,7 @@ pub fn rename_at(
 
 fn occurrence_priority(kind: OccurrenceKind) -> u8 {
     match kind {
+        OccurrenceKind::Modifier | OccurrenceKind::EnumMember => 101,
         OccurrenceKind::Label => 100,
         OccurrenceKind::Type => 96,
         OccurrenceKind::Function => 94,

@@ -36,7 +36,7 @@ pub(crate) fn parser<'src>(
         // scenes. Build this nested statement parser from the recursive expr
         // handle so timeline plans can contain nested plans and normal calls.
         let property = common::property(expr.clone());
-        let modifier = common::modifier(expr.clone(), common::time());
+        let modifier = common::modifier(expr.clone(), common::time(), false);
         let modifiers = common::modifiers(modifier);
         let inline = super::inline::parser(
             expr.clone(),
@@ -295,9 +295,12 @@ fn plan_body_parser<'src>(
         .ignore_then(plus().or_not())
         .then(common::time_with_expr(expr.clone()))
         .then_ignore(colon().or_not())
-        .map(|(relative, time)| PlanItem::Keyframe {
-            relative: relative.is_some(),
-            time,
+        .map_with(|(relative, time), extra| {
+            crate::occurrence::record_header(extra.span(), crate::highlight::HeaderKind::Local);
+            PlanItem::Keyframe {
+                relative: relative.is_some(),
+                time,
+            }
         });
     let item = choice((keyframe, stmt.clone().map(PlanItem::Statement)));
     item.repeated()
@@ -388,7 +391,12 @@ fn access_parser<'src>(expr: ExprParser<'src>, base_atom: ExprParser<'src>) -> E
             PostfixStep::Qualified(seg)
         }),
         call_arguments(expr.clone())
-            .delimited_by(lparen(), rparen())
+            .delimited_by(
+                lparen(),
+                rparen().or(hash().rewind().or(end()).validate(|(), extra, emitter| {
+                    emitter.emit(Rich::custom(extra.span(), "expected ')' to close call"));
+                })),
+            )
             // A following arrow means these parentheses start a closure, not
             // call arguments. This lets a closure tail follow a let-binding
             // expression such as `let scale = x * 10\n(y) => y + scale`.
@@ -431,14 +439,14 @@ fn access_parser<'src>(expr: ExprParser<'src>, base_atom: ExprParser<'src>) -> E
 fn call_arguments<'src>(
     expr: ExprParser<'src>,
 ) -> impl Parser<'src, StrInput<'src>, Vec<CallArgument>, ParserExtra<'src>> + Clone {
-    let parameter_name = common::ident().or(select! { TokenKind::Keyword(name) => name }).map_with(
-        |name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
-            crate::occurrence::record(OccurrenceKind::Parameter, name.clone(), extra.span());
-            name
-        },
-    );
-    let named = parameter_name
+    let named = common::ident()
+        .or(select! { TokenKind::Keyword(name) => name })
+        .map_with(|name, extra| (name, extra.span()))
         .then_ignore(colon())
+        .map(|(name, span)| {
+            crate::occurrence::record(OccurrenceKind::Parameter, name.clone(), span);
+            name
+        })
         .then(common::expr_with_span(expr.clone()))
         .map(|(name, (value, byte_span))| CallArgument {
             name: Some(name),

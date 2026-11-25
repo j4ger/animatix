@@ -129,27 +129,36 @@ fn build_semantic_tokens(
     let mut prev_col = 0u32;
 
     for &(start, end, role) in roles {
-        let (line, col) = line_index.byte_to_line_col_utf16(start);
-        let (_, end_col) = line_index.byte_to_line_col_utf16(end);
-        let delta_line = line as u32 - prev_line;
-        let delta_start = if delta_line == 0 {
-            col as u32 - prev_col
-        } else {
-            col as u32
-        };
-        let length = (end_col - col) as u32;
-        let token_type = role_index(role);
-
-        data.push(SemanticToken {
-            delta_line,
-            delta_start,
-            length,
-            token_type,
-            token_modifiers_bitset: 0,
-        });
-
-        prev_line = line as u32;
-        prev_col = col as u32;
+        let (first_line, first_col) = line_index.byte_to_line_col_utf16(start);
+        for (offset, part) in source[start..end].split_inclusive('\n').enumerate() {
+            let line = first_line + offset;
+            let col = if offset == 0 { first_col } else { 0 };
+            // Line comments end immediately before LF and can own the CR of a CRLF.
+            let text = if let Some(text) = part.strip_suffix('\n') {
+                text.strip_suffix('\r').unwrap_or(text)
+            } else if source[end..].starts_with('\n') {
+                part.strip_suffix('\r').unwrap_or(part)
+            } else {
+                part
+            };
+            let length = text.encode_utf16().count();
+            if length > 0 {
+                let delta_line = line as u32 - prev_line;
+                data.push(SemanticToken {
+                    delta_line,
+                    delta_start: if delta_line == 0 {
+                        col as u32 - prev_col
+                    } else {
+                        col as u32
+                    },
+                    length: length as u32,
+                    token_type: role_index(role),
+                    token_modifiers_bitset: 0,
+                });
+                prev_line = line as u32;
+                prev_col = col as u32;
+            }
+        }
     }
 
     data
@@ -161,4 +170,31 @@ fn role_index(role: &str) -> u32 {
         .position(|name| *name == role)
         .map(|idx| idx as u32)
         .unwrap_or(6) // fall back to variable for unknown roles
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn multiline_tokens_use_line_local_utf16_ranges() {
+        let s = "let face = r#\"中🎬\r\n\r\nX\"#\n#2s";
+        let start = s.find("r#").unwrap();
+        let end = s.find("\n#2s").unwrap();
+        let tokens =
+            build_semantic_tokens(s, &[(start, end, "string"), (end + 1, s.len(), "number")]);
+        let positions: Vec<_> =
+            tokens.iter().map(|t| (t.delta_line, t.delta_start, t.length)).collect();
+        assert_eq!(positions, [(0, 11, 6), (2, 0, 3), (1, 0, 3)]);
+    }
+    #[test]
+    fn line_comment_before_crlf_excludes_carriage_return() {
+        let source = "// 🎬\r\n#2s";
+        let lf = source.find('\n').unwrap();
+        let tokens = build_semantic_tokens(
+            source,
+            &[(0, lf, "comment"), (lf + 1, source.len(), "keyframe")],
+        );
+        assert_eq!((tokens[0].length, tokens[1].delta_line, tokens[1].delta_start), (5, 1, 0));
+    }
 }

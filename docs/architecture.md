@@ -71,6 +71,11 @@ the semantic parse entry point used by module loading and the runtime
 same parse). The analyzer keeps the token stream plus AST for positions,
 completions, hover, and references.
 
+The full source editor draws cells around scene and timing headers. Line numbers refer to the AMX file,
+including when lines wrap in a narrow pane. Alt+Up and Alt+Down move the caret between headers.
+Click the gutter marker to seek a built cue. The filled marker follows the preview.
+Typing, selection, find and undo span the entire file.
+
 ### Module System
 
 The `ModuleGraph` manages file dependencies, resolves relative paths, and

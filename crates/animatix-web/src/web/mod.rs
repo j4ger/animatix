@@ -22,7 +22,7 @@ mod text_probe;
 mod video;
 mod webgl;
 
-pub use api::{build_id, engine_commit, engine_version, highlight_source};
+pub use api::{build_id, engine_commit, engine_version, highlight_lexical, highlight_source};
 pub use capabilities::{activate_capabilities, encode_rgba_png, runtime_build_id};
 pub use engine::{create_player, create_player_for_backend, debug_gpu_drain, init_engine};
 pub use prepared::{WasmPreparedProgram, prepare_source, validate_overlay_font};

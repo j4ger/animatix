@@ -26,6 +26,8 @@ pub struct ParsedSource {
     pub warnings: Vec<Diagnostic>,
     /// Parser-recorded identifier occurrences.
     pub occurrences: Vec<crate::occurrence::Occurrence>,
+    /// Source ranges of complete timing and cue headers.
+    pub headers: Vec<crate::highlight::Header>,
     /// The token stream the parse consumed.
     pub tokens: Vec<crate::token::Token>,
     /// Lexical issues found while tokenizing.
@@ -37,7 +39,7 @@ pub(super) fn parse_impl(source: &str) -> ParsedSource {
     let (tokens, token_issues) = crate::token::tokenize_with_issues(source);
     let spanned = token_parser::spanned_with_source(source, &tokens);
     let input = token_parser::as_input(&spanned);
-    let ((ast, errors), occurrences) = crate::occurrence::with_occurrences(|| {
+    let ((ast, errors), occurrences, headers) = crate::occurrence::with_occurrences(|| {
         super::api::parser_with_source(source, Rc::clone(&warnings))
             .parse(input)
             .into_output_errors()
@@ -57,6 +59,7 @@ pub(super) fn parse_impl(source: &str) -> ParsedSource {
         errors: owned_errors,
         warnings: owned_warnings,
         occurrences,
+        headers,
         tokens,
         token_issues,
     }

@@ -2,126 +2,13 @@
 use super::TimelineCoords;
 use crate::app::commands::{ActionQueue, Command};
 use crate::app::i18n::render;
-use animatix::composition::Composition;
-use animatix::timeline::Timeline;
+#[cfg(test)]
 use animatix_syntax::ast::{Stmt, Time};
-use animatix_syntax::to_source::ToSource;
 use egui::{Pos2, Rect, Sense, Stroke};
 
-#[derive(Debug, Clone)]
-pub(crate) struct TimingMarker {
-    pub expression: String,
-    pub line: Option<usize>,
-    pub scene: Option<String>,
-    pub time_s: Option<f64>,
-    pub action_count: usize,
-}
-
-pub(crate) fn collect_markers(
-    statements: &[Stmt],
-    timeline: Option<&Timeline>,
-    composition: Option<&Composition>,
-) -> Vec<TimingMarker> {
-    let mut result = Vec::new();
-    collect_scope(statements, timeline, composition, None, Some(0.0), &mut result);
-    result
-}
-
-pub(crate) fn review_markers(
-    statements: &[Stmt],
-    timeline: Option<&Timeline>,
-    composition: Option<&Composition>,
-    diagnostics: &[animatix_syntax::diagnostics::Diagnostic],
-) -> Vec<TimingMarker> {
-    use animatix_syntax::diagnostics::DiagnosticCode;
-    let mut markers = collect_markers(statements, timeline, composition);
-    for problem in diagnostics
-        .iter()
-        .filter(|d| d.code == DiagnosticCode::NarrationBindingUnresolved)
-    {
-        if let Some(line) = problem.location.line {
-            for marker in markers.iter_mut().filter(|m| m.line == line.checked_sub(1)) {
-                marker.time_s = None;
-            }
-        }
-    }
-    markers
-}
-
-fn collect_scope(
-    statements: &[Stmt],
-    timeline: Option<&Timeline>,
-    composition: Option<&Composition>,
-    scene: Option<&str>,
-    global_offset: Option<f64>,
-    out: &mut Vec<TimingMarker>,
-) {
-    let mut previous = Some(0.0);
-    for statement in statements {
-        match statement {
-            Stmt::Scene { name, body, .. } => {
-                let timeline = composition.and_then(|c| c.scenes.get(name)).map(|s| &s.timeline);
-                let offset = composition.and_then(|c| c.scene_start_times.get(name)).copied();
-                collect_scope(body, timeline, composition, Some(name), offset, out);
-            },
-            statement if statement.is_cue_only_keyframe() => {},
-            Stmt::Keyframe {
-                time, body, span, ..
-            }
-            | Stmt::RelativeKeyframe {
-                offset: time,
-                body,
-                span,
-                ..
-            } => {
-                if let Time::SpeechMarker { marker, .. } = time
-                    && animatix_syntax::narration::is_implicit_anchor(marker)
-                    && body.is_empty()
-                {
-                    continue;
-                }
-                let relative = matches!(statement, Stmt::RelativeKeyframe { .. });
-                let compiled =
-                    span.and_then(|span| timeline?.marker_time(span)).map(|ms| ms / 1000.0);
-                let value = resolve_time(time);
-                let local = compiled.or_else(|| {
-                    if relative {
-                        previous.zip(value).map(|(a, b)| a + b)
-                    } else {
-                        value
-                    }
-                });
-                previous = local;
-                out.push(TimingMarker {
-                    expression: format!("#{}{}", if relative { "+" } else { "" }, time.to_source()),
-                    line: span.map(|span| span.start_line.saturating_sub(1)),
-                    scene: scene.map(str::to_owned),
-                    time_s: global_offset.zip(local).map(|(a, b)| a + b),
-                    action_count: body.len(),
-                });
-            },
-            // These structural forms can change the engine's current build time.
-            // Do not invent the anchor of a subsequent relative marker.
-            Stmt::Conditional { .. } | Stmt::Match { .. } | Stmt::ForLoop { .. } => previous = None,
-            _ => {}, // Generated component/loop timing is not uniquely source-addressable.
-        }
-    }
-}
-
-fn resolve_time(time: &Time) -> Option<f64> {
-    let value = match time {
-        Time::Seconds(s) => *s,
-        Time::Milliseconds(ms) => *ms as f64 / 1000.0,
-        // Tempo may be expression-driven. Do not silently assume the default BPM.
-        Time::Beats(_) | Time::Expression(_) => return None,
-        // Expressions execute in their lexical build environment. Re-evaluating
-        // them against the final environment could place a marker incorrectly.
-        // The compiler owns clip offsets, lexical scope and paragraph alignment.
-        // With no compiled span we can still offer source navigation.
-        Time::SpeechMarker { .. } | Time::SpeechWord { .. } => return None,
-    };
-    value.is_finite().then_some(value)
-}
+#[cfg(test)]
+pub(crate) use crate::app::document::source_timing::collect_markers;
+pub(crate) use crate::app::document::source_timing::{TimingMarker, review_markers};
 
 fn clusters(markers: &[TimingMarker], coords: &TimelineCoords) -> Vec<Vec<usize>> {
     let mut visible: Vec<_> = markers

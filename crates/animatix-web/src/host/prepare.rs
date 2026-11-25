@@ -47,6 +47,7 @@ pub struct AnalysisDto {
 }
 
 pub(super) struct PreparedSyntax {
+    pub entry_headers: super::markers::EntryHeaders,
     pub expanded: animatix_syntax::module::ExpandedProgram,
     pub namespaces: HashMap<String, Namespace>,
     pub function_context: animatix_syntax::module::FunctionContext,
@@ -175,7 +176,10 @@ fn prepare_syntax(
     })?;
     let function_context =
         expanded.expanded_function_context.clone().unwrap_or(program.function_context);
+    let entry_headers =
+        super::markers::EntryHeaders::collect(graph.file_ast(&path).unwrap_or_default());
     Ok(PreparedSyntax {
+        entry_headers,
         expanded,
         namespaces: program.namespaces,
         function_context,
@@ -200,6 +204,24 @@ fn module_error(error: ModuleError, analysis: &mut AnalysisDto) -> Box<AnalysisD
             None,
         ));
         analysis.missing_imports.push(path.display().to_string());
+    } else if let ModuleError::ParseErrors(errors) = error {
+        for error in errors {
+            let path = error.source_path.as_deref();
+            if let Some(path) = path.filter(|path| *path != std::path::Path::new(ENTRY_PATH)) {
+                let message = format!(
+                    "{}:{}:{}: {}",
+                    path.display(),
+                    error.line,
+                    error.column,
+                    error.message
+                );
+                analysis.diagnostics.push(error_diagnostic("parse-error", &message, None));
+            } else {
+                analysis
+                    .diagnostics
+                    .push(DiagnosticDto::from_diagnostic(&error.to_diagnostic()));
+            }
+        }
     } else {
         analysis
             .diagnostics

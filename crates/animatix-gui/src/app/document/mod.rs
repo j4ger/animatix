@@ -14,6 +14,7 @@ pub(crate) mod narration;
 mod query;
 mod save;
 mod session_rebuild;
+pub(crate) mod source_timing;
 mod timing;
 
 #[cfg(test)]
@@ -36,7 +37,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use animatix::composition::Composition;
-use animatix::timeline::{SceneDimensions, Timeline, TimelineIndex};
+use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_analyzer::ExtensionManifest;
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::Diagnostic;
@@ -75,11 +76,7 @@ pub struct DocumentSession {
     pub workspace_root: Option<PathBuf>,
     /// Plugin context generation used to discard stale background rebuilds.
     pub plugin_epoch: u64,
-    /// Bi-directional timeline index mapping source lines to times and vice versa.
-    pub timeline_index: TimelineIndex,
-    /// Set of 0-indexed line numbers that contain keyframe declarations.
-    /// Derived from timeline_index for editor decorations.
-    pub keyframe_lines: Vec<usize>,
+    pub(crate) source_timing: source_timing::SourceTiming,
     /// Component registry from the last successful program load.
     pub components: HashMap<String, ComponentEntry>,
     /// Module-scoped functions from the last successful program load.

@@ -1,13 +1,17 @@
 //! Tokenizer-based syntax highlighting for the Animatix DSL.
 
-use std::collections::HashMap;
-
-use animatix_syntax::highlight::lexical_role;
 use animatix_syntax::token::LineIndex;
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, TextFormat};
 
 use crate::app::design_tokens::typography::TextRole;
+use crate::editor::cells::{self, Cell};
+
+#[derive(Clone)]
+pub(crate) struct SourceLayout {
+    pub job: LayoutJob,
+    pub cells: Vec<Cell>,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HighlightSeverity {
@@ -39,7 +43,7 @@ pub(crate) struct HighlightCache {
     pub highlighted_line: Option<usize>,
     pub diagnostics: Vec<HighlightDiagnostic>,
     pub find_highlights: Vec<FindHighlight>,
-    pub job: LayoutJob,
+    pub layout: SourceLayout,
     pub line_count: usize,
     pub max_line_chars: usize,
 }
@@ -52,7 +56,7 @@ impl HighlightCache {
         highlighted_line: Option<usize>,
         diagnostics: Vec<HighlightDiagnostic>,
         find_highlights: Vec<FindHighlight>,
-        job: LayoutJob,
+        layout: SourceLayout,
     ) -> Self {
         let line_count = source.split('\n').count().max(1);
         let max_line_chars = source.split('\n').map(|line| line.chars().count()).max().unwrap_or(0);
@@ -63,7 +67,7 @@ impl HighlightCache {
             highlighted_line,
             diagnostics,
             find_highlights,
-            job,
+            layout,
             line_count,
             max_line_chars,
         }
@@ -83,6 +87,10 @@ struct HighlightColors {
     property: Color32,
     parameter: Color32,
     function: Color32,
+    modifier: Color32,
+    enum_member: Color32,
+    keyframe: Color32,
+    cue: Color32,
     label: Color32,
     default: Color32,
 }
@@ -103,6 +111,10 @@ impl HighlightColors {
                 property: Color32::from_rgb(131, 165, 152),
                 parameter: Color32::from_rgb(211, 134, 155),
                 function: Color32::from_rgb(254, 128, 25),
+                modifier: Color32::from_rgb(125, 205, 176),
+                enum_member: Color32::from_rgb(242, 166, 204),
+                keyframe: Color32::from_rgb(162, 211, 110),
+                cue: Color32::from_rgb(138, 200, 237),
                 label: Color32::from_rgb(102, 153, 204),
                 default: Color32::from_rgb(235, 219, 178),
             }
@@ -119,7 +131,11 @@ impl HighlightColors {
                 variable: Color32::from_rgb(127, 0, 85),
                 property: Color32::from_rgb(69, 133, 136),
                 parameter: Color32::from_rgb(177, 98, 134),
-                function: Color32::from_rgb(181, 101, 0),
+                function: Color32::from_rgb(99, 60, 145),
+                modifier: Color32::from_rgb(20, 101, 73),
+                enum_member: Color32::from_rgb(139, 50, 90),
+                keyframe: Color32::from_rgb(53, 91, 23),
+                cue: Color32::from_rgb(23, 92, 120),
                 label: Color32::from_rgb(51, 102, 153),
                 default: Color32::from_rgb(60, 60, 60),
             }
@@ -138,6 +154,10 @@ impl HighlightColors {
             "punctuation" | "punctuation.bracket" => self.punctuation,
             "variable" | "importalias" => self.variable,
             "property" => self.property,
+            "modifier" => self.modifier,
+            "enumMember" => self.enum_member,
+            "keyframe" | "keyframe.local" | "keyframe.part" => self.keyframe,
+            "cue" => self.cue,
             "parameter" => self.parameter,
             "function" | "action" => self.function,
             "label" => self.label,
@@ -146,7 +166,7 @@ impl HighlightColors {
     }
 }
 
-/// Build the source editor's base syntax and decoration layout.
+#[cfg(test)]
 pub(crate) fn highlight_source(
     source: &str,
     style: &egui::Style,
@@ -154,33 +174,70 @@ pub(crate) fn highlight_source(
     highlighted_line: Option<usize>,
     find_highlights: &[FindHighlight],
 ) -> LayoutJob {
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    let roles =
+        animatix_syntax::highlight::ranges(&parsed.tokens, &parsed.occurrences, &parsed.headers);
+    layout_roles(source, style, &roles, diagnostics, highlighted_line, find_highlights)
+}
+
+/// The in-flight TextEdit buffer is ahead of the analyzer by one GUI frame.
+pub(crate) fn lexical_layout(source: &str, style: &egui::Style) -> LayoutJob {
+    let roles = lexical_roles(source);
+    layout_roles(source, style, &roles, &[], None, &[])
+}
+
+fn lexical_roles(source: &str) -> Vec<(usize, usize, &'static str)> {
+    animatix_syntax::highlight::ranges(&animatix_syntax::token::tokenize(source), &[], &[])
+}
+
+impl SourceLayout {
+    pub fn new(
+        source: &str,
+        style: &egui::Style,
+        analyzer: Option<&animatix_analyzer::Analyzer>,
+        previous: Option<&HighlightCache>,
+        diagnostics: &[HighlightDiagnostic],
+        highlighted_line: Option<usize>,
+        find: &[FindHighlight],
+    ) -> Self {
+        let (roles, headers, recover) = if let Some(analyzer) = analyzer {
+            (
+                analyzer.token_roles(),
+                cells::scene_headers(analyzer.ast().unwrap_or_default()),
+                !analyzer.parse_errors().is_empty(),
+            )
+        } else {
+            let headers = previous
+                .map(|cache| cells::unchanged_headers(&cache.source, &cache.layout.cells, source))
+                .unwrap_or_default();
+            (lexical_roles(source), headers, false)
+        };
+        Self {
+            cells: cells::source_cells(source, &roles, headers, recover),
+            job: layout_roles(source, style, &roles, diagnostics, highlighted_line, find),
+        }
+    }
+}
+
+pub(crate) fn layout_roles(
+    source: &str,
+    style: &egui::Style,
+    roles: &[(usize, usize, &str)],
+    diagnostics: &[HighlightDiagnostic],
+    highlighted_line: Option<usize>,
+    find_highlights: &[FindHighlight],
+) -> LayoutJob {
     let colors = HighlightColors::from_style(style);
     let font_id = TextRole::Mono.font_id();
     let line_index = LineIndex::new(source);
-    // This parse returns the tokens and semantic occurrences together; avoid a
-    // second lexer pass just to recover token spans.
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    let occurrences: HashMap<usize, &animatix_syntax::occurrence::Occurrence> = parsed
-        .occurrences
-        .iter()
-        .map(|occurrence| (occurrence.span.start, occurrence))
-        .collect();
-
-    let mut text_spans = Vec::with_capacity(parsed.tokens.len() * 2 + 1);
+    let mut text_spans = Vec::with_capacity(roles.len() * 2 + 1);
     let mut last_end = 0;
-    for token in &parsed.tokens {
-        if token.span.start > last_end {
-            text_spans.push((last_end, token.span.start, colors.default));
+    for &(start, end, role) in roles {
+        if start > last_end {
+            text_spans.push((last_end, start, colors.default));
         }
-        let role = match &token.kind {
-            animatix_syntax::token::TokenKind::Ident(_) => occurrences
-                .get(&token.span.start)
-                .map(|occurrence| occurrence.kind.token_role())
-                .unwrap_or("variable"),
-            _ => lexical_role(token),
-        };
-        text_spans.push((token.span.start, token.span.end, colors.color_for_role(role)));
-        last_end = token.span.end;
+        text_spans.push((start, end, colors.color_for_role(role)));
+        last_end = end;
     }
     if last_end < source.len() {
         text_spans.push((last_end, source.len(), colors.default));
@@ -188,7 +245,7 @@ pub(crate) fn highlight_source(
 
     let current_line = highlighted_line
         .and_then(|line| line_byte_range(source, &line_index, line))
-        .map(|(start, end)| (start, end, Color32::from_rgba_premultiplied(84, 110, 255, 45)));
+        .map(|(start, end)| (start, end, Color32::from_rgba_unmultiplied(84, 110, 255, 45)));
     let mut job =
         apply_layers(source, &font_id, &text_spans, diagnostics, current_line, find_highlights);
     let row_height = font_id.size;
@@ -256,10 +313,11 @@ fn apply_layers(
             .filter(|(span_start, span_end, _)| start >= *span_start && end <= *span_end)
             .map(|(_, _, color)| *color)
             .unwrap_or(Color32::from_rgb(235, 219, 178));
-        let mut background = diagnostics
+        let diagnostic = diagnostics
             .iter()
-            .find(|diagnostic| start >= diagnostic.start && end <= diagnostic.end)
-            .map(|diagnostic| diagnostic_background(diagnostic.severity));
+            .filter(|diagnostic| start >= diagnostic.start && end <= diagnostic.end)
+            .min_by_key(|d| d.severity as u8);
+        let mut background = diagnostic.map(|d| diagnostic_background(d.severity));
         if let Some((line_start, line_end, line_color)) = current_line
             && start >= line_start
             && end <= line_end
@@ -274,9 +332,9 @@ fn apply_layers(
             && end <= matched.end
         {
             background = Some(if matched.current {
-                Color32::from_rgba_premultiplied(80, 140, 255, 100)
+                Color32::from_rgba_unmultiplied(80, 140, 255, 100)
             } else {
-                Color32::from_rgba_premultiplied(220, 180, 40, 80)
+                Color32::from_rgba_unmultiplied(220, 180, 40, 80)
             });
         }
         job.append(
@@ -285,6 +343,15 @@ fn apply_layers(
             TextFormat {
                 font_id: font_id.clone(),
                 color,
+                underline: diagnostic.map_or(egui::Stroke::NONE, |d| {
+                    let color = match d.severity {
+                        HighlightSeverity::Error => Color32::from_rgb(235, 76, 80),
+                        HighlightSeverity::Warning => Color32::from_rgb(216, 155, 42),
+                        HighlightSeverity::Info => Color32::from_rgb(72, 142, 220),
+                        HighlightSeverity::Hint => Color32::from_rgb(78, 160, 110),
+                    };
+                    egui::Stroke::new(1.5, color)
+                }),
                 background: background.unwrap_or(Color32::TRANSPARENT),
                 ..Default::default()
             },
@@ -307,10 +374,10 @@ fn clamp_range(source: &str, start: usize, end: usize) -> Option<(usize, usize)>
 
 fn diagnostic_background(severity: HighlightSeverity) -> Color32 {
     match severity {
-        HighlightSeverity::Error => Color32::from_rgba_premultiplied(255, 60, 60, 55),
-        HighlightSeverity::Warning => Color32::from_rgba_premultiplied(255, 200, 80, 75),
-        HighlightSeverity::Info => Color32::from_rgba_premultiplied(80, 140, 255, 40),
-        HighlightSeverity::Hint => Color32::from_rgba_premultiplied(80, 220, 140, 40),
+        HighlightSeverity::Error => Color32::from_rgba_unmultiplied(255, 60, 60, 55),
+        HighlightSeverity::Warning => Color32::from_rgba_unmultiplied(255, 200, 80, 75),
+        HighlightSeverity::Info => Color32::from_rgba_unmultiplied(80, 140, 255, 40),
+        HighlightSeverity::Hint => Color32::from_rgba_unmultiplied(80, 220, 140, 40),
     }
 }
 
@@ -333,6 +400,34 @@ mod tests {
 
     fn background_color(job: &LayoutJob, needle: &str) -> Option<Color32> {
         section_for_text(job, needle).map(|section| section.format.background)
+    }
+
+    #[test]
+    fn both_palettes_distinguish_contextual_roles() {
+        for visuals in [egui::Visuals::light(), egui::Visuals::dark()] {
+            let style = egui::Style {
+                visuals,
+                ..Default::default()
+            };
+            let colors = HighlightColors::from_style(&style);
+            for (left, right) in [
+                ("label", "variable"),
+                ("parameter", "property"),
+                ("type", "function"),
+                ("function", "number"),
+                ("modifier", "keyword"),
+                ("enumMember", "function"),
+                ("enumMember", "type"),
+                ("enumMember", "variable"),
+                ("keyframe", "cue"),
+            ] {
+                assert_ne!(
+                    colors.color_for_role(left),
+                    colors.color_for_role(right),
+                    "{left}/{right}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -361,7 +456,7 @@ title: Text {
         assert_eq!(job.text, source);
         assert_eq!(
             background_color(&job, "two"),
-            Some(Color32::from_rgba_premultiplied(84, 110, 255, 45))
+            Some(Color32::from_rgba_unmultiplied(84, 110, 255, 45))
         );
         assert_eq!(background_color(&job, "one"), Some(Color32::TRANSPARENT));
     }
@@ -474,15 +569,15 @@ title: Text {
 
         assert_eq!(
             background_color(&job, "error"),
-            Some(Color32::from_rgba_premultiplied(255, 60, 60, 55))
+            Some(Color32::from_rgba_unmultiplied(255, 60, 60, 55))
         );
         assert_eq!(
             background_color(&job, "line"),
-            Some(Color32::from_rgba_premultiplied(84, 110, 255, 45))
+            Some(Color32::from_rgba_unmultiplied(84, 110, 255, 45))
         );
         assert_eq!(
             background_color(&job, "hit"),
-            Some(Color32::from_rgba_premultiplied(80, 140, 255, 100))
+            Some(Color32::from_rgba_unmultiplied(80, 140, 255, 100))
         );
 
         let overlaps = [HighlightDiagnostic {
@@ -492,9 +587,10 @@ title: Text {
         }];
         let overlapping_job =
             highlight_source(source, &egui::Style::default(), &overlaps, Some(2), &finds);
+        assert!(section_for_text(&overlapping_job, "hit").unwrap().format.underline.width > 0.0);
         assert_eq!(
             background_color(&overlapping_job, "hit"),
-            Some(Color32::from_rgba_premultiplied(80, 140, 255, 100)),
+            Some(Color32::from_rgba_unmultiplied(80, 140, 255, 100)),
             "current find highlight should sit above the line and diagnostic backgrounds"
         );
     }

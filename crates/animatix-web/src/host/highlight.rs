@@ -1,92 +1,31 @@
-use std::collections::HashMap;
+use animatix_syntax::{highlight::ranges, parser::parse_source_complete};
 
-use animatix_syntax::{
-    highlight::lexical_role,
-    parser::parse_source_complete,
-    token::{Token, TokenKind},
-};
-
-/// Return token ranges in UTF-16 code units for browser text controls.
-///
-/// The parser supplies identifier roles where available. Its lossless token
-/// stream still supplies lexical colors when the program is incomplete.
+/// Browser editors use UTF-16 offsets. The coordinate conversion is linear
+/// even for non-BMP source and does not change parser-assigned roles.
 pub fn highlight_source(source: &str) -> Vec<(usize, usize, &'static str)> {
     let parsed = parse_source_complete(source);
-    let roles: HashMap<_, _> = parsed
-        .occurrences
-        .iter()
-        .map(|item| (item.span.start, item.kind.token_role()))
-        .collect();
-    let mut tokens = parsed.tokens.as_slice();
-    let mut ranges = Vec::with_capacity(tokens.len());
-    let mut byte = 0;
-    let mut utf16 = 0;
-    while let Some(token) = tokens.first() {
-        let (count, role) = if is_cue_header(tokens) {
-            (4, "cue")
-        } else if let Some(count) = keyframe_prefix(tokens) {
-            (count, "keyframe")
-        } else {
-            let role = roles
-                .get(&token.span.start)
-                .filter(|_| matches!(token.kind, TokenKind::Ident(_)))
-                .copied()
-                .unwrap_or_else(|| lexical_role(token));
-            (1, role)
-        };
-        let end = tokens[count - 1].span.end;
-        let start_utf16 = utf16 + source[byte..token.span.start].encode_utf16().count();
-        utf16 = start_utf16 + source[token.span.start..end].encode_utf16().count();
-        ranges.push((start_utf16, utf16, role));
+    utf16_ranges(source, ranges(&parsed.tokens, &parsed.occurrences, &parsed.headers))
+}
+
+/// Immediate feedback while a semantic pass is debounced.
+pub fn highlight_lexical(source: &str) -> Vec<(usize, usize, &'static str)> {
+    utf16_ranges(source, ranges(&animatix_syntax::token::tokenize(source), &[], &[]))
+}
+
+fn utf16_ranges(
+    source: &str,
+    mut ranges: Vec<(usize, usize, &'static str)>,
+) -> Vec<(usize, usize, &'static str)> {
+    let (mut byte, mut units) = (0, 0);
+    for (from, to, _) in &mut ranges {
+        let end = *to;
+        let start = *from;
+        *from = units + source[byte..start].encode_utf16().count();
+        units = *from + source[start..end].encode_utf16().count();
         byte = end;
-        tokens = &tokens[count..];
+        *to = units;
     }
     ranges
-}
-
-fn is_cue_header(tokens: &[Token]) -> bool {
-    use TokenKind::{Colon, Hash, Ident};
-    matches!(tokens, [Token { kind: Hash, .. }, Token { kind: Ident(name), .. },
-        Token { kind: Colon, .. }, Token { kind: Ident(_), .. }, ..] if name == "cue")
-}
-
-fn keyframe_prefix(tokens: &[Token]) -> Option<usize> {
-    use TokenKind::{At, BeatTime, Hash, Ident, Keyword, LBracket, LParen, Plus, Time};
-    let [Token { kind: Hash, .. }, rest @ ..] = tokens else {
-        return None;
-    };
-    let (prefix, rest) = match rest {
-        [Token { kind: Plus, .. }, rest @ ..] => (2, rest),
-        _ => (1, rest),
-    };
-    match rest {
-        [
-            Token {
-                kind: Time { .. } | BeatTime { .. } | LParen,
-                ..
-            },
-            ..,
-        ] => Some(prefix + 1),
-        [
-            Token { kind: Ident(_), .. },
-            Token { kind: At, .. },
-            Token { kind: Ident(_), .. },
-            ..,
-        ] => Some(prefix + 3),
-        [
-            Token { kind: Ident(_), .. },
-            Token { kind: LBracket, .. },
-            ..,
-        ] => Some(prefix + 2),
-        [
-            Token {
-                kind: Keyword(name) | Ident(name),
-                ..
-            },
-            ..,
-        ] if prefix == 1 && matches!(name.as_str(), "step" | "pause") => Some(2),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

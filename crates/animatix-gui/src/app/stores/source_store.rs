@@ -73,6 +73,7 @@ impl SourceStore {
     /// Returns a `SourceChange` with the new epoch.
     pub fn replace_text(&mut self, text: String) -> SourceChange {
         self.source_epoch = self.source_epoch.next();
+        self.document.source_timing = Default::default();
         self.document.source_text = text.clone();
         self.document.is_dirty = true;
         self.editor.replace_text(text.clone());
@@ -87,6 +88,7 @@ impl SourceStore {
     pub fn sync_from_editor(&mut self) -> SourceChange {
         let text = self.editor.text().to_string();
         self.source_epoch = self.source_epoch.next();
+        self.document.source_timing = Default::default();
         self.document.source_text = text;
         self.document.is_dirty = true;
         self.invalidate_cache();

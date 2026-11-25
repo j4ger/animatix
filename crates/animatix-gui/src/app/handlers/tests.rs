@@ -292,6 +292,10 @@ fn select_scene_switches_active_scene_and_seeks() {
         "active scene should be Diagram"
     );
 
+    assert!(
+        effects.iter().any(|effect| matches!(effect, Effect::EditorScroll(_))),
+        "selecting a scene with editor sync enabled should reveal its source cell"
+    );
     assert!(preview_store.preview_dirty);
 
     assert!(!preview_store.preview.playback.is_playing);

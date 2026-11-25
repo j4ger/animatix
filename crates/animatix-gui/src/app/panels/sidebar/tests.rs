@@ -170,6 +170,8 @@ fn outline_scene_choice_keeps_layers_in_place_and_hides_in_single_scene() {
     // The shell recomputes the active scene from the playhead on the following frame.
     let composition = store.source.document.composition.as_ref().unwrap();
     assert_eq!(review_scene_at_time(composition, 2.999).as_deref(), Some("Intro"));
+    assert_eq!(review_scene_at_time(composition, 3.0_f64.next_down()).as_deref(), Some("Intro"));
+    assert_eq!(preview.preview.playback.current_time_s(), 3.0);
     let selected = review_scene_at_time(composition, preview.preview.playback.current_time_s());
     assert_eq!(
         selected.as_deref(),

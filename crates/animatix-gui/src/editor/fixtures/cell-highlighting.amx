@@ -1,0 +1,25 @@
+# Aperture
+config { canvas_size: (640, 360), duration: 4 }
+let caption = r#"轨道 🎬
+#99s
+"#
+// 预览 #42s
+#0s
+  spring: Ellipse, size: (132, 132), at: (245, 180), color: hex_color("de946b")
+  moon: Ellipse, size: (36, 36), at: (350, 160), color: white
+
+#1s
+  spring.at = (310, 180) [500ms, ease: spring]
+
+#+1s
+  spring.at = (365, 180) [500ms, ease: spring(6, 9)]
+
+# Transit
+config { canvas_size: (640, 360), duration: 3 }
+#0s
+  planet: Ellipse, size: (124, 124), at: (360, 180), color: hex_color("65c0bf")
+  moon: Ellipse, size: (36, 36), at: (225, 163), color: white
+
+#+1s
+  moon.at = (290, 164) [700ms, ease: spring]
+  planet.opacity = 0.8

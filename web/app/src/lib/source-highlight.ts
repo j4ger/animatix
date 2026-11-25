@@ -2,6 +2,7 @@ import {sourceCells} from './source-cells';
 
 export type HighlightRange = readonly [start: number, end: number, role: string];
 export type SourceHighlighter = (source: string) => Promise<readonly HighlightRange[]>;
+export type SourceSdk = {highlightSource?: SourceHighlighter; highlightLexical?: SourceHighlighter};
 export type SourceKeyframe = {line: number; element: HTMLElement};
 
 function colorLines(rows: HTMLElement[], lines: string[], ranges: readonly HighlightRange[]) {
@@ -52,7 +53,7 @@ function decorateCells(mirror: HTMLElement, rows: HTMLElement[], lines: string[]
 
 export function bindSourceEditor(
   editor: HTMLTextAreaElement,
-  load: () => Promise<{highlightSource?: SourceHighlighter}>,
+  load: () => Promise<SourceSdk>,
   onKeyframes?: (keyframes: SourceKeyframe[]) => void,
 ) {
   const frame = editor.parentElement!;
@@ -63,7 +64,8 @@ export function bindSourceEditor(
   let raf: number | undefined;
   let enabled = false;
   let composing = false;
-  let painting = false;
+  let semanticTimer: number | undefined;
+  let semanticRevision = -1;
 
   function sync() {
     // clientWidth includes the textarea padding and excludes its scrollbar.
@@ -72,27 +74,30 @@ export function bindSourceEditor(
   }
 
   function schedule() {
-    if (!enabled || composing || painting || raf !== undefined) return;
-    raf = requestAnimationFrame(() => {
-      raf = undefined;
-      if (!enabled || composing) return;
-      painting = true;
-      const requested = revision;
-      const source = editor.value;
-      void load().then(sdk => sdk.highlightSource?.(source)).then(ranges => {
-        if (!ranges || !enabled || composing || source !== editor.value || requested !== revision) return;
+    if (!enabled || composing) return;
+    const requested = revision;
+    const source = editor.value;
+    const current = () => requested === revision && enabled && !composing && source === editor.value;
+    async function paint(semantic: boolean) {
+      try {
+        const sdk = await load();
+        if (!current() || (!semantic && semanticRevision === requested)) return;
+        const ranges = await (semantic ? sdk.highlightSource : sdk.highlightLexical)?.(source);
+        if (!ranges || !current() || (!semantic && semanticRevision === requested)) return;
         colorLines(rows, lines, ranges);
-        const keyframes = decorateCells(mirror, rows, lines, ranges);
-        onKeyframes?.(keyframes);
+        if (semantic) {
+          semanticRevision = requested;
+          onKeyframes?.(decorateCells(mirror, rows, lines, ranges));
+        }
         frame.setAttribute('data-highlighted', '');
-      }).catch(() => {
-        // A missing or offline SDK leaves the editable native text visible.
-        if (requested === revision) frame.removeAttribute('data-highlighted');
-      }).finally(() => {
-        painting = false;
-        if (requested !== revision) schedule();
-      });
-    });
+      } catch {
+        // Keep native textarea text visible if the runtime is unavailable.
+      }
+    }
+    if (raf !== undefined) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => { raf = undefined; void paint(false); });
+    window.clearTimeout(semanticTimer);
+    semanticTimer = window.setTimeout(() => void paint(true), 120);
   }
 
   editor.addEventListener('scroll', sync);

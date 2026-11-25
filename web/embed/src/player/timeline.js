@@ -1,4 +1,4 @@
-/** @typedef {{t: number, kind: string, dur?: number, id?: string}} TimelineMarker */
+/** @typedef {{t: number, kind: string, dur?: number, id?: string, line?: number}} TimelineMarker */
 
 /**
  * @param {HTMLElement} layer

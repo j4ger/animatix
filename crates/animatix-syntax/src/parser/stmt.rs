@@ -12,7 +12,6 @@ use super::common::{
 use super::token_parser::*;
 use crate::ast::*;
 use crate::occurrence::OccurrenceKind;
-use crate::token::TokenKind;
 
 /// A type-erased parser over the token stream.
 type StmtBoxed<'src, T> = Boxed<'src, 'src, StrInput<'src>, T, ParserExtra<'src>>;
@@ -98,15 +97,17 @@ impl<'src> StmtCtx<'src> {
 /// Match a type keyword and record it as a [`OccurrenceKind::Type`] occurrence.
 fn type_keyword<'src>(
     name: &'static str,
-) -> impl Parser<'src, StrInput<'src>, (), ParserExtra<'src>> + Clone {
+) -> Boxed<'src, 'src, StrInput<'src>, (), ParserExtra<'src>> {
     common::ident()
         .map_with(|s, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
             (s, extra.span())
         })
         .filter(move |(s, _): &(String, ByteSpan)| s == name)
-        .map_with(|(s, span), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+        // Validation runs even when an enclosing combinator ignores the value.
+        .validate(|(s, span), _, _| {
             crate::occurrence::record(OccurrenceKind::Type, s, span);
         })
+        .boxed()
 }
 
 pub(super) fn type_annotation_parser<'src>() -> TypeAnnotationParser<'src> {
@@ -188,7 +189,8 @@ pub(super) fn type_annotation_parser<'src>() -> TypeAnnotationParser<'src> {
             .or(function)
             .or(enum_annotation)
             .or(common::type_ident().map(TypeAnnotation::Alias))
-            .or(canonical_alias);
+            .or(canonical_alias)
+            .boxed();
         let union = atom
             .clone()
             .then(pipe().ignore_then(atom.clone()).repeated().collect::<Vec<_>>())
@@ -410,6 +412,7 @@ fn shape_actor_parser<'src>(
 ) -> StmtParser<'src> {
     ctx.ident
         .clone()
+        .map_with(|name, extra| (name, extra.span()))
         .then_ignore(colon())
         .or_not()
         .then_ignore(type_keyword(ty))
@@ -417,7 +420,16 @@ fn shape_actor_parser<'src>(
         .map(move |(label, props)| Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: false,
-            label: label.unwrap_or_else(|| default_label.to_string()),
+            label: label
+                .map(|(name, span)| {
+                    crate::occurrence::record_declaration(
+                        OccurrenceKind::Label,
+                        name.clone(),
+                        span,
+                    );
+                    name
+                })
+                .unwrap_or_else(|| default_label.to_string()),
             array_index: None,
             ty: ty.to_string(),
             props,
@@ -432,13 +444,17 @@ fn shape_actor_parser<'src>(
 fn typst_shorthand_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
     ctx.ident
         .clone()
+        .map_with(|name, extra| (name, extra.span()))
         .then_ignore(colon())
         .then(typst())
         .then(ctx.modifiers.clone())
-        .map(|((label, content), modifiers)| Stmt::ActorDecl {
+        .map(|(((label, span), content), modifiers)| Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: false,
-            label,
+            label: {
+                crate::occurrence::record_declaration(OccurrenceKind::Label, label.clone(), span);
+                label
+            },
             array_index: None,
             ty: "Typst".to_string(),
             props: vec![Property {
@@ -458,13 +474,17 @@ fn typst_shorthand_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
 fn text_shorthand_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
     ctx.ident
         .clone()
+        .map_with(|name, extra| (name, extra.span()))
         .then_ignore(colon())
         .then(common::string_literal())
         .then(ctx.modifiers.clone())
-        .map(|((label, text), modifiers)| Stmt::ActorDecl {
+        .map(|(((label, span), text), modifiers)| Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: false,
-            label,
+            label: {
+                crate::occurrence::record_declaration(OccurrenceKind::Label, label.clone(), span);
+                label
+            },
             array_index: None,
             ty: "Text".to_string(),
             props: vec![Property {
@@ -727,21 +747,6 @@ fn block_comment_reject<'src>() -> StmtParser<'src> {
         .boxed()
 }
 
-fn step_marker<'src>() -> StmtParser<'src> {
-    hash()
-        .ignore_then(select! {
-            TokenKind::Keyword(k) if k == "step" || k == "pause" => (),
-            TokenKind::Ident(i) if i == "step" || i == "pause" => (),
-        })
-        .then(number().or_not())
-        .map(|(_, num)| Stmt::Step {
-            index: num.map(|n| n as u64),
-            span: None,
-        })
-        .labelled("step marker")
-        .boxed()
-}
-
 /// Build the recursive statement parser.
 pub(crate) fn parser<'src>(
     expr: ExprParser<'src>,
@@ -755,7 +760,7 @@ pub(crate) fn parser<'src>(
             StmtCtx::new(stmt.boxed(), expr, property, modifiers, inline_items, source.clone());
         choice((
             block_comment_reject(),
-            step_marker(),
+            common::step_marker(),
             ctx.let_decl.clone(),
             type_alias_parser(ctx.type_annotation.clone()),
             import_stmt_parser(),

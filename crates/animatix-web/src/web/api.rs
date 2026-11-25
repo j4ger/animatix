@@ -35,3 +35,10 @@ pub fn highlight_source(source: &str) -> Result<JsValue, JsError> {
     serde_wasm_bindgen::to_value(&crate::host::highlight_source(source))
         .map_err(|error| JsError::new(&error.to_string()))
 }
+
+/// Fast, token-only coloring for a changing draft.
+#[wasm_bindgen]
+pub fn highlight_lexical(source: &str) -> Result<JsValue, JsError> {
+    serde_wasm_bindgen::to_value(&crate::host::highlight_lexical(source))
+        .map_err(|error| JsError::new(&error.to_string()))
+}

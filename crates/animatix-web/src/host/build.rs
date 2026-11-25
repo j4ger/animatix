@@ -139,7 +139,7 @@ pub fn build_prepared(
         });
     }
     let (duration_s, width, height) = document_extent(&target);
-    let markers = timeline_markers(&syntax.expanded.statements, &target);
+    let markers = timeline_markers(&syntax.expanded.statements, &target, &syntax.entry_headers);
     let pause_points = target.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect();
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
     let runtime_inputs = if ok {

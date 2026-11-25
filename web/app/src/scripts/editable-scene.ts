@@ -1,6 +1,5 @@
 import {bindRecording, closeRecording, loadPlayer, loadPlayerModule, resetPlayer, showPlaybackFailure} from './scene';
-import {diagnosticsFrom, readableError} from '../lib/errors';
-import {sourceCues} from '../lib/insertion-steps';
+import {diagnosticSelection, diagnosticsFrom, readableError} from '../lib/errors';
 import {draftSelection, takeEditorTransfer, transferEditor, type EditorDraft} from '../lib/editor-transfer';
 import {clientUi} from '../lib/client-ui';
 import {bindTimeline} from '../lib/timeline';
@@ -65,7 +64,8 @@ function bindEditableScene(sample: HTMLElement) {
   const transferred = stored?.scene === id ? stored : undefined;
   let previousPreview = transferred?.compiled;
   let compiled = original;
-  let timedCells: {element: HTMLElement; time: number}[] = [];
+  let sourceKeyframes: SourceKeyframe[] = [];
+  let timedCells: {element?: HTMLElement; time: number}[] = [];
   let activeCell: HTMLElement | undefined;
   let player: Awaited<ReturnType<typeof loadPlayer>> | undefined;
   let frame = 0;
@@ -91,19 +91,17 @@ function bindEditableScene(sample: HTMLElement) {
     activeCell?.setAttribute('data-current', '');
   }
 
-  function updateKeyframes(keyframes: SourceKeyframe[]) {
-    const times = new Map(sourceCues(editor.value).map(cue => [cue.line, cue.time]));
-    timedCells = keyframes.flatMap(({line, element}) => {
-      const time = times.get(line);
-      return time === undefined ? [] : [{element, time}];
-    }).sort((a, b) => a.time - b.time);
-    activeCell = undefined;
+  function updateKeyframes(keyframes: SourceKeyframe[] = sourceKeyframes) {
+    sourceKeyframes = keyframes;
+    const rows = new Map(keyframes.map(({line, element}) => [line, element]));
+    timedCells = (player?.timelineMarkers ?? [])
+      .filter(marker => marker.kind === 'keyframe' || marker.kind === 'scene')
+      .map(marker => ({time: marker.t, element: marker.line ? rows.get(marker.line) : undefined}));
     markCurrentCell();
   }
 
   function renderSource() {
-    timedCells = [];
-    activeCell = undefined;
+    updateKeyframes([]);
     highlight.render();
     updateDownload();
   }
@@ -202,7 +200,10 @@ function bindEditableScene(sample: HTMLElement) {
       button.className = 'diagnostic';
       button.type = 'button';
       button.textContent = `${t('web-client-line', {line: String(line)})} · ${item.message ?? item.code ?? ''}`;
-      button.addEventListener('click', () => selectLine(line));
+      button.addEventListener('click', () => {
+        const range = diagnosticSelection(editor.value, item);
+        selectLine(line, range?.from, range?.length);
+      });
       diagnostics.append(button);
     }
   }
@@ -271,6 +272,7 @@ function bindEditableScene(sample: HTMLElement) {
       }
       previousPreview = undefined;
       timeline.setDocument(player);
+      updateKeyframes();
       seek(seconds);
       if (autoplay && (sourceWasOpen || panel.hidden)) play();
       signalDocument();
@@ -305,6 +307,7 @@ function bindEditableScene(sample: HTMLElement) {
       // preserve its playback state without restarting the film.
       compiled = submitted;
       timeline.setDocument(preview);
+      updateKeyframes();
       if (replay && editor.value === submitted) {
         seek(0);
         play();

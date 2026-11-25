@@ -36,6 +36,12 @@ pub(crate) const SEMANTIC_TOKEN_TYPES: &[&str] = &[
     "punctuation",
     "wildcard",
     "importalias",
+    "modifier",
+    "enumMember",
+    "keyframe",
+    "keyframe.local",
+    "keyframe.part",
+    "cue",
 ];
 
 /// The LSP server backend.

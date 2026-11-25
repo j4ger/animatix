@@ -214,22 +214,6 @@ impl Analyzer {
     /// Identifier roles come from parser-recorded occurrences; lexical tokens
     /// use the tokenizer's shared role vocabulary.
     pub fn token_roles(&self) -> Vec<(usize, usize, &'static str)> {
-        let occurrences_by_start: std::collections::HashMap<
-            usize,
-            &animatix_syntax::occurrence::Occurrence,
-        > = self.occurrences.iter().map(|o| (o.span.start, o)).collect();
-        self.tokens
-            .iter()
-            .map(|token| {
-                let role = match &token.kind {
-                    TokenKind::Ident(_) => occurrences_by_start
-                        .get(&token.span.start)
-                        .map(|o| o.kind.token_role())
-                        .unwrap_or("variable"),
-                    _ => animatix_syntax::highlight::lexical_role(token),
-                };
-                (token.span.start, token.span.end, role)
-            })
-            .collect()
+        animatix_syntax::highlight::ranges(&self.tokens, &self.occurrences, &self.headers)
     }
 }
