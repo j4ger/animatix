@@ -243,7 +243,9 @@
       "padding",
       "align",
       "cols",
-      "vertical_align"
+      "vertical_align",
+      "clip",
+      "isolate_opacity"
     ]
   },
   {

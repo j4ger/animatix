@@ -806,6 +806,30 @@ fn indexed_write_actor_type<'a>(
     })
 }
 
+pub(super) fn validate_opacity_isolation(timeline: &Timeline, diagnostics: &mut Vec<Diagnostic>) {
+    let world = &timeline.world;
+    for (label, id) in world.tracks.iter() {
+        if world.caps(id).child_processing != animatix_core::caps::ChildProcessingKind::Glass {
+            continue;
+        }
+        let mut parent = world.hierarchy(id).parent;
+        while let Some(id) = parent {
+            if world.geometry(id).isolate_opacity {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        "Glass composites the viewport backdrop and cannot be inside an isolated-opacity Group",
+                    )
+                    .with_subject(label),
+                );
+                break;
+            }
+            parent = world.hierarchy(id).parent;
+        }
+    }
+}
+
 #[cfg(test)]
 mod runtime_input_structure_tests {
     use super::*;
@@ -895,30 +919,6 @@ mod runtime_input_structure_tests {
                 }),
                 "expected a build-time diagnostic for runtime input `{name}`"
             );
-        }
-    }
-}
-
-pub(super) fn validate_opacity_isolation(timeline: &Timeline, diagnostics: &mut Vec<Diagnostic>) {
-    let world = &timeline.world;
-    for (label, id) in world.tracks.iter() {
-        if world.caps(id).child_processing != animatix_core::caps::ChildProcessingKind::Glass {
-            continue;
-        }
-        let mut parent = world.hierarchy(id).parent;
-        while let Some(id) = parent {
-            if world.geometry(id).isolate_opacity {
-                diagnostics.push(
-                    Diagnostic::error(
-                        DiagnosticCode::InvalidPropertyValue,
-                        DiagnosticPhase::Build,
-                        "Glass composites the viewport backdrop and cannot be inside an isolated-opacity Group",
-                    )
-                    .with_subject(label),
-                );
-                break;
-            }
-            parent = world.hierarchy(id).parent;
         }
     }
 }
