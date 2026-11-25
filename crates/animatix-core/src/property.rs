@@ -375,6 +375,7 @@ declare_property_descriptors! {
     "shared_text_transition" => (Applicable::Actors(&["Text"]), String),
     "equation_source" => (Applicable::Actors(&["Equation"]), String),
     "clip" => (Applicable::Actors(&["Mask"]), Generic, Actor),
+    "isolate_opacity" => (Applicable::Actors(&["Group"]), Bool),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

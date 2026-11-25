@@ -109,7 +109,22 @@ impl Timeline {
         if !self.world.exists(node_id) {
             return;
         }
-        let Some(mix) = self.track_blend_mode(node_id, frame.time_ms) else {
+        let mix = self.track_blend_mode(node_id, frame.time_ms);
+        if self.world.geometry(node_id).isolate_opacity
+            && frame.time_ms >= self.world.first_seen(node_id)
+        {
+            self.render_isolated_group(
+                node_id,
+                parent_transform,
+                parent_opacity,
+                layout_positions,
+                mix.unwrap_or(peniko::Mix::Normal),
+                frame,
+                out,
+            );
+            return;
+        }
+        let Some(mix) = mix else {
             // No blend: draw the subtree straight into the current scene.
             self.render_node_subtree(
                 node_id,
@@ -209,6 +224,55 @@ impl Timeline {
         );
         out.scene.append(&scratch, None);
         out.scene.pop_layer();
+    }
+
+    fn render_isolated_group(
+        &self,
+        node_id: EntityId,
+        parent_transform: kurbo::Affine,
+        parent_opacity: f32,
+        layout_positions: &crate::timeline::layout::LayoutPositions,
+        mix: peniko::Mix,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) {
+        // Group is a structural node. Use the normal transform path to preserve
+        // layout, modifiers, and camera, then apply the inherited alpha once.
+        let (world_transform, alpha) = self.render_actor_node_by_id(
+            node_id,
+            parent_transform,
+            parent_opacity,
+            layout_positions,
+            false,
+            frame,
+            out,
+        );
+        if alpha <= 0.0 {
+            return;
+        }
+        let item_start = out.program_items.as_ref().map_or(0, Vec::len);
+        let viewport = kurbo::Rect::new(
+            0.0,
+            0.0,
+            f64::from(frame.scene_dimensions.width),
+            f64::from(frame.scene_dimensions.height),
+        );
+        out.scene.push_layer(
+            peniko::Fill::NonZero,
+            peniko::BlendMode::new(mix, peniko::Compose::SrcOver),
+            alpha.clamp(0.0, 1.0),
+            kurbo::Affine::IDENTITY,
+            &viewport,
+        );
+        // Descendants paint at their own opacity. Keep deferred Filter
+        // composites inside the layer by forcing inline placement.
+        self.render_node_children_by_id(node_id, world_transform, 1.0, false, frame, out);
+        out.scene.pop_layer();
+        if let Some(items) = out.program_items.as_mut() {
+            for item in &mut items[item_start..] {
+                item.opacity *= alpha;
+            }
+        }
     }
 
     /// Draw one node and its children into `out` (no blend layer). Shared by the

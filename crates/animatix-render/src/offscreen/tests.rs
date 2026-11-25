@@ -813,3 +813,48 @@ card.swipe.enabled = false
     bytes[index..index + 4].copy_from_slice(&px(&first, 170, 180));
     assert!(control(&leaked).unwrap_err().starts_with("unfiltered control"));
 }
+
+#[test]
+fn isolated_group_opacity_composites_the_overlap_once() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let timeline = build_checked(
+        r#"
+config { canvas_size: (400, 300) }
+#0s
+scene.background_color = black
+normal: Group, at: (180, 60), opacity: 0.5 {
+  normal_left: Rect, at: (-40, 0), size: (140, 60), color: white
+  normal_right: Rect, at: (40, 0), size: (140, 60), color: white
+}
+isolated: Group, at: (180, 145), size: (1, 1), opacity: 0.5, isolate_opacity: true {
+  isolated_left: Rect, at: (-40, 0), size: (140, 60), color: white
+  isolated_right: Rect, at: (40, 0), size: (140, 60), color: white
+}
+outer: Group, at: (180, 235), opacity: 0.5, isolate_opacity: true {
+  inner: Group, opacity: 0.5, isolate_opacity: true {
+    inner_left: Rect, at: (-40, 0), size: (140, 60), color: white
+    inner_right: Rect, at: (40, 0), size: (140, 60), color: white
+  }
+}
+"#,
+    );
+    let frame = renderer
+        .render_canvas(&timeline, 0.0, FRAME, DebugRenderOptions::default())
+        .expect("offscreen canvas output");
+    for (x, y, expected) in [
+        (100, 60, 128),
+        (180, 60, 192),
+        (100, 145, 128),
+        (180, 145, 128),
+        (100, 235, 64),
+        (180, 235, 64),
+    ] {
+        let actual = px(&frame, x, y);
+        assert!(
+            actual[..3].iter().all(|&channel| channel.abs_diff(expected) <= 1),
+            "pixel ({x}, {y}): got {actual:?}, expected {expected} in each RGB channel"
+        );
+    }
+}

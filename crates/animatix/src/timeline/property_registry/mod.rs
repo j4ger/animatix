@@ -714,6 +714,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
     b!("y_ticks", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
     b!("clip", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
+    b!("isolate_opacity", V::BuildTimeOnly, F::empty(), NoStorage, val!(bool false)),
 ];
 
 mod lookup;

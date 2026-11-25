@@ -347,6 +347,9 @@ pub struct GeometryTracks {
     /// Explicit direct child providing a Mask's clip geometry.
     #[cfg_attr(feature = "serde", serde(default))]
     pub mask_clip: Option<MaskClip>,
+    /// A Group composites its own inherited opacity once for its whole subtree.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub isolate_opacity: bool,
 }
 
 /// A Mask's explicit clip provider. Entity identity is resolved per scene.

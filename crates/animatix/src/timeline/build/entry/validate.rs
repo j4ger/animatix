@@ -898,3 +898,27 @@ mod runtime_input_structure_tests {
         }
     }
 }
+
+pub(super) fn validate_opacity_isolation(timeline: &Timeline, diagnostics: &mut Vec<Diagnostic>) {
+    let world = &timeline.world;
+    for (label, id) in world.tracks.iter() {
+        if world.caps(id).child_processing != animatix_core::caps::ChildProcessingKind::Glass {
+            continue;
+        }
+        let mut parent = world.hierarchy(id).parent;
+        while let Some(id) = parent {
+            if world.geometry(id).isolate_opacity {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        "Glass composites the viewport backdrop and cannot be inside an isolated-opacity Group",
+                    )
+                    .with_subject(label),
+                );
+                break;
+            }
+            parent = world.hierarchy(id).parent;
+        }
+    }
+}

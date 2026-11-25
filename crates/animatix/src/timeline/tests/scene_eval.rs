@@ -788,3 +788,44 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         other => panic!("Expected RenderCommand::Shadow as first command, got {other:?}"),
     }
 }
+
+#[test]
+fn isolated_group_opacity_uses_a_layer_and_preserves_item_alpha() {
+    let timeline = build_timeline(
+        r#"
+#0s
+group: Group, opacity: 0.5, isolate_opacity: true {
+  item: Rect, at: (200, 200), size: (40, 40), opacity: 0.5
+}
+"#,
+    );
+    let program =
+        timeline.evaluate_program_with_debug(0.0, HD, DebugRenderOptions::default(), &mut None);
+    use crate::scene::Draw;
+    assert!(matches!(
+        program.scene.draws(),
+        [Draw::Fill { .. }, Draw::Push { alpha, .. }, Draw::Fill { .. }, Draw::Pop]
+            if (*alpha - 0.5).abs() < f32::EPSILON
+    ));
+    let item = program.items.iter().find(|item| item.label == "item").unwrap();
+    assert!((item.opacity - 0.25).abs() < f32::EPSILON);
+}
+
+#[test]
+fn isolated_group_reports_unsupported_glass_backdrop() {
+    let report = super::support::build(
+        r#"
+#0s
+group: Group, isolate_opacity: true {
+  glass: Glass, size: (100, 100)
+}
+"#,
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.is_error() && d.message.contains("cannot be inside an isolated-opacity Group")
+        }),
+        "{:?}",
+        report.diagnostics
+    );
+}

@@ -706,9 +706,12 @@ siblings, so source order alone does not define overlays crossing a Glass
 scope. See
 [`painter_order_annotations.amx`](../crates/animatix/tests/fixtures/amx/layout/painter_order_annotations.amx).
 
-Opacity on a Group or component instance multiplies into each descendant's
-opacity. It does not first flatten overlapping descendants into one offscreen
-image, so overlapping children can accumulate alpha.
+By default, opacity on a Group or component instance multiplies into each
+descendant's opacity, so overlapping children can accumulate alpha.
+With `isolate_opacity: true`, a Group composites its children together
+before applying the Group's opacity. Nested isolated Groups each apply their
+opacity once. Glass scopes require the viewport backdrop and cannot be placed
+inside an isolated Group.
 
 ## Grid
 

@@ -178,3 +178,4 @@
 175	shared_text_transition	Str
 176	equation_source	Str
 177	clip	Actor(Actor)
+178	isolate_opacity	Bool
