@@ -78,8 +78,16 @@ available for viewing multiple objects together.
 Inspector fields, canvas transforms, object insertion, scene reordering and
 keyframe property editing are not writing channels. Their old commands, controls,
 handlers and insertion palette have been retired. Source editor changes and their
-undo/redo remain available. Settings displays the scene colorscheme for inspection;
-change it in the source config. IDE appearance controls affect the application theme.
+undo/redo remain available. Change the scene colorscheme in the source config.
+The application theme is a separate preference.
+
+## Settings
+
+Open Settings from the workbench menu or command palette. It is an in-app page,
+with section navigation on the left at wider widths and a selector above the
+form at narrower widths. Playback pauses on entry. Back to workbench returns to
+the same document, workspace layout and playhead. Settings supports English
+and Simplified Chinese without changing authored scene content.
 
 The timeline presents author timing rather than an always-expanded forest of ECS
 properties. Unresolved source timing must be shown as unresolved, not silently

@@ -132,6 +132,21 @@ impl GuiShell {
         commands.append(&mut self.ui_store.pending_actions);
         self.external_commands.drain_into(&mut commands);
 
+        // Settings is a temporary route, not a dock layout or a modal over
+        // the workbench. Keep the document, cursor and transport stores intact.
+        if self.ui_store.view.settings_open && !self.ui_store.view.command_palette_open {
+            self.handle_actions(commands);
+            self.settings_page_ui(ui);
+            if self.ui_store.unsaved_changes.is_open {
+                self.unsaved_changes_dialog_ui(ui);
+            }
+            if self.ui_store.recovery_prompt.is_open {
+                self.recovery_prompt_ui(ui);
+            }
+            self.ui_store.toasts.show(ui, Instant::now());
+            return;
+        }
+
         // Global keyboard shortcuts are now handled via ShortcutRegistry
         // in runtime.rs::handle_keyboard_shortcuts. Only shell-local
         // modal Escapes remain inline below.
@@ -205,11 +220,6 @@ impl GuiShell {
         }
 
         self.narration_takes_ui(ui.ctx());
-
-        // Settings modal overlay (rendered on top of everything)
-        if self.ui_store.view.settings_open {
-            self.settings_dialog_ui(ui);
-        }
 
         // Workspace switcher dialog overlay
         if self.ui_store.view.workspace_switcher_open {

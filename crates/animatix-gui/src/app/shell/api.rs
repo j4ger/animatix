@@ -92,7 +92,7 @@ impl GuiShell {
                 }
             },
             ViewAction::OpenSettings => {
-                self.ui_store.view.settings_open = true;
+                self.open_settings_page();
                 vec![]
             },
             ViewAction::OpenShortcuts => {

@@ -24,6 +24,7 @@ impl eframe::App for AnimatixApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        crate::app::i18n::set_language(ui.ctx(), self.shell.ui_store.view.language);
         // Intercept close when document has unsaved changes
         if self.shell.document_store.source.is_dirty()
             && !self.shell.ui_store.unsaved_changes.is_open

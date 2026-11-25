@@ -452,6 +452,9 @@ pub(crate) fn load_workspace_persistence(path: &Path) -> Option<WorkspacePersist
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SettingsPersistence {
+    /// Display language preference, separate from authored source.
+    #[serde(default)]
+    pub interface_language: String,
     pub rebuild_debounce_ms: u64,
     pub scrub_step_s: f64,
     pub snap_fps: f32,

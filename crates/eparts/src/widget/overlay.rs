@@ -74,6 +74,14 @@ pub fn remove_overlay(ctx: &Context, id: Id) {
     });
 }
 
+/// Whether an interactive overlay should get Escape before its page.
+pub fn has_open_overlay(ctx: &Context) -> bool {
+    ctx.data(|data| {
+        data.get_temp::<Vec<(Id, OverlayLayer)>>(overlay_registry_key())
+            .is_some_and(|entries| entries.iter().any(|(_, layer)| *layer != OverlayLayer::Tooltip))
+    })
+}
+
 /// True if `id` is topmost: highest [`OverlayLayer`] priority, ties broken by
 /// the most recent [`push_overlay`].
 pub fn is_topmost(ctx: &Context, id: Id) -> bool {

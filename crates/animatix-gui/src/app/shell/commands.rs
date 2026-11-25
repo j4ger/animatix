@@ -76,6 +76,7 @@ impl GuiShell {
             window_size: Some(self.window_size),
             window_maximized: Some(self.window_maximized),
             settings: Some(SettingsPersistence {
+                interface_language: self.ui_store.view.language.key().to_owned(),
                 rebuild_debounce_ms: self.ui_store.rebuild_debounce_ms,
                 scrub_step_s: self.ui_store.scrub_step_s,
                 snap_fps: self.ui_store.snap_fps,

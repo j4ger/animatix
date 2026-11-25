@@ -7,6 +7,7 @@ pub(crate) mod document;
 mod drawers;
 mod file_tree;
 pub(crate) mod handlers;
+mod i18n;
 pub(crate) mod icons;
 pub(crate) mod interaction;
 mod layout_preset;

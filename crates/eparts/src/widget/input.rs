@@ -326,9 +326,6 @@ impl<'a> NumberField<'a> {
         let bg_idx = painter.add(egui::Shape::Noop);
         let border_idx = painter.add(egui::Shape::Noop);
 
-        let mut child_ui =
-            ui.new_child(egui::UiBuilder::new().max_rect(outer_rect.shrink(inner_margin)));
-
         let mut dv = DragValue::new(self.value).speed(self.speed.unwrap_or(0.5) as f64);
 
         if let Some(r) = self.range {
@@ -344,10 +341,10 @@ impl<'a> NumberField<'a> {
             dv = dv.suffix(suf.clone());
         }
 
-        let inner_resp = child_ui.add_sized(
-            egui::vec2(desired_width - inner_margin * 2.0, row_height - inner_margin * 2.0),
-            dv,
-        );
+        // DragValue has its own minimum height. A vertical inset makes the
+        // widget overflow its cell downward instead of staying centered.
+        let inner_rect = outer_rect.shrink2(egui::vec2(inner_margin, 0.0));
+        let inner_resp = ui.place(inner_rect, dv);
 
         let is_focused = inner_resp.has_focus();
         let is_hovered = outer_resp.hovered() || inner_resp.hovered();
@@ -413,6 +410,38 @@ mod tests {
         assert_eq!(tf.desired_width, Some(180.0));
         assert!(tf.validate.is_some());
         assert!(!tf.enabled);
+    }
+
+    #[test]
+    fn number_field_paints_text_on_the_control_centerline() {
+        let ctx = egui::Context::default();
+        let mut v = 20.0;
+        let mut control_center = 0.0;
+        let output = crate::run_ui(&ctx, egui::RawInput::default(), |ui| {
+            ui.horizontal(|ui| {
+                let row_height =
+                    ui.text_style_height(&egui::TextStyle::Body) + crate::spatial(ui).space_3 * 2.0;
+                control_center = ui.cursor().top() + row_height * 0.5;
+                NumberField::new(&mut v).suffix(" px").show(ui);
+            });
+        });
+        fn text_center(shape: &egui::Shape) -> Option<f32> {
+            match shape {
+                egui::Shape::Vec(shapes) => shapes.iter().find_map(text_center),
+                egui::Shape::Text(text)
+                    if text.galley.text().trim().parse::<f64>().ok() == Some(20.0) =>
+                {
+                    Some(text.pos.y + text.galley.size().y * 0.5)
+                },
+                _ => None,
+            }
+        }
+        let center = output
+            .shapes
+            .iter()
+            .find_map(|shape| text_center(&shape.shape))
+            .expect("number field paints the value");
+        assert!((center - control_center).abs() <= 1.0, "{center} vs {control_center}");
     }
 
     #[test]

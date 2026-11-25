@@ -139,6 +139,7 @@ impl GuiShell {
 
         // Apply persisted settings
         if let Some(s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
+            ui_store.view.language = crate::app::i18n::Language::from_key(&s.interface_language);
             ui_store.rebuild_debounce_ms = s.rebuild_debounce_ms;
             ui_store.scrub_step_s = s.scrub_step_s;
             ui_store.snap_fps = s.snap_fps;

@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn settings_persistence_roundtrips_plugin_paths() {
     let settings = SettingsPersistence {
+        interface_language: "zh-CN".into(),
         rebuild_debounce_ms: 150,
         scrub_step_s: 0.05,
         snap_fps: 60.0,
@@ -20,6 +21,15 @@ fn settings_persistence_roundtrips_plugin_paths() {
         .expect("serialize settings");
     let parsed: SettingsPersistence = ron::from_str(&serialized).expect("parse settings roundtrip");
     assert_eq!(parsed.plugin_paths, settings.plugin_paths);
+    assert_eq!(parsed.interface_language, "zh-CN");
+    let before_language = serialized
+        .lines()
+        .filter(|line| !line.contains("interface_language:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let old_settings: SettingsPersistence =
+        ron::from_str(&before_language).expect("load settings without language");
+    assert!(old_settings.interface_language.is_empty());
 
     let legacy = serialized.replacen(
         '(',

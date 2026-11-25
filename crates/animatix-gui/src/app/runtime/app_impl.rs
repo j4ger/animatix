@@ -170,7 +170,9 @@ impl AnimatixApp {
         use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
         // The dialog is drawn after global shortcuts. Leave its dismissal
         // key in the event queue so it can run its own exit and focus restore.
-        if self.shell.modal_open() && ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+        if self.shell.ui_store.view.settings_open
+            || (self.shell.modal_open() && ctx.input(|input| input.key_pressed(egui::Key::Escape)))
+        {
             return;
         }
         let focus = FocusContext {

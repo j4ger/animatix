@@ -179,6 +179,7 @@ impl Popover {
         let externally_controlled: bool =
             ctx.data(|d| d.get_temp::<bool>(external_key(self.id)).unwrap_or(false));
 
+        let mut opened_by_trigger = false;
         if externally_controlled {
             if !is_open && is_closing {
                 finish_close(ctx, self.id, prev_focus_key, opened_key, closing_key);
@@ -190,6 +191,7 @@ impl Popover {
             } else {
                 is_open = true;
                 is_closing = false;
+                opened_by_trigger = true;
                 save_focus(ctx, prev_focus_key);
                 push_overlay(ctx, self.id, OverlayLayer::Popover);
                 ctx.data_mut(|d| {
@@ -232,7 +234,12 @@ impl Popover {
 
             let rect = inner.response.rect;
 
-            if is_open && is_topmost(ctx, self.id) && clicked_outside(ui, rect, &inner.response) {
+            // The opening click is already owned by the trigger.
+            if !opened_by_trigger
+                && is_open
+                && is_topmost(ctx, self.id)
+                && clicked_outside(ui, rect, &inner.response)
+            {
                 is_open = false;
                 is_closing = true;
                 ctx.data_mut(|d| {

@@ -340,7 +340,7 @@ impl GuiShell {
 
     fn toolbar_workspace_menu(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
         if ui.button(format!("{}  Settings", icons::GEAR)).clicked() {
-            self.ui_store.view.settings_open = true;
+            commands.push_back(ShellAction::View(ViewAction::OpenSettings));
             ui.close();
         }
         if ui.button(format!("{}  Keyboard shortcuts", icons::COMMAND)).clicked() {
