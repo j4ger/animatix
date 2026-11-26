@@ -1,1 +1,1 @@
-{"deployment_id": "23ffc53f-e98a-45ca-ad06-408b7d749aae", "phase": "waiting", "previous_sha": "bde1135e77d19b40bd711f5b413a0f0edb93447d", "requested_at": 1795678877, "schema": 1, "sha": "290666e7d2f78ebb87306e31f6f400aa0988b6d2"}
+{"deployment_id": "23ffc53f-e98a-45ca-ad06-408b7d749aae", "phase": "complete", "previous_sha": "bde1135e77d19b40bd711f5b413a0f0edb93447d", "requested_at": 1795678877, "schema": 1, "sha": "290666e7d2f78ebb87306e31f6f400aa0988b6d2"}
