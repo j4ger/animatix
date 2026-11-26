@@ -71,8 +71,9 @@ The explainer stops for separate approval of the text and of the storyboard
 before production.
 
 Start with the normal [visual checks](docs/audit.md). For a fragile timing claim,
-the optional frame-evidence helper plans frames with Python 3. Its capture mode
-requires a compatible renderer adapter; Animatix does not install one for you.
+the optional frame-evidence helper plans frames with Python 3. Capture and
+verification use Pillow to decode the PNGs. Capture also requires a compatible
+renderer adapter supplied by the caller.
 For a frame-boundary claim, verify the resulting frames at the delivery rate
 against the actual renderer or decoded export. A CLI still sampled by seconds
 is a preview, not proof of what appears in the final video.

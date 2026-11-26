@@ -1,7 +1,5 @@
 # Geometry and clearance
 
-The examples behind this guidance were checked at Animatix revision `69c7795715911ff098225da4d8f7c569bcab3ca2`. Confirm syntax with the target specification and a compiling example; a revision alone isn't syntax.
-
 ## Nested or transformed placement
 
 For uncameraed screen pixels, x increases rightward and y downward. A standard centered Rect/Ellipse for bounds `[l,r) × [t,b)` uses center `((l+r)/2,(t+b)/2)` and size `(r-l,b-t)`. For a nested or custom-anchored actor, inspect final screen-space bounds using its named instance path. Do not infer them from local coordinates. Use a shared transform or progress for attached parts. Pass a typed Color to component parameters; use `hex_color(...)` for fixed hex colors or `rgb(...)` / `rgba(...)` for computed ones.
@@ -14,6 +12,6 @@ For straight monotonic travel, project the mark onto the centerline, clamp to th
 
 ## Connectors to nested ports
 
-Use actor-edge anchors, e.g. `from: (source, right), to: (moving.port, left)`, not bare actor handles or guessed `.position` values. Set `stroke` explicitly. Declare a rear connector before the opaque movers and a foreground mark after them. At an interior pose, check the connector bounds track the actual nested port and verify exposed wire paint; a successful build can still render none.
+Use named points for a fixed attachment, e.g. `from: source.right, to: moving.port.left`. A bare actor endpoint lets the engine choose the facing side. Set `stroke` explicitly. Declare a rear connector before the opaque movers and a foreground mark after them. At an interior pose, check the connector bounds track the actual nested port and verify exposed wire paint; a successful build can still render none.
 
-Run [the small self-contained example](../assets/nested-connector.amx) with the matching engine. At 2 s the visible wire reaches the back of the moving body, the endpoint resolves to the port edge, and P paints above the body. The pinned checker can warn that this tuple expects Vec2 even when native paint resolves correctly; verify the actual renderer on the target revision.
+Run [the small self-contained example](../assets/nested-connector.amx) with the matching engine. At 2 s the visible wire reaches the back of the moving body, the endpoint resolves to the port edge, and P paints above the body.

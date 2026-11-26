@@ -1,5 +1,7 @@
 # Scene <stable ID>
 
+For authoring, production and storyboard review. For a first-look check, send the rendered material and the neutral question separately.
+
 - **Approved source:** <draft revision / section or line ID>
 - **Viewer inference:** <one sentence>
 - **Visible sequence:** <start → decisive visible cause → outcome or contrast>

@@ -2,20 +2,33 @@
 name: animatix-scene
 description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for DSL, reusable animated components, and visual QA of a scene.
 metadata:
-  version: "0.9.0-draft.37"
+  version: "0.9.0-draft.38"
 ---
 
 # Animatix scene
 
 Preserve the approved claim, timing, format, and unrelated behavior. Match the target engine's spec and audit tools; start unfamiliar syntax from a compiling sample on that revision. Unsettled narration or full explanations belong to animatix-explainer.
 
-## Build the visual beat
+## Choose what to reuse
 
-- Stage one viewing task at a time. Make the cause visible before the result and keep live labels by their subjects. Give the viewer time to read.
-- Separate the true event from explanatory motion. Pace setup, travel, and hold; ease motion when it helps tracking. Use a cut if interpolation invents a state. Keep parts that represent the same event tied to the same state.
-- For independently changing instances of one mechanism, first build **only** a reusable module and a small probe. Render its rest, action, and result; exercise the inputs and check that one instance doesn't move its neighbor. Assemble with that same module, rerun the probe when it changes, and verify one input-to-result path in context. One-off motion can go straight to the scene.
+Look up the element by its job before drawing it. Check the scene's imports, then the [shared layout components](../../../web/content/templates/layout.amx) and [native primitives](../../../docs/primitives.md). The layout module includes `MetricCard`, `CaptionPlate` and `SignalLane`. For small marks such as arrows and checks, use a `Path` with a [supported icon name](../../../docs/primitives.md#icon-names). [Public scenes](../../../web/content/scenes/) show the imports and styling in context.
 
-Read only the relevant reference: [typed colors](references/colors.md) for color syntax; [geometry and clearance](references/geometry-and-clearance.md) for nested actors, ports, and swept overlap; [layout and data](references/layout-data-qa.md) for readouts and charts. [Engine essentials](references/engine-essentials.md) covers setup syntax and optional imagery. Generated images are optional; keep changing geometry and data editable and use a native fallback when imagery is unavailable.
+For a scene saved under `web/content/scenes/`, this is a complete example. Adjust the import relative to your own scene and include the module with the deliverable.
+
+```amx
+import "../templates/layout.amx"
+config { style: "editorial", canvas_size: (1280, 720), duration: 4 }
+#0s
+card: MetricCard, label: "Speed", value: "24 m/s", detail: "Average", width: 420, height: 200, at: (640, 360)
+```
+
+Use an existing component directly when its inputs cover the beat. Compose a one-off from primitives in the scene. When a new mechanism needs independently changing instances, build a small reusable module and probe its rest, action and result. Check that changing one instance leaves its neighbor stable before assembling the scene. Rerun the probe when the module changes.
+
+## Stage the beat
+
+Show one viewing task at a time. Make the cause visible before its result, keep live labels near their subjects and give the viewer time to read. In adjacent panels, place a status mark beside the label or value it qualifies and check its association at delivery size. Tie parts of the same event to the same state. Use a cut when interpolation would imply a state that never occurs.
+
+Consult [geometry and clearance](references/geometry-and-clearance.md) for moving ports or overlaps, [layout and data](references/layout-data-qa.md) for charts and readouts, and [typed colors](references/colors.md) for color syntax. [Engine essentials](references/engine-essentials.md) covers opening visibility, timing and optional imagery.
 
 ## Verify, then iterate
 

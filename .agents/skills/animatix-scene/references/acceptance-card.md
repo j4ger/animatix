@@ -5,7 +5,7 @@ Record only checks that could change your decision. Use the approved card or ind
 
 - **Discrete change:** record event ID, model trigger, exact readout location, and what the last old and first new delivered frames should show. Check the cue, readout, and unchanged participant separately. Verify the next frame if a stale state could appear.
 - **State that must hold:** endpoints don't prove the interval. Check the risky interior; for a short critical interval, sweep every delivered frame. Check an actual overlapping or closest-pass pose for continuous motion. Verify plotted quantities against the painted scale as well as labels.
-- **Viewer inference:** give a fresh reader one question without supplying the answer. If the image is responsible for the inference, hide only external captions/narration for this diagnostic; keep on-diagram labels. A reader unable to answer isn't evidence of a different state. Recheck normal delivery.
+- **Viewer inference:** give a fresh viewer only the rendered clip or ordered frames and a neutral question. Keep this plan, the brief, and the scene cards with the author. Record their answer before comparing it with the expectation. If the image is responsible for the inference, hide only external captions/narration for this diagnostic; keep on-diagram labels. A reader unable to answer isn't evidence of a different state. Recheck normal delivery.
 
 ## Capture frame evidence
 For an ordinary move, render directly; no ledger is required. For exact boundaries or windows, save a small JSON plan, e.g.:
@@ -28,7 +28,11 @@ python3 scripts/frame_evidence.py capture expected.json scene.amx proof-original
 python3 scripts/frame_evidence.py verify scene.amx proof-original
 ```
 
-Python 3 only. `plan` gives fractional seconds and the numerical samples for any renderer, with no rendering dependency. Optional `capture` uses an existing local runner, called as `render SOURCE OUT SECONDS_CSV`. It must render the requested times, write sequential `f000.png`, `f001.png`, …, and report `{"times":[...],"result":{"ok":true}}` in `samples.json`. This is an adapter contract, not an Animatix CLI command. Without it, use the project's verified renderer at the planned times. If the installed Animatix CLI supports it, `animatix image scene.amx --time SECONDS -o frame-NNNNNN.png` is a single timestamp sample. Check engine revision, timing precision, and actual output before treating a timestamp sample as an exact delivery boundary. If rendering is unavailable, mark it unverified. For captures with imports or assets, pass all inputs as repeated `--input` paths relative to the scene. The receipt checks the locked plan, scene, listed dependencies and PNGs; it doesn't infer painted states or attest to unlisted inputs or encoded playback.
+`plan` uses the Python 3 standard library. `capture` and `verify` also need Pillow in the same Python environment (`python3 -m pip install Pillow`). Both check that each PNG decodes. Open the images to judge their content.
+
+For `capture`, supply a renderer adapter that accepts `render SOURCE OUT SECONDS_CSV`, writes sequential `f000.png`, `f001.png`, … at the requested times, and saves `{"times":[...],"result":{"ok":true}}` in `samples.json`. Use a new directory for each capture. Pass each imported module or asset as a repeated `--input` path relative to the scene. The receipt covers the locked plan, scene, listed inputs, runner report and saved images.
+
+Without an adapter, sample directly with `animatix image scene.amx --time SECONDS -o frame-NNNNNN.png`. For a claim about an encoded frame boundary, inspect the decoded export at the delivery rate. Report which evidence was available.
 
 ## Decide and keep the last passing revision
 Open the actual frames at delivery size and record observed states. A content mismatch at the right time calls for a content fix; change timing only when the evidence proves a timing mismatch. For continuous time, confirm required subframe thresholds separately from delivered samples. Render the same witnesses into a new folder after the edit. Recheck after the last visual edit and retain the earlier passing scene if a later change breaks a verified claim.
