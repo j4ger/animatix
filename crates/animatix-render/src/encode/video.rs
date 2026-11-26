@@ -31,7 +31,7 @@ pub fn render_video_timeline(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     render_video_timeline_with_options(
@@ -52,7 +52,7 @@ pub fn render_video_timeline_with_options(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -76,7 +76,7 @@ pub fn render_video_composition(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     render_video_composition_with_options(
@@ -97,7 +97,7 @@ pub fn render_video_composition_with_options(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -121,7 +121,7 @@ pub fn render_video_chapter_with_options(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -162,7 +162,7 @@ fn encode_video(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -179,8 +179,8 @@ fn encode_video(
     };
     let frames = chapter.unwrap_or(VideoFrameRange::new(0, full_frames));
     let total_frames = frames.len();
-    let frame_time = |frame| f64::from(frame) / f64::from(fps);
-    let full_duration_s = f64::from(duration);
+    let frame_time = |frame| animatix::time::frame_seconds(frame, f64::from(fps));
+    let full_duration_s = duration;
     let audio_start_s = frame_time(frames.start_frame());
     let audio_end_s = if chapter.is_some() && frames.end_frame() < full_frames {
         frame_time(frames.end_frame())
@@ -233,7 +233,7 @@ fn encode_video(
     let push_frame = |frame, scene_frame| {
         encoder.push_frame(frame, total_frames, width, height, scene_frame)?;
         if let Some(audio) = &mut encoder.audio {
-            let time_s = (frame + 1) as f64 / f64::from(fps);
+            let time_s = animatix::time::frame_seconds(frame as u32 + 1, f64::from(fps));
             audio.advance(&mut encoder.format_context, time_s.min(audio_duration_s))?;
         }
         Ok(())

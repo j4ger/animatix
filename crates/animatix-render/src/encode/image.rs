@@ -16,7 +16,7 @@ pub fn render_image_timeline(
     timeline: Timeline,
     width: u32,
     height: u32,
-    time: f32,
+    time: f64,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     render_image_timeline_with_options(
@@ -35,7 +35,7 @@ pub fn render_image_timeline_with_options(
     timeline: Timeline,
     width: u32,
     height: u32,
-    time: f32,
+    time: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -48,7 +48,7 @@ pub fn render_image_timeline_with_options(
     }
     let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
     let frame = renderer
-        .render_canvas(&timeline, time as f64, SceneDimensions { width, height }, debug_options)
+        .render_canvas(&timeline, time, SceneDimensions { width, height }, debug_options)
         .map_err(|e| ExportError::FrameRender {
             frame: 0,
             message: e,
@@ -80,7 +80,7 @@ pub fn render_image_composition(
     composition: &Composition,
     width: u32,
     height: u32,
-    time: f32,
+    time: f64,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     if !composition.has_scenes() {
@@ -91,7 +91,7 @@ pub fn render_image_composition(
     }
 
     let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
-    let (scene_name, local_time_s, transition_blend) = composition.evaluate(time as f64);
+    let (scene_name, local_time_s, transition_blend) = composition.evaluate(time);
 
     let dims = SceneDimensions { width, height };
 

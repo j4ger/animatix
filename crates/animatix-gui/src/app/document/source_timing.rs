@@ -52,7 +52,7 @@ impl SourceTiming {
         self.entries
             .iter()
             .filter(|(_, (scope, _))| scope.as_deref() == scene)
-            .filter_map(|(&line, (_, t))| t.filter(|t| *t <= time + 0.000_001).map(|t| (line, t)))
+            .filter_map(|(&line, (_, t))| t.filter(|t| *t <= time).map(|t| (line, t)))
             .max_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(line, _)| line)
     }
@@ -136,7 +136,7 @@ fn collect_scope(
                 let value = resolve_time(time);
                 let local = compiled.or_else(|| {
                     if relative {
-                        previous.zip(value).map(|(a, b)| a + b)
+                        previous.zip(value).map(|(a, b)| animatix::time::add_seconds(a, b))
                     } else {
                         value
                     }
@@ -146,7 +146,9 @@ fn collect_scope(
                     expression: format!("#{}{}", if relative { "+" } else { "" }, time.to_source()),
                     line: span.map(|span| span.start_line.saturating_sub(1)),
                     scene: scene.map(str::to_owned),
-                    time_s: global_offset.zip(local).map(|(a, b)| a + b),
+                    time_s: global_offset
+                        .zip(local)
+                        .map(|(a, b)| animatix::time::add_seconds(a, b)),
                     action_count: body.len(),
                 });
             },

@@ -348,3 +348,27 @@ fn rebuild_command_submits_to_background_worker() {
     assert!(shell.preview_store.rebuild_in_progress);
     assert_eq!(shell.preview_store.preview.status.canonical(), "Building timeline…");
 }
+
+#[test]
+fn frame_navigation_lands_on_the_export_grid_in_both_directions() {
+    let mut preview = super::PreviewPaneState::new(
+        10.0,
+        SceneDimensions {
+            width: 64,
+            height: 64,
+        },
+    );
+    let playback = &mut preview.playback;
+    for _ in 0..201 {
+        playback.frame_step_forward(25.0);
+    }
+    assert_eq!(playback.current_time_s(), 8.04);
+    playback.frame_step_backward(25.0);
+    assert_eq!(playback.current_time_s(), 8.0);
+    playback.scrub_to(1.88_f64.next_down());
+    playback.frame_step_forward(25.0);
+    assert_eq!(playback.current_time_s(), 1.88);
+    playback.scrub_to(1.88_f64.next_up());
+    playback.frame_step_backward(25.0);
+    assert_eq!(playback.current_time_s(), 1.88);
+}

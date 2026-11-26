@@ -1,6 +1,7 @@
 //! Frame evaluation and program/frame-cache entry points.
 
 use super::*;
+use crate::timeline::utils::sample_tick_millis;
 
 /// Mutable state threaded through the frame-evaluation phases
 /// (`prepare_frame` → `run_frame_modifiers` → `render_frame_roots` →
@@ -236,7 +237,7 @@ impl Timeline {
         if self.backend_can_run(filter_backend) || debug_options != DebugRenderOptions::default() {
             return None;
         }
-        let time_ms = (time_s * 1000.0) as u64;
+        let time_ms = sample_tick_millis(time_s);
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = self.world.has_child_orders();
         let cached = self.eval_caches.frame_cache.borrow();
@@ -469,7 +470,7 @@ impl Timeline {
         presentation: bool,
         runtime_inputs: Option<&crate::timeline::RuntimeInputs>,
     ) -> FrameEvaluation<'a> {
-        let time_ms = (time_s * 1000.0) as u64;
+        let time_ms = sample_tick_millis(time_s);
         let runtime_input_key = runtime_inputs.map_or(0, crate::timeline::RuntimeInputs::cache_key);
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = self.world.has_child_orders();

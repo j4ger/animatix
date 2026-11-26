@@ -26,11 +26,10 @@ use std::cell::RefCell;
 /// doc comment on that field.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FrameSignature {
-    /// Frame time, quantised to milliseconds exactly the way the scene cache
-    /// quantises it (`scene_eval.rs`): the engine already treats sub-millisecond
-    /// differences as the same frame, and the dedup must not be finer than the
-    /// thing it is skipping.
-    pub time_ms: u64,
+    /// Exact bits of the requested global seconds. Composition-local events can
+    /// split one global millisecond, and blend progress can change inside it.
+    /// Repeating the exact held timestamp still deduplicates.
+    pub time_bits: u64,
     /// Scene dimensions the document was built for. Layout follows these, so
     /// they are *not* implied by `raster_*`: a 640×360 scene at scale 1 and a
     /// 1280×720 scene at scale 0.5 rasterize the same number of pixels and draw
@@ -116,7 +115,7 @@ mod tests {
 
     fn signature() -> FrameSignature {
         FrameSignature {
-            time_ms: 1_500,
+            time_bits: 1.5_f64.to_bits(),
             scene_width: 1_280,
             scene_height: 720,
             raster_width: 1_280,
@@ -149,8 +148,8 @@ mod tests {
         // machinery. A field added without a line here is a field the key can
         // ignore — which is exactly the failure this test exists to catch.
         let mut changed = signature();
-        changed.time_ms += 1;
-        assert_ne!(changed, signature(), "time_ms must change the key");
+        changed.time_bits = 1.5_f64.next_down().to_bits();
+        assert_ne!(changed, signature(), "time_bits must change the key even within a millisecond");
 
         let mut changed = signature();
         changed.scene_width += 1;
@@ -202,7 +201,7 @@ mod tests {
         dedup.record(first.clone());
         assert!(dedup.is_presented(&first));
         let mut later = signature();
-        later.time_ms += 16;
+        later.time_bits = 1.516_f64.to_bits();
         assert!(!dedup.is_presented(&later));
     }
 

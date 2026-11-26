@@ -180,7 +180,7 @@ pub(crate) fn compute_auto_storyboard_times(target: &BuildTarget, max_frames: us
                 let start_s = comp.scene_start_times.get(name).copied().unwrap_or(0.0);
                 kt.push(start_s);
                 for t in scene.timeline.keyframe_times_s() {
-                    kt.push(start_s + t);
+                    kt.push(animatix::time::add_seconds(start_s, t));
                 }
             }
             (kt, comp.global_duration_s)
@@ -280,7 +280,7 @@ pub(crate) fn select_storyboard_times(
                 let start_s = comp.scene_start_times.get(name).copied().unwrap_or(0.0);
                 kt.push(start_s);
                 for t in scene.timeline.keyframe_times_s() {
-                    kt.push(start_s + t);
+                    kt.push(animatix::time::add_seconds(start_s, t));
                 }
             }
             (kt, comp.global_duration_s)

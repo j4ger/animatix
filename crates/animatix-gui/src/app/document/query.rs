@@ -19,7 +19,7 @@ impl DocumentSession {
     /// Interactive pause points across the document in seconds.
     pub fn pause_points_s(&self) -> Vec<f64> {
         if let Some(comp) = &self.composition {
-            comp.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect()
+            comp.pause_points_s().to_vec()
         } else if let Some(tl) = &self.timeline {
             tl.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect()
         } else {

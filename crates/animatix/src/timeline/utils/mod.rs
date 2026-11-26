@@ -20,3 +20,6 @@ pub use expr::{
 pub use value::{
     parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms, time_to_ms_at_beat,
 };
+
+pub use crate::time::sample_tick_millis;
+pub(crate) use crate::time::seconds_to_millis;

@@ -302,7 +302,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     const nextTime = oldTime + dtEff;
 
     if (this._isPresentation() && this._pausePoints.length > 0) {
-      const nextPause = this._pausePoints.find((p) => p > oldTime + 1e-4 && p <= nextTime + 1e-4);
+      const nextPause = this._pausePoints.find((p) => p > oldTime && p <= nextTime);
       if (nextPause !== undefined) {
         this._time = nextPause;
         this._restTime = nextPause;

@@ -15,6 +15,7 @@ use crate::easing::Easing;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_engine::PropertyValue;
 use crate::timeline::property_registry::{ActorField, PropertyFlags, PropertySchema};
+use crate::timeline::utils::seconds_to_millis;
 use crate::timeline::{Timeline, evaluate_expr};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -740,11 +741,11 @@ fn assignment_has_start_fence(
 
 fn time_to_ms(time: &Time, env: &Environment, timeline: &Timeline) -> Option<f64> {
     let milliseconds = match time {
-        Time::Seconds(seconds) => seconds * 1000.0,
+        Time::Seconds(seconds) => seconds_to_millis(*seconds),
         Time::Milliseconds(milliseconds) => *milliseconds as f64,
         Time::Beats(beats) => beats * timeline.beat_duration_ms(),
         Time::Expression(expression) => match evaluate_expr(expression, env).ok()? {
-            Value::Duration(seconds) => seconds * 1000.0,
+            Value::Duration(seconds) => seconds_to_millis(seconds),
             _ => return None,
         },
         Time::SpeechMarker { .. } | Time::SpeechWord { .. } => return None,

@@ -68,7 +68,7 @@ pub struct Composition {
     /// scene_name → start time in the global timeline.
     pub scene_start_times: BTreeMap<String, f64>,
     /// Interactive pause points across the entire composition in global milliseconds.
-    pub pause_points: Vec<u64>,
+    pub pause_points: Vec<f64>,
 }
 
 /// Read-only summary of a composition's scene graph — the data a human (or

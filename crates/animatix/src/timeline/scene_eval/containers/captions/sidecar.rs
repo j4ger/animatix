@@ -12,7 +12,7 @@ impl Timeline {
         segments: Option<&Range<usize>>,
         time_s: f64,
     ) -> bool {
-        let time_ms = (time_s * 1000.0) as u64;
+        let time_ms = crate::timeline::utils::seconds_to_millis(time_s) as u64;
         let time_s = time_ms as f64 / 1000.0;
         let Some(source) = self.world.transcript.get(source) else {
             return false;

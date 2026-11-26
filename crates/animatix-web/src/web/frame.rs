@@ -63,7 +63,7 @@ impl AmxPlayer {
     ) -> FrameSignature {
         let (raster_width, raster_height) = raster_dims(self.dims, self.render_scale);
         FrameSignature {
-            time_ms: (time_s * 1000.0) as u64,
+            time_bits: time_s.to_bits(),
             scene_width: self.dims.width,
             scene_height: self.dims.height,
             raster_width,

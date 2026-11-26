@@ -134,7 +134,7 @@ pub(crate) fn scene_track(
         let Some(start) = composition.scene_start_times.get(name).copied() else {
             continue;
         };
-        let end = start + scene.duration_s;
+        let end = animatix::time::add_seconds(start, scene.duration_s);
         if end < coords.scroll_s || start > coords.scroll_s + coords.visible_s {
             continue;
         }

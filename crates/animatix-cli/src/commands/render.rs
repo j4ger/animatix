@@ -12,7 +12,7 @@ pub fn run_image(
     input: &Path,
     width: Option<u32>,
     height: Option<u32>,
-    time: f32,
+    time: f64,
     output: Option<PathBuf>,
     debug_bounds: bool,
     set: &[(String, String)],
@@ -55,8 +55,8 @@ pub fn run_video(
     width: Option<u32>,
     height: Option<u32>,
     fps: u32,
-    duration: Option<f32>,
-    hold: f32,
+    duration: Option<f64>,
+    hold: f64,
     output: Option<PathBuf>,
     debug_bounds: bool,
     settings: export::ExportSettings,
@@ -173,8 +173,8 @@ pub fn run_gif(
     width: Option<u32>,
     height: Option<u32>,
     fps: u32,
-    duration: Option<f32>,
-    hold: f32,
+    duration: Option<f64>,
+    hold: f64,
     output: Option<PathBuf>,
     debug_bounds: bool,
     threads: export::MaxRenderThreads,
@@ -312,13 +312,13 @@ fn resolve_preset(
 /// Resolves export duration for a `BuildTarget` (single or multi-scene).
 #[cfg(feature = "video")]
 pub(super) fn resolve_duration(
-    duration: Option<f32>,
+    duration: Option<f64>,
     target: &BuildTarget,
-    hold: f32,
-    min_duration: f32,
-) -> f32 {
+    hold: f64,
+    min_duration: f64,
+) -> f64 {
     duration.unwrap_or_else(|| {
-        let d = target.duration_s() as f32 + hold.max(0.0);
+        let d = animatix::time::add_seconds(target.duration_s(), hold.max(0.0));
         d.max(min_duration)
     })
 }

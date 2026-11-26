@@ -66,7 +66,7 @@ pub fn motion_path_ops(
 
         for (time_ms, pos) in &kf_points {
             let scene_point = kurbo::Point::new(pos[0] as f64, pos[1] as f64);
-            let current_time_ms = (current_time_s * 1000.0) as u64;
+            let current_time_ms = animatix::time::sample_tick_millis(current_time_s);
             let is_current = *time_ms == current_time_ms;
             let dot_color = if is_current {
                 theme.palette.status.warning

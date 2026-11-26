@@ -152,11 +152,6 @@ pub(crate) fn bounds_map(program: &SceneProgram, scene: &str) -> HashMap<(String
         .collect()
 }
 
-/// Cache key for a rendered verification time, in milliseconds.
-pub(crate) fn verify_time_key(time_s: f64) -> u64 {
-    (time_s * 1000.0).round() as u64
-}
-
 /// A resolved scene (or transition blend) at one global time.
 ///
 /// Both `verify` and `review` resolve multi-scene time through this single

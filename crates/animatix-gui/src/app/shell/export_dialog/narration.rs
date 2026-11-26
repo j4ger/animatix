@@ -34,9 +34,9 @@ pub(super) fn affected_paragraphs(
     settings: &ExportDialogState,
 ) -> Vec<AffectedParagraph> {
     let output = match settings.format {
-        ExportFormat::Image | ExportFormat::WebP => Output::Still(f64::from(settings.time_s)),
+        ExportFormat::Image | ExportFormat::WebP => Output::Still(settings.time_s),
         format => Output::Motion {
-            duration: f64::from(settings.motion_duration_s(target.duration_s())),
+            duration: settings.motion_duration_s(target.duration_s()),
             fps: f64::from(settings.fps),
             audio: format != ExportFormat::Gif,
         },
@@ -135,9 +135,14 @@ fn effect_for(
             fps,
             audio,
         } => {
-            let first = ((start + offset).max(0.0) * fps).ceil() as u32;
-            let last = ((end + offset).min(duration) * fps).ceil() as u32;
-            let captions = (first..last).any(|frame| caption(f64::from(frame) / fps));
+            let first =
+                animatix::time::frame_at_or_after(animatix::time::add_seconds(offset, start), fps);
+            let last = animatix::time::frame_at_or_after(
+                animatix::time::add_seconds(offset, end).min(duration),
+                fps,
+            );
+            let captions =
+                (first..last).any(|frame| caption(animatix::time::frame_seconds(frame, fps)));
             let audio_start = start.max(track.audio.start_time_s).max(-offset);
             let clip_end =
                 track.audio.duration_s.map_or(f64::INFINITY, |d| track.audio.start_time_s + d);

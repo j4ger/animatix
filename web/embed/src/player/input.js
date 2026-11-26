@@ -264,7 +264,7 @@ export class AmxPlayerInput extends AmxPlayerLoad {
   /// Advance to the next presentation pause point, or resume playing towards it.
   stepNext() {
     if (this._state !== "ready") return;
-    const nextP = this._pausePoints.find((p) => p > this._time + 0.005);
+    const nextP = this._pausePoints.find((p) => p > this._time);
     if (nextP !== undefined) {
       if (this._playing) {
         // Fast-forward immediately to the target step and pause
@@ -292,7 +292,7 @@ export class AmxPlayerInput extends AmxPlayerLoad {
   /// Step backward to the previous presentation pause point.
   stepPrev() {
     if (this._state !== "ready") return;
-    const prevP = [...this._pausePoints].reverse().find((p) => p < this._time - 0.005);
+    const prevP = [...this._pausePoints].reverse().find((p) => p < this._time);
     if (prevP !== undefined) {
       this.seek(prevP);
       this.pause();

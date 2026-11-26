@@ -6,6 +6,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use super::utils::seconds_to_millis;
+
 /// Index mapping source lines to timeline times and vice versa.
 #[derive(Debug, Clone, Default)]
 pub struct TimelineIndex {
@@ -27,7 +29,7 @@ impl TimelineIndex {
         let mut line_to_time = HashMap::new();
         let mut time_to_lines: BTreeMap<u64, Vec<usize>> = BTreeMap::new();
         let mut keyframes = Vec::new();
-        let mut current_time_s = 0.0;
+        let mut current_time_ms = 0.0;
 
         for (line_idx, line) in source.lines().enumerate() {
             let trimmed = line.trim_start();
@@ -54,7 +56,7 @@ impl TimelineIndex {
                     Ok(v) => v,
                     Err(_) => {
                         // Still associate this line with current time
-                        let time_ms = (current_time_s * 1000.0) as u64;
+                        let time_ms = current_time_ms as u64;
                         line_to_time.insert(line_idx, time_ms);
                         time_to_lines.entry(time_ms).or_default().push(line_idx);
                         continue;
@@ -62,24 +64,24 @@ impl TimelineIndex {
                 };
 
                 let unit = time_part[num_str.len()..].trim_start();
-                let delta_s = if unit.starts_with("ms") {
-                    value / 1000.0
-                } else {
+                let delta_ms = if unit.starts_with("ms") {
                     value
+                } else {
+                    seconds_to_millis(value)
                 };
 
                 if is_relative {
-                    current_time_s += delta_s;
+                    current_time_ms += delta_ms;
                 } else {
-                    current_time_s = delta_s;
+                    current_time_ms = delta_ms;
                 }
 
-                let time_ms = (current_time_s * 1000.0) as u64;
+                let time_ms = current_time_ms as u64;
                 keyframes.push((time_ms, line_idx));
             }
 
             // Associate this line with the current time
-            let time_ms = (current_time_s * 1000.0) as u64;
+            let time_ms = current_time_ms as u64;
             line_to_time.insert(line_idx, time_ms);
             time_to_lines.entry(time_ms).or_default().push(line_idx);
         }
@@ -134,6 +136,17 @@ impl TimelineIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn index_agrees_for_seconds_milliseconds_and_relative_headers() {
+        let index = TimelineIndex::build(
+            "#8.04s
+#8040ms
+#+2.002s
+",
+        );
+        assert_eq!(index.keyframes, [(8040, 0), (8040, 1), (10042, 2)]);
+    }
 
     #[test]
     fn index_maps_lines_to_times() {

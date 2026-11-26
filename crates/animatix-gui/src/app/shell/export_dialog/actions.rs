@@ -263,7 +263,7 @@ impl GuiShell {
             ExportFormat::Image | ExportFormat::WebP => 1,
             ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
                 let duration = state.motion_duration_s(effective_duration_s);
-                (duration * state.fps as f32).ceil() as u32
+                animatix::time::frame_at_or_after(duration, f64::from(state.fps))
             },
         };
 
@@ -347,9 +347,9 @@ impl GuiShell {
 impl ExportDialogState {
     /// Effective export duration for motion formats: the timeline length plus
     /// the configured hold, or the manual override. Never below half a second.
-    pub(super) fn motion_duration_s(&self, effective_duration_s: f64) -> f32 {
+    pub(super) fn motion_duration_s(&self, effective_duration_s: f64) -> f64 {
         if self.auto_duration {
-            (effective_duration_s as f32 + self.hold_s.max(0.0)).max(0.5)
+            animatix::time::add_seconds(effective_duration_s, self.hold_s.max(0.0)).max(0.5)
         } else {
             self.duration_s
         }
@@ -385,7 +385,7 @@ fn render_motion_export(
     format: ExportFormat,
     target: &crate::app::document::export_target::ExportTargetOwned,
     state: &ExportDialogState,
-    duration: f32,
+    duration: f64,
     output_path: &std::path::Path,
     debug: animatix::timeline::DebugRenderOptions,
     options: animatix_render::encode::ExportOptions<'_>,

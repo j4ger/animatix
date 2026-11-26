@@ -135,7 +135,7 @@ fn actor_summary(
     value_rows(ui, rows);
     ui.small(text(ui, "gui-inspector-samples-help"));
     ui.add_space(10.0);
-    let time_ms = (local_s.max(0.0) * 1000.0) as u64;
+    let time_ms = animatix::time::sample_tick_millis(local_s);
     for group in build_property_groups(timeline, id, time_ms) {
         egui::CollapsingHeader::new(format!("{}  {}", group.icon, group_label(ui, group.name)))
             .id_salt(("inspect_group", label, group.name))
@@ -237,7 +237,7 @@ pub(super) fn local_time(ctx: &InspectorContext<'_>, global_s: f64) -> f64 {
     ctx.composition
         .zip(ctx.active_scene)
         .and_then(|(comp, scene)| comp.scene_start_times.get(scene))
-        .map_or(global_s, |start| (global_s - start).max(0.0))
+        .map_or(global_s, |start| animatix::time::scene_local_seconds(global_s, *start).max(0.0))
 }
 
 fn value_rows(ui: &mut egui::Ui, rows: Vec<(&str, String)>) {

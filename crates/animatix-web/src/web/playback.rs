@@ -19,28 +19,17 @@ impl AmxPlayer {
 
     /// Interactive pause points across the document in seconds.
     pub fn pause_points(&self) -> Vec<f64> {
-        self.target
-            .as_ref()
-            .map(|t| t.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect())
-            .unwrap_or_default()
+        self.target.as_ref().map(|t| t.pause_points_s().collect()).unwrap_or_default()
     }
 
     /// Returns the next pause point strictly after `current_time_s` in seconds.
     pub fn step_next(&self, current_time_s: f64) -> Option<f64> {
-        let current_ms = (current_time_s * 1000.0).round() as u64;
-        self.target
-            .as_ref()
-            .and_then(|t| t.step_next(current_ms))
-            .map(|ms| ms as f64 / 1000.0)
+        self.target.as_ref().and_then(|t| t.step_next(current_time_s))
     }
 
     /// Returns the previous pause point strictly before `current_time_s` in seconds.
     pub fn step_prev(&self, current_time_s: f64) -> Option<f64> {
-        let current_ms = (current_time_s * 1000.0).round() as u64;
-        self.target
-            .as_ref()
-            .and_then(|t| t.step_prev(current_ms))
-            .map(|ms| ms as f64 / 1000.0)
+        self.target.as_ref().and_then(|t| t.step_prev(current_time_s))
     }
 
     /// Raster scale for the offscreen render targets, clamped to

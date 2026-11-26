@@ -165,7 +165,7 @@ fn inject_carried_state(
                 Some(s) => s,
                 None => continue,
             };
-            let ms = (pred.duration_s * 1000.0) as u64;
+            let ms = crate::time::sample_tick_millis(pred.duration_s);
             let bag = pred.timeline.compute_carry_bag(ms, has_successor);
             // Clone only when there is something to carry. The camera is
             // not an entry, so `persist camera` alone has to count here
@@ -240,30 +240,29 @@ pub(super) fn finalize_global_timeline(
     for name in walk_order {
         if let Some(scene) = scenes.get(name) {
             scene_start_times.insert(name.clone(), current_time);
-            current_time += scene.duration_s;
+            current_time = crate::time::add_seconds(current_time, scene.duration_s);
 
             // Apply transition overlap
             if let Some(edge) = edges.get(name)
                 && edge.transition.duration_ms > 0
             {
                 let overlap_s = (edge.transition.duration_ms as f64 / 1000.0).min(scene.duration_s);
-                current_time -= overlap_s;
+                current_time = crate::time::add_seconds(current_time, -overlap_s);
             }
         }
     }
 
     let global_duration_s = current_time;
 
-    let mut pause_points: Vec<u64> = Vec::new();
+    let mut pause_points: Vec<f64> = Vec::new();
     for (name, start_s) in &scene_start_times {
         if let Some(scene) = scenes.get(name) {
-            let start_ms = (*start_s * 1000.0).round() as u64;
             for &local_p in &scene.timeline.pause_points {
-                pause_points.push(start_ms + local_p);
+                pause_points.push(crate::time::add_seconds(*start_s, local_p as f64 / 1000.0));
             }
         }
     }
-    pause_points.sort_unstable();
+    pause_points.sort_unstable_by(f64::total_cmp);
     pause_points.dedup();
 
     Composition {

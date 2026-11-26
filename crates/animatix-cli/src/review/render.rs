@@ -12,7 +12,7 @@ use animatix::timeline::SceneDimensions;
 
 use crate::frame_source::{
     DEFAULT_MIN_INK_PIXELS, DEFAULT_TOLERANCE, FrameView, actor_visibility, differing_fraction,
-    frame_ink_fraction, render_frame_observable, verify_time_key,
+    frame_ink_fraction, render_frame_observable,
 };
 use crate::review::facts::{ReviewFacts, evaluate_frame};
 
@@ -50,7 +50,7 @@ pub(crate) fn run_render_tier(
         all_times.extend(times.iter().copied());
     }
     all_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    all_times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+    all_times.dedup_by(|a, b| *a == *b);
 
     let mut renderer = match animatix_render::offscreen::OffscreenRenderer::new() {
         Ok(renderer) => renderer,
@@ -240,18 +240,18 @@ pub(crate) fn site_rest_probe_times(target: &BuildTarget) -> Option<(f64, Vec<f6
                 .map(|edge| edge.transition.duration_ms as f64 / 1000.0)
                 .unwrap_or(0.0);
             let scene = composition.scenes.get(last_name)?;
-            let content_start = (start + transition_s).min(held);
-            let end = (start + scene.duration_s).min(duration_s);
+            let content_start = animatix::time::add_seconds(start, transition_s).min(held);
+            let end = animatix::time::add_seconds(start, scene.duration_s).min(duration_s);
             let steps = ((end - content_start) / 0.5).floor().max(0.0) as usize;
             for i in 0..=steps {
                 times.push(round_time(content_start + i as f64 * 0.5));
             }
-            times.push(round_time(content_start));
+            times.push(content_start);
             times.push(held);
         },
     }
     times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    times.dedup_by(|a, b| verify_time_key(*a) == verify_time_key(*b));
+    times.dedup_by(|a, b| *a == *b);
     Some((held, times))
 }
 

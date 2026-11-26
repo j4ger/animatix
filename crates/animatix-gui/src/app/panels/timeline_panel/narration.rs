@@ -78,7 +78,9 @@ impl ReviewTrack {
                 continue;
             };
             aligned = true;
-            let left = coords.time_to_x(start + offset).max(coords.bar_origin_x);
+            let left = coords
+                .time_to_x(animatix::time::add_seconds(offset, start))
+                .max(coords.bar_origin_x);
             let right = coords.time_to_x(end + offset).min(rect.right());
             if right <= left {
                 continue;
@@ -112,7 +114,8 @@ impl ReviewTrack {
             );
             if response.clicked() {
                 ui.data_mut(|d| d.insert_temp(self.selection_id, p.marker.clone()));
-                commands.push_back(Command::ScrubTo(start + offset).into());
+                commands
+                    .push_back(Command::ScrubTo(animatix::time::add_seconds(offset, start)).into());
             }
             response.on_hover_text(format!("{}\n{}", p.text, text(ui, p.status.message_id())));
         }

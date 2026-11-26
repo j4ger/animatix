@@ -343,6 +343,43 @@ round: Rect, at: (150, 50), size: (60, 60), color: (1, 1, 1, 1), corner_radius: 
     assert!(red_at(150, 50) > 200, "the interior must be painted");
 }
 
+#[test]
+fn whole_millisecond_keyframes_switch_on_exact_native_frames() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    for (fps, headers) in [
+        (25.0, ["#8040ms", "#8.04s", "#4.02s\n#+4.02s"]),
+        (50.0, ["#4020ms", "#4.02s", "#2.018s\n#+2.002s"]),
+    ] {
+        let exact = 201.0_f64 / fps;
+        for header in headers {
+            let timeline = build_checked(&format!(
+                "config {{ canvas_size: (64, 64), duration: 9 }}\n\
+                 #0s\n\
+                 signal: Rect, at: (32, 32), size: (40, 40), color: hex_color(\"324354\")\n\
+                 {header}\n\
+                 signal.color = hex_color(\"5cdeab\")\n"
+            ));
+            for (time, expected) in [
+                (200.0 / fps, [50, 67, 84, 255]),
+                (exact.next_down(), [50, 67, 84, 255]),
+                (exact, [92, 222, 171, 255]),
+                (exact.next_down(), [50, 67, 84, 255]),
+                (202.0 / fps, [92, 222, 171, 255]),
+            ] {
+                let frame = render(&mut renderer, &timeline, time, dims);
+                let actual = pixel(&frame.rgba, dims.width, 32, 32);
+                assert_eq!(actual, expected, "{header}: native sample at {time}");
+            }
+        }
+    }
+}
+
 /// Frame-time `always` text assignments must replace declared static glyphs
 /// during offline rendering rather than replaying or ghosting the declared string.
 #[test]

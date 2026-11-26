@@ -1226,19 +1226,19 @@ fn test_composition_step_pause_points() {
 
     // SceneA has duration 1s (1000ms) and starts at 0ms: pause points at 0 and
     // 500. SceneB starts at 1000ms, so its pauses land at 1000 and 1500.
-    assert_eq!(comp.pause_points(), &[0, 500, 1000, 1500]);
-    assert_eq!(report.output.pause_points(), &[0, 500, 1000, 1500]);
+    assert_eq!(comp.pause_points_s(), &[0.0, 0.5, 1.0, 1.5]);
+    assert_eq!(report.output.pause_points_s().collect::<Vec<_>>(), &[0.0, 0.5, 1.0, 1.5]);
 
     // Navigation checks across scene boundaries.
-    assert_eq!(report.output.step_next(0), Some(500));
-    assert_eq!(report.output.step_next(500), Some(1000));
-    assert_eq!(report.output.step_next(1000), Some(1500));
-    assert_eq!(report.output.step_next(1500), None);
+    assert_eq!(report.output.step_next(0.0), Some(0.5));
+    assert_eq!(report.output.step_next(0.5), Some(1.0));
+    assert_eq!(report.output.step_next(1.0), Some(1.5));
+    assert_eq!(report.output.step_next(1.5), None);
 
-    assert_eq!(report.output.step_prev(1500), Some(1000));
-    assert_eq!(report.output.step_prev(1000), Some(500));
-    assert_eq!(report.output.step_prev(500), Some(0));
-    assert_eq!(report.output.step_prev(0), None);
+    assert_eq!(report.output.step_prev(1.5), Some(1.0));
+    assert_eq!(report.output.step_prev(1.0), Some(0.5));
+    assert_eq!(report.output.step_prev(0.5), Some(0.0));
+    assert_eq!(report.output.step_prev(0.0), None);
 }
 
 #[test]
@@ -1330,4 +1330,39 @@ fn composition_keeps_identical_expansion_errors_from_two_imported_files() {
     for path in [&a, &b] {
         assert!(errors.iter().any(|diagnostic| diagnostic.location.path.as_ref() == Some(path)));
     }
+}
+
+#[test]
+fn fractional_placement_keeps_pause_navigation_on_the_evaluated_boundary() {
+    let report = build_target(concat!(
+        "# Lead\nconfig { duration: 0.0005 }\n#0s\na: Rect\n",
+        "# Body\nconfig { duration: 2 }\n#0s\nb: Rect\n#5ms\n#pause\nb.opacity = 0",
+    ));
+    let BuildTarget::MultiScene(comp) = &report.output else {
+        panic!("expected MultiScene");
+    };
+    let t = 0.0055_f64;
+    assert_eq!(report.output.step_next(t.next_down()), Some(t));
+    assert_eq!(report.output.step_prev(t.next_up()), Some(t));
+    assert_eq!(report.output.step_next(t), None);
+    assert_eq!(comp.evaluate(t).1, 0.005);
+    assert!(comp.evaluate(t.next_down()).1 < 0.005);
+}
+
+#[test]
+fn consecutive_submillisecond_cuts_use_half_open_scene_intervals() {
+    let report = build_target(concat!(
+        "# Zulu\nconfig { duration: 0.0005 }\n#0s\na: Rect\n",
+        "# Lima\nconfig { duration: 0.00025 }\n#0s\nb: Rect\n",
+        "# Alpha\nconfig { duration: 1 }\n#0s\nc: Rect",
+    ));
+    let BuildTarget::MultiScene(comp) = &report.output else {
+        panic!("expected MultiScene");
+    };
+    let boundary = comp.scene_start_times["Alpha"];
+    assert_eq!(comp.evaluate(boundary.next_down()).0, "Lima");
+    assert_eq!(comp.evaluate(boundary).0, "Alpha");
+    assert_eq!(comp.evaluate(boundary.next_up()).0, "Alpha");
+    assert!(comp.evaluate(boundary).2.is_none());
+    assert!(comp.local_time_for_scene("Lima", boundary).is_none());
 }

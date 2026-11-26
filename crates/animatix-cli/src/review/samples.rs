@@ -27,14 +27,14 @@ pub(crate) fn all_keyframe_times(target: &BuildTarget) -> Vec<f64> {
                 let start_s = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
                 times.push(start_s);
                 for t in scene.timeline.keyframe_times_s() {
-                    times.push(start_s + t);
+                    times.push(animatix::time::add_seconds(start_s, t));
                 }
             }
             times
         },
     };
     times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+    times.dedup_by(|a, b| *a == *b);
     times
 }
 
@@ -57,7 +57,7 @@ pub(crate) fn compute_sample_times(
             keyframes.insert(0, 0.0);
             keyframes.push(duration_s);
             keyframes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            keyframes.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+            keyframes.dedup_by(|a, b| *a == *b);
             thin_to_cap(keyframes, cap)
         },
         SampleSpec::Count(count) => {
@@ -67,7 +67,7 @@ pub(crate) fn compute_sample_times(
     };
 
     times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+    times.dedup_by(|a, b| *a == *b);
     times
 }
 

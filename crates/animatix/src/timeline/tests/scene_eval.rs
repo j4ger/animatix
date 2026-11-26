@@ -82,6 +82,43 @@ fn text_actor(label: &str, text: &str) -> Stmt {
     )
 }
 
+#[test]
+fn discrete_frame_boundary_preserves_equivalent_units_and_cache_order() {
+    use crate::scene::{Brush, Draw};
+
+    for (seconds_header, millis_header, fps) in [
+        ("8.04s", "8040ms", 25.0),
+        ("4.02s", "4020ms", 50.0),
+        ("0.117s", "117ms", 201.0 / 0.117),
+    ] {
+        let boundary = 201.0_f64 / fps;
+        for header in [seconds_header, millis_header] {
+            let source = format!(
+                "#0s\nsignal: Rect, at: (16, 16), size: (24, 24), color: hex_color(\"000000\")\n#{header}\nsignal.color = hex_color(\"ffffff\")\n"
+            );
+            let timeline = build_timeline(&source);
+            let samples = [
+                (200.0 / fps, crate::scene::Color::BLACK),
+                (boundary.next_down(), crate::scene::Color::BLACK),
+                (boundary, crate::scene::Color::WHITE),
+                (boundary.next_down(), crate::scene::Color::BLACK),
+                (202.0 / fps, crate::scene::Color::WHITE),
+            ];
+            for (time, expected) in samples {
+                let scene = timeline.evaluate(time, HD);
+                let Some(Draw::Fill {
+                    brush: Brush::Solid(actual),
+                    ..
+                }) = scene.draws().last()
+                else {
+                    panic!("expected signal fill at {time} for #{header}");
+                };
+                assert_eq!(*actual, expected, "at {time} for #{header}");
+            }
+        }
+    }
+}
+
 // Static subtree cache
 
 #[test]

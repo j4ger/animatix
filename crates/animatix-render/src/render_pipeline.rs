@@ -92,7 +92,9 @@ where
             // waiting on frame N's pixels, so the GPU renders while the CPU
             // copies/sends/encodes. One frame of latency, wall time drops
             // from CPU+GPU to ~max(CPU, GPU).
-            let times: Vec<f64> = (start..end).map(|frame| (frame as f64) / (fps as f64)).collect();
+            let times: Vec<f64> = (start..end)
+                .map(|frame| animatix::time::frame_seconds(frame as u32, f64::from(fps)))
+                .collect();
             let mut pending = Some(
                 renderer.begin_canvas_frame(&timeline, times[0], dims, debug_options).map_err(
                     |e| ExportError::FrameRender {
@@ -255,7 +257,7 @@ where
             let dims = SceneDimensions { width, height };
             let first_frame = first_frame as usize;
             let global_times: Vec<f64> = (first_frame + start..first_frame + end)
-                .map(|frame| frame as f64 / f64::from(fps))
+                .map(|frame| animatix::time::frame_seconds(frame as u32, f64::from(fps)))
                 .collect();
             // pipelined readback: queue frame N+1's GPU work BEFORE
             // waiting on frame N's pixels (see the single-scene loop).

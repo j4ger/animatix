@@ -6,6 +6,7 @@ mod shared_text;
 use animatix::easing::Easing;
 use animatix::primitives::RenderCommand;
 use animatix::timeline::scene_program::SceneItem;
+use animatix::timeline::utils::sample_tick_millis;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// GPU-based compositor for scene transition effects.
@@ -460,8 +461,8 @@ pub fn plan_shared_actors(
     to_timeline: &Timeline,
     to_time_s: f64,
 ) -> SharedActorPlan {
-    let from_shared = from_timeline.shared_id_actors((from_time_s * 1000.0) as u64);
-    let to_shared = to_timeline.shared_id_actors((to_time_s * 1000.0) as u64);
+    let from_shared = from_timeline.shared_id_actors(sample_tick_millis(from_time_s));
+    let to_shared = to_timeline.shared_id_actors(sample_tick_millis(to_time_s));
 
     let mut shared_ids: Vec<&String> = from_shared.keys().collect();
     shared_ids.sort();
@@ -512,7 +513,7 @@ pub fn collect_flip_pairs(
         if let (Some(from_item), Some(to_item)) = (from_item, to_item) {
             let text_geometry = shared_text::text_geometry(&from_item, &to_item);
             let fade_through = text_geometry.is_none()
-                && to_timeline.shared_text_fade_through(to_label, (to_time_s * 1000.0) as u64);
+                && to_timeline.shared_text_fade_through(to_label, sample_tick_millis(to_time_s));
             items.push(FlipItem {
                 from: from_item,
                 to: to_item,

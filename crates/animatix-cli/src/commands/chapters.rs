@@ -25,9 +25,9 @@ pub struct PlanArgs {
     #[arg(long, default_value_t = 30)]
     fps: u32,
     #[arg(long)]
-    duration: Option<f32>,
+    duration: Option<f64>,
     #[arg(long, default_value_t = 1.0)]
-    hold: f32,
+    hold: f64,
     #[arg(long, default_value = "auto")]
     codec: VideoCodec,
     #[arg(long, default_value = "medium")]
@@ -42,7 +42,7 @@ struct ChapterPlan<'a> {
     width: u32,
     height: u32,
     fps: u32,
-    duration_s: f32,
+    duration_s: f64,
     codec: String,
     preset: &'static str,
     files: BTreeMap<PathBuf, String>,
@@ -139,7 +139,7 @@ pub fn run_plan(args: PlanArgs, extensions: &CliExtensions) -> Result<(), String
 
 pub fn run_audio(
     input: &Path,
-    duration: Option<f32>,
+    duration: Option<f64>,
     output: &Path,
     extensions: &CliExtensions,
 ) -> Result<(), String> {
@@ -294,7 +294,8 @@ fn chapter<'a>(
     let mut sampling = Sha256::new();
     let mut scenes = BTreeSet::new();
     for frame in range.start_frame()..range.end_frame() {
-        let (active, local, blend) = composition.evaluate(f64::from(frame) / f64::from(fps));
+        let (active, local, blend) =
+            composition.evaluate(animatix::time::frame_seconds(frame, f64::from(fps)));
         if let Some(blend) = blend {
             sampling.update([1]);
             let from = composition.scenes[&blend.from_scene].name.as_str();
@@ -332,7 +333,7 @@ fn sample<'a>(
     hash.update(((local * 1_000_000_000.0).round() as i64).to_le_bytes());
     // Keyframe lookup truncates to whole milliseconds. Preserve its boundary
     // choice even when two local times fall within the same rounded nanosecond.
-    hash.update(((local * 1000.0) as u64).to_le_bytes());
+    hash.update(animatix::time::sample_tick_millis(local).to_le_bytes());
     scenes.insert(name);
     if let Some(dependencies) = carry.get(name) {
         scenes.extend(dependencies);

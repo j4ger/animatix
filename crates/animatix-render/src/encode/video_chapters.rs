@@ -1,6 +1,7 @@
 //! Chapter boundaries on the full composition's video frame grid.
 
 use animatix::composition::Composition;
+use animatix::time::frame_at_or_after;
 
 use super::ExportError;
 
@@ -41,11 +42,11 @@ impl VideoFrameRange {
 }
 
 /// The existing full-video frame count, shared by chapter planning and encoding.
-pub(super) fn video_frame_count(duration: f32, fps: u32) -> Result<u32, ExportError> {
+pub(super) fn video_frame_count(duration: f64, fps: u32) -> Result<u32, ExportError> {
     if !duration.is_finite() || duration <= 0.0 || fps == 0 {
         return Err(ExportError::VideoEncode("Duration and FPS must be positive".into()));
     }
-    Ok((duration * fps as f32).ceil() as u32)
+    Ok(frame_at_or_after(duration, f64::from(fps)))
 }
 
 /// Partition all frames of a full composition export in playback order.
@@ -57,7 +58,7 @@ pub(super) fn video_frame_count(duration: f32, fps: u32) -> Result<u32, ExportEr
 pub fn video_chapter_frame_ranges(
     composition: &Composition,
     fps: u32,
-    duration: f32,
+    duration: f64,
 ) -> Result<Vec<(&str, VideoFrameRange)>, ExportError> {
     let total_frames = video_frame_count(duration, fps)?;
     let mut starts = composition
@@ -65,7 +66,7 @@ pub fn video_chapter_frame_ranges(
         .iter()
         .filter_map(|name| {
             let start = *composition.scene_start_times.get(name)?;
-            Some((name.as_str(), first_frame_at(start, fps).min(total_frames)))
+            Some((name.as_str(), frame_at_or_after(start, f64::from(fps)).min(total_frames)))
         })
         .peekable();
     let mut chapters = Vec::with_capacity(composition.playback_order().len());
@@ -79,18 +80,6 @@ pub fn video_chapter_frame_ranges(
         chapters.push((name, VideoFrameRange::new(start_frame, end_frame)));
     }
     Ok(chapters)
-}
-
-fn first_frame_at(seconds: f64, fps: u32) -> u32 {
-    let fps = f64::from(fps);
-    let frame = (seconds * fps).floor() as u32;
-    // Test against the same division as the renderer, since multiplication
-    // can round an exact frame boundary to slightly more than an integer.
-    if f64::from(frame) / fps < seconds {
-        frame.saturating_add(1)
-    } else {
-        frame
-    }
 }
 
 #[cfg(test)]
@@ -157,8 +146,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             [("Zebra", 0, 0), ("Alpha", 0, 4), ("Later", 4, 4)]
         );
-        assert_eq!(first_frame_at(0.28, 25), 7);
-        assert_eq!(first_frame_at(0.281, 25), 8);
+        assert_eq!(frame_at_or_after(0.28, 25.0), 7);
+        assert_eq!(frame_at_or_after(0.281, 25.0), 8);
     }
 
     #[test]

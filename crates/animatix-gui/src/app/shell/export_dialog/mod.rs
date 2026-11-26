@@ -32,15 +32,15 @@ pub(crate) struct ExportDialogState {
     pub(crate) lock_aspect: bool,
     pub(crate) follow_canvas: bool,
     /// For Image export — time in seconds.
-    pub(crate) time_s: f32,
+    pub(crate) time_s: f64,
     /// For Video/GIF export.
     pub(crate) fps: u32,
     /// When true, duration is auto-detected from timeline + hold.
     pub(crate) auto_duration: bool,
     /// Manual duration override (only used when auto_duration is false).
-    pub(crate) duration_s: f32,
+    pub(crate) duration_s: f64,
     /// Seconds to hold after last keyframe (only for auto duration).
-    pub(crate) hold_s: f32,
+    pub(crate) hold_s: f64,
     /// Output file path (relative or absolute).
     pub(crate) output_path: String,
     /// Export scope: ActiveScene or WholeComposition.

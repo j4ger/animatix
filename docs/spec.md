@@ -178,6 +178,22 @@ scene.background_color = white [2s]
 **Relative:** `#+1s`  
 **Musical:** `#2b`, `#0.5b` — beats, resolved by `config { bpm: … }`
 
+Equivalent whole-millisecond stamps such as `#8.04s` and `#8040ms` land
+on the same timeline tick. A discrete change is visible on a frame sampled
+at that tick, not on an earlier sample.
+
+A timed export samples frame `n` at `n / fps`, excluding the end of the
+export interval. Chapter boundaries select the first sample at or after a
+scene starts, on the same full-video grid. GUI frame stepping uses its
+configured step FPS on that grid. Explicit times (such as `image --time`,
+`storyboard --times`, and Web seeks) are sampled directly; they are not
+snapped to a frame grid. Interactive playback remains driven by elapsed time.
+Chapter-local media timestamps may start at zero without changing which
+global scene samples are rendered.
+GIF rounds cumulative frame boundaries to its 10 ms delay unit, with a
+minimum per-frame delay of 10 ms. Some players impose a higher minimum;
+prefer 50 FPS or less for GIF when playback cadence matters.
+
 A relative keyframe measures from the previous effective time header. An explicit
 time header can establish the base with an empty body.
 

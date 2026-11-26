@@ -208,7 +208,7 @@ pub(super) fn lane(
         &paint,
         &axis,
         channel,
-        preview.playback.current_time_s() - scene_offset,
+        animatix::time::scene_local_seconds(preview.playback.current_time_s(), scene_offset),
         theme,
     );
     painter.line_segment(

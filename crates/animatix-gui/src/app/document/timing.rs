@@ -36,7 +36,7 @@ pub fn timeline_keyframe_times_s(
         for (scene_name, scene) in &composition.scenes {
             let start_s = composition.scene_start_times.get(scene_name).copied().unwrap_or(0.0);
             for local_time in scene.timeline.keyframe_times_s() {
-                all_keyframes.push(start_s + local_time);
+                all_keyframes.push(animatix::time::add_seconds(start_s, local_time));
             }
         }
         all_keyframes.sort_by(|a, b| a.total_cmp(b));
@@ -47,22 +47,9 @@ pub fn timeline_keyframe_times_s(
     }
 }
 
-/// Match the scene actually displayed at a completed transition / instant cut.
-/// `Composition::evaluate` retains the outgoing scene during its boundary epsilon.
+/// Match the sampled scene at a cut or during a transition.
 pub(crate) fn review_scene_at_time(composition: &Composition, time_s: f64) -> Option<String> {
-    let (scene, _, blend) = composition.evaluate(time_s);
-    if let Some(blend) = blend {
-        // The picker seeks to start + duration. Compare in that same clock:
-        // (end - start) / duration can round below 1.0 at the exact end.
-        let start = composition.scene_start_times.get(&blend.to_scene).copied().unwrap_or(0.0);
-        let duration_ms = composition
-            .edges
-            .get(&blend.from_scene)
-            .map_or(0, |edge| edge.transition.duration_ms);
-        if time_s >= start + duration_ms as f64 / 1000.0 {
-            return Some(blend.to_scene);
-        }
-    }
+    let (scene, _, _) = composition.evaluate(time_s);
     (!scene.is_empty()).then_some(scene)
 }
 

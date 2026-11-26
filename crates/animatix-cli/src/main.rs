@@ -65,12 +65,12 @@ struct VideoArgs {
 
     /// Full export duration in seconds. If omitted, auto-detects from timeline length.
     #[arg(long)]
-    duration: Option<f32>,
+    duration: Option<f64>,
 
     /// Seconds to hold the last frame after the last animation ends. Applied only when
     /// --duration is omitted.
     #[arg(long, default_value_t = 1.0)]
-    hold: f32,
+    hold: f64,
 
     /// Output filename
     #[arg(short, long)]
@@ -167,7 +167,7 @@ enum Commands {
         input: PathBuf,
         /// Audio duration in seconds; defaults to the video export duration.
         #[arg(long)]
-        duration: Option<f32>,
+        duration: Option<f64>,
         /// Output M4A filename.
         #[arg(short, long)]
         output: PathBuf,
@@ -214,7 +214,7 @@ enum Commands {
 
         /// Render time in seconds
         #[arg(long, default_value_t = 0.0)]
-        time: f32,
+        time: f64,
 
         /// Output filename
         #[arg(short, long)]
@@ -293,12 +293,12 @@ enum Commands {
 
         /// Render duration in seconds. If omitted, auto-detects from timeline length.
         #[arg(long)]
-        duration: Option<f32>,
+        duration: Option<f64>,
 
         /// Seconds to hold the last frame after the last animation ends. Applied only when
         /// --duration is omitted.
         #[arg(long, default_value_t = 1.0)]
-        hold: f32,
+        hold: f64,
 
         /// Output filename
         #[arg(short, long)]

@@ -52,9 +52,7 @@ impl DocumentSnapshot {
     /// Pause points in seconds from this snapshot's target.
     pub fn pause_points_s(&self) -> Vec<f64> {
         match &self.target {
-            BuildTargetSnapshot::Composition(comp) => {
-                comp.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect()
-            },
+            BuildTargetSnapshot::Composition(comp) => comp.pause_points_s().to_vec(),
             BuildTargetSnapshot::Timeline(tl) => {
                 tl.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect()
             },

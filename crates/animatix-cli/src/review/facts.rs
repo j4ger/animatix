@@ -236,7 +236,7 @@ impl ReviewFacts {
 
     /// Look up a frame at a specific time.
     pub(crate) fn frame_at(&self, time_s: f64) -> Option<&FrameFact> {
-        self.all_frames().find(|frame| (frame.time_s - time_s).abs() < 0.001)
+        self.all_frames().find(|frame| frame.time_s == time_s)
     }
 }
 
@@ -299,7 +299,7 @@ pub(crate) fn collect_facts(
         }
     }
     probe_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    probe_times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+    probe_times.dedup_by(|a, b| *a == *b);
     let mut probe_frames = Vec::with_capacity(probe_times.len());
     for &time_s in &probe_times {
         probe_frames.push(evaluate_frame(target, dimensions, time_s, &actors, None)?);
@@ -354,7 +354,7 @@ fn collect_actors_from_timeline(
     let mut opacity_times: Vec<u64> = timeline
         .keyframe_times_s()
         .into_iter()
-        .map(|time_s| (time_s * 1000.0).round() as u64)
+        .map(animatix::time::sample_tick_millis)
         .collect();
     opacity_times.push(0);
     for label in timeline.actor_labels() {
@@ -438,7 +438,10 @@ fn collect_actions(
             scene: scene.to_string(),
             verb: event.verb.clone(),
             targets: event.targets.clone(),
-            start_s: scene_start_s + event.start_time_ms as f64 / 1000.0,
+            start_s: animatix::time::add_seconds(
+                scene_start_s,
+                event.start_time_ms as f64 / 1000.0,
+            ),
             duration_s: event.duration_ms as f64 / 1000.0,
             category: event.category,
         });
@@ -453,12 +456,12 @@ pub(super) fn evaluate_frame(
     display_width: Option<u32>,
 ) -> Result<FrameFact, String> {
     let program_frame = evaluate_program_frame(target, dimensions, time_s)?;
-    let time_ms = (time_s * 1000.0) as u64;
     let mut by_actor: BTreeMap<(String, String), ActorFrameFact> = BTreeMap::new();
     let mut draw_order = Vec::new();
     let mut draw_order_set = std::collections::HashSet::new();
 
     for part in &program_frame.parts {
+        let time_ms = animatix::time::sample_tick_millis(part.local_time_s);
         let mut draw_counts: BTreeMap<&str, (u32, u32, Option<usize>)> = BTreeMap::new();
         for item in &part.program.items {
             let entry = draw_counts.entry(item.label.as_str()).or_default();
@@ -630,7 +633,7 @@ fn measure_display_text(
         match world.read_property_value(
             id,
             ActorField::Tagged("role"),
-            (part.local_time_s * 1000.0) as u64,
+            animatix::time::sample_tick_millis(part.local_time_s),
         ) {
             Some(PropertyValue::String(role)) if !role.is_empty() => Some(role),
             _ => None, // Some generated and most legacy actors have no role.

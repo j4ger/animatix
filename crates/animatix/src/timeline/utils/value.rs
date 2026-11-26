@@ -1,6 +1,7 @@
 //! Value formatting, color parsing/coercion, and time conversion.
 
 use crate::ast::{Expr, Time};
+use crate::time::seconds_to_millis;
 use crate::timeline::env::{Environment, EvalError, Value};
 
 use super::expr::evaluate_expr;
@@ -99,7 +100,7 @@ pub fn time_to_ms(time: &Time) -> Result<f64, crate::timeline::EvalError> {
 /// Convert a `Time` to milliseconds with `beat_ms` as the length of one beat.
 pub fn time_to_ms_at_beat(time: &Time, beat_ms: f64) -> Result<f64, crate::timeline::EvalError> {
     match time {
-        Time::Seconds(s) => Ok(*s * 1000.0),
+        Time::Seconds(s) => Ok(seconds_to_millis(*s)),
         Time::Milliseconds(ms) => Ok(*ms as f64),
         Time::Beats(b) => Ok(*b * beat_ms),
         Time::SpeechMarker { offset_ms, .. } | Time::SpeechWord { offset_ms, .. } => {

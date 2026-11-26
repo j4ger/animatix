@@ -470,8 +470,7 @@ fn write_evidence(
 }
 
 fn frame_json(frame: &FrameFact, render: Option<&RenderFacts>) -> serde_json::Value {
-    let sample =
-        render.and_then(|r| r.samples.iter().find(|s| (s.time_s - frame.time_s).abs() < 0.001));
+    let sample = render.and_then(|r| r.samples.iter().find(|s| s.time_s == frame.time_s));
 
     let actor_ink: serde_json::Map<String, serde_json::Value> = sample
         .map(|s| {
@@ -692,7 +691,7 @@ fn apply_render_facts(facts: &mut ReviewFacts, render: &RenderFacts) {
         frame.ink_fraction = render
             .samples
             .iter()
-            .find(|sample| (sample.time_s - frame.time_s).abs() < 0.001)
+            .find(|sample| sample.time_s == frame.time_s)
             .map(|sample| sample.ink_fraction);
     }
 }

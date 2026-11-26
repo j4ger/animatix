@@ -198,9 +198,7 @@ pub(crate) fn rule_actor_ink_missing(facts: &ReviewFacts, out: &mut Vec<RuleIssu
         if sample.transition.is_some() {
             continue;
         }
-        let Some(frame) =
-            facts.all_frames().find(|frame| (frame.time_s - sample.time_s).abs() < 0.001)
-        else {
+        let Some(frame) = facts.all_frames().find(|frame| frame.time_s == sample.time_s) else {
             continue;
         };
         for actor_frame in &frame.actors {
@@ -301,7 +299,7 @@ pub(crate) fn rule_actor_reveal_missing(facts: &ReviewFacts, out: &mut Vec<RuleI
             let ink = render
                 .samples
                 .iter()
-                .find(|sample| (sample.time_s - frame.time_s).abs() < 0.001)
+                .find(|sample| sample.time_s == frame.time_s)
                 .and_then(|sample| {
                     sample.actor_ink.get(&(actor.scene.clone(), actor.label.clone())).copied()
                 })

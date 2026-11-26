@@ -12,14 +12,10 @@ impl GuiShell {
         } else {
             ExportScope::ActiveScene
         };
-        let timeline_duration = self
-            .document_store
-            .source
-            .document
-            .export_target(scope)
-            .map(|t| t.duration_s() as f32);
-        let max_time = self.preview_store.preview.playback.duration_s as f32;
-        let current_time = self.preview_store.preview.playback.current_time_s() as f32;
+        let timeline_duration =
+            self.document_store.source.document.export_target(scope).map(|t| t.duration_s());
+        let max_time = self.preview_store.preview.playback.duration_s;
+        let current_time = self.preview_store.preview.playback.current_time_s();
 
         // Scope mutable borrows so we can call &self methods afterward.
         {
@@ -207,23 +203,23 @@ impl GuiShell {
         theme: &eparts::Theme,
         sp: crate::app::design_tokens::spatial::Spatial,
         format: ExportFormat,
-        timeline_duration: Option<f32>,
-        max_time: f32,
-        current_time: f32,
+        timeline_duration: Option<f64>,
+        max_time: f64,
+        current_time: f64,
         state: &mut ExportDialogState,
     ) {
         // ── Format-specific settings ──
         match format {
             ExportFormat::Image | ExportFormat::WebP => {
                 Self::settings_row(ui, "gui-export-time", |ui| {
-                    let mut t = state.time_s as f64;
+                    let mut t = state.time_s;
                     NumberField::new(&mut t)
                         .speed(0.1)
-                        .range(0.0..=max_time as f64)
+                        .range(0.0..=max_time)
                         .suffix(" s")
                         .desired_width(100.0)
                         .show(ui);
-                    state.time_s = t as f32;
+                    state.time_s = t;
 
                     ui.add_space(sp.base.space_2);
 
@@ -273,25 +269,25 @@ impl GuiShell {
                                 .color(theme.palette.text.secondary),
                         );
 
-                        let mut hold = state.hold_s as f64;
+                        let mut hold = state.hold_s;
                         NumberField::new(&mut hold)
                             .speed(0.1)
                             .range(0.0..=10.0)
                             .suffix(" s")
                             .desired_width(80.0)
                             .show(ui);
-                        state.hold_s = hold as f32;
+                        state.hold_s = hold;
                     } else {
                         ui.add_space(sp.base.space_2);
 
-                        let mut dur = state.duration_s as f64;
+                        let mut dur = state.duration_s;
                         NumberField::new(&mut dur)
                             .speed(0.5)
                             .range(0.1..=3600.0)
                             .suffix(" s")
                             .desired_width(80.0)
                             .show(ui);
-                        state.duration_s = dur as f32;
+                        state.duration_s = dur;
                     }
                 });
 
@@ -299,7 +295,7 @@ impl GuiShell {
                     // Just switched to auto
                 } else if auto_prev && !state.auto_duration {
                     let auto_dur = if let Some(dur) = timeline_duration {
-                        (dur + state.hold_s.max(0.0)).max(0.5)
+                        animatix::time::add_seconds(dur, state.hold_s.max(0.0)).max(0.5)
                     } else {
                         state.duration_s.max(0.5)
                     };
@@ -308,7 +304,7 @@ impl GuiShell {
 
                 if state.auto_duration {
                     let auto_dur = if let Some(dur) = timeline_duration {
-                        (dur + state.hold_s.max(0.0)).max(0.5)
+                        animatix::time::add_seconds(dur, state.hold_s.max(0.0)).max(0.5)
                     } else {
                         state.duration_s.max(0.5)
                     };

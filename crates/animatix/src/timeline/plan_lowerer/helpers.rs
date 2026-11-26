@@ -1,4 +1,5 @@
 use super::*;
+use crate::timeline::utils::seconds_to_millis;
 use animatix_syntax::visit::{AstVisitor, walk_inline_item, walk_stmt};
 
 pub(super) fn restore_plan_scope(timeline: &mut Timeline) {
@@ -632,11 +633,11 @@ fn for_loop_extent_ms(
 
 fn measure_time_ms(time: &Time, env: &Environment) -> Option<f64> {
     let time_ms = match time {
-        Time::Seconds(seconds) => seconds * 1000.0,
+        Time::Seconds(seconds) => seconds_to_millis(*seconds),
         Time::Milliseconds(milliseconds) => *milliseconds as f64,
         Time::Beats(beats) => beats * crate::ast::beat_seconds(crate::ast::DEFAULT_BPM) * 1000.0,
         Time::Expression(expr) => match evaluate_expr(expr, env).ok()? {
-            Value::Duration(seconds) => seconds * 1000.0,
+            Value::Duration(seconds) => seconds_to_millis(seconds),
             _ => return None,
         },
         Time::SpeechMarker { .. } | Time::SpeechWord { .. } => return None,

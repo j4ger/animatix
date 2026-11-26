@@ -78,9 +78,10 @@ pub(super) fn timeline_markers(
                 // scene's tail overlaps it — composition/time.rs).
                 if let Some(edge) = composition.edges.get(name)
                     && edge.transition.duration_ms > 0
+                    && let Some(&incoming_start) = composition.scene_start_times.get(&edge.to_scene)
                 {
                     markers.push(MarkerDto {
-                        t: *start,
+                        t: incoming_start,
                         kind: "transition".to_string(),
                         id: None,
                         line: None,
@@ -88,12 +89,9 @@ pub(super) fn timeline_markers(
                     });
                 }
                 if let Some(scene) = composition.scenes.get(name) {
-                    markers.extend(
-                        scene
-                            .timeline
-                            .named_cues()
-                            .map(|(id, t)| cue(format!("{name}::{id}"), start + t)),
-                    );
+                    markers.extend(scene.timeline.named_cues().map(|(id, t)| {
+                        cue(format!("{name}::{id}"), animatix::time::add_seconds(*start, t))
+                    }));
                 }
             }
             for stmt in stmts {
@@ -115,9 +113,9 @@ pub(super) fn timeline_markers(
             }
         },
     }
-    for &ms in target.pause_points() {
+    for seconds in target.pause_points_s() {
         markers.push(MarkerDto {
-            t: ms as f64 / 1000.0,
+            t: seconds,
             kind: "step".to_string(),
             id: None,
             line: None,
@@ -158,7 +156,7 @@ fn collect_keyframe_stmt_times(
                     && let Some(time) = timeline.marker_time(*span)
                 {
                     out.push(MarkerDto {
-                        t: base + time / 1000.0,
+                        t: animatix::time::add_seconds(base, time / 1000.0),
                         kind: "keyframe".into(),
                         id: None,
                         dur: 0.0,

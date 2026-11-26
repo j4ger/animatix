@@ -189,7 +189,7 @@ impl PreviewContext<'_> {
         if !self.debug_layout {
             return;
         }
-        let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+        let time_ms = animatix::time::sample_tick_millis(self.preview.playback.current_time_s());
         let tx = self.preview_transform(preview_rect);
         let ops = layout_debug_ops(&theme, timeline, time_ms, tx, self.debug_spacing);
         execute_overlay_ops(ui.painter(), &ops, &tx);

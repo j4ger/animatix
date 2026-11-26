@@ -16,7 +16,10 @@ pub fn handle_select_scene(
             let mut target_time = *start;
             for edge in composition.edges.values() {
                 if edge.to_scene == scene {
-                    target_time += edge.transition.duration_ms as f64 / 1000.0;
+                    target_time = animatix::time::add_seconds(
+                        *start,
+                        edge.transition.duration_ms as f64 / 1000.0,
+                    );
                     break;
                 }
             }

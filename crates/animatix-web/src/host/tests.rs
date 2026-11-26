@@ -1131,3 +1131,23 @@ fn cached_expansion_error_cannot_be_bypassed_by_editing_public_analysis() {
         1
     );
 }
+
+#[test]
+fn composition_markers_and_pause_points_share_the_evaluation_clock() {
+    for (duration, header, boundary) in [("0.001", "11ms", 0.012), ("0.0005", "5ms", 0.0055)] {
+        let source = format!(
+            "# Lead\nconfig {{ duration: {duration} }}\n#0s\na: Rect\n\
+             # Body\nconfig {{ duration: 2 }}\n#0s\nb: Rect\n#{header}\n#pause\nb.opacity = 0"
+        );
+        let doc = build_document_with_modules(
+            &source,
+            &[],
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            None,
+        );
+        assert!(doc.result.ok, "{:?}", doc.result.diagnostics);
+        assert!(doc.result.markers.iter().any(|m| m.kind == "keyframe" && m.t == boundary));
+        assert_eq!(doc.result.pause_points, [boundary]);
+    }
+}

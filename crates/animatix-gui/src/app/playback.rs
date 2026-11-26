@@ -5,7 +5,9 @@ pub(crate) fn format_timecode(time: f64, fps: f32) -> String {
     let hours = (total_seconds / 3600.0).floor() as u32;
     let minutes = ((total_seconds % 3600.0) / 60.0).floor() as u32;
     let seconds = (total_seconds % 60.0).floor() as u32;
-    let frame = ((total_seconds % 1.0) * fps as f64).floor() as u32;
+    let fps = f64::from(fps.max(1.0));
+    let frame = animatix::time::frame_at_or_before(total_seconds, fps)
+        .saturating_sub(animatix::time::frame_at_or_after(total_seconds.floor(), fps));
     format!("{:02}:{:02}:{:02}:{:02}", hours, minutes, seconds, frame)
 }
 
@@ -63,15 +65,18 @@ impl PlaybackController {
 
     /// Advance by one frame at the given fps. Stops playback.
     pub(crate) fn frame_step_forward(&mut self, fps: f32) {
-        let step = 1.0 / fps.max(1.0) as f64;
-        self.current_time_s = (self.current_time_s + step).min(self.duration_s);
+        let fps = f64::from(fps.max(1.0));
+        let frame = animatix::time::frame_at_or_before(self.current_time_s, fps);
+        self.current_time_s =
+            animatix::time::frame_seconds(frame.saturating_add(1), fps).min(self.duration_s);
         self.is_playing = false;
     }
 
     /// Rewind by one frame at the given fps. Stops playback.
     pub(crate) fn frame_step_backward(&mut self, fps: f32) {
-        let step = 1.0 / fps.max(1.0) as f64;
-        self.current_time_s = (self.current_time_s - step).max(0.0);
+        let fps = f64::from(fps.max(1.0));
+        let frame = animatix::time::frame_at_or_after(self.current_time_s, fps);
+        self.current_time_s = animatix::time::frame_seconds(frame.saturating_sub(1), fps);
         self.is_playing = false;
     }
 
@@ -127,10 +132,7 @@ impl PlaybackController {
 
         if self.presentation_mode
             && dt > 0.0
-            && let Some(&p) = self
-                .pause_points_s
-                .iter()
-                .find(|&&p| p > old_time + 0.0001 && p <= next_time + 0.0001)
+            && let Some(&p) = self.pause_points_s.iter().find(|&&p| p > old_time && p <= next_time)
         {
             self.current_time_s = p;
             self.is_playing = false;
@@ -183,9 +185,7 @@ impl PlaybackController {
     }
 
     pub(crate) fn presentation_step_next(&mut self) {
-        if let Some(&next_p) =
-            self.pause_points_s.iter().find(|&&p| p > self.current_time_s + 0.001)
-        {
+        if let Some(&next_p) = self.pause_points_s.iter().find(|&&p| p > self.current_time_s) {
             if self.is_playing {
                 self.current_time_s = next_p;
                 self.is_playing = false;
@@ -205,8 +205,7 @@ impl PlaybackController {
     }
 
     pub(crate) fn presentation_step_prev(&mut self) {
-        if let Some(&prev_p) =
-            self.pause_points_s.iter().rev().find(|&&p| p < self.current_time_s - 0.001)
+        if let Some(&prev_p) = self.pause_points_s.iter().rev().find(|&&p| p < self.current_time_s)
         {
             self.current_time_s = prev_p;
             self.is_playing = false;
@@ -231,6 +230,15 @@ impl PlaybackController {
 mod review_loop_tests {
     use crate::app::PreviewPaneState;
     use animatix::timeline::SceneDimensions;
+
+    #[test]
+    fn shared_timecode_tracks_the_frame_boundary() {
+        let at = animatix::time::frame_seconds(201, 25.0);
+        assert_eq!(super::format_timecode(at.next_down(), 25.0), "00:00:08:00");
+        assert_eq!(super::format_timecode(at, 25.0), "00:00:08:01");
+        assert_eq!(super::format_timecode(at.next_up(), 25.0), "00:00:08:01");
+    }
+
     #[test]
     fn source_shrink_clears_unreachable_loop_but_preserves_valid_loop() {
         let mut p = PreviewPaneState::new(

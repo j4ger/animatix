@@ -18,7 +18,7 @@ pub fn render_gif_timeline(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     render_gif_timeline_with_options(
@@ -39,7 +39,7 @@ pub fn render_gif_timeline_with_options(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -63,7 +63,7 @@ pub fn render_gif_composition(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     render_gif_composition_with_options(
@@ -84,7 +84,7 @@ pub fn render_gif_composition_with_options(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -116,7 +116,7 @@ fn encode_gif(
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
+    duration: f64,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
@@ -127,8 +127,8 @@ fn encode_gif(
         cancel,
         ..
     } = options;
-    let total_frames = (duration * fps as f32).ceil() as u32;
-    let frame_duration_ms = ((1000.0 / fps as f64).round() as u16).max(1);
+    let total_frames = super::video_chapters::video_frame_count(duration, fps)
+        .map_err(|_| ExportError::GifEncode("Duration and FPS must be positive".into()))?;
 
     info!("Encoding {} frames to GIF...", total_frames);
 
@@ -142,7 +142,8 @@ fn encode_gif(
     info!("Using {num_threads} render thread(s) (adaptive).");
 
     let encode_frame = |frame, scene_frame| {
-        encode_gif_frame(&mut encoder, frame, total_frames, frame_duration_ms, scene_frame)
+        let delay = gif_delay(frame as u32, fps);
+        encode_gif_frame(&mut encoder, frame, total_frames, delay, scene_frame)
     };
 
     match source {
@@ -176,12 +177,21 @@ fn encode_gif(
     Ok(())
 }
 
+/// GIF stores integer centiseconds. Quantize the frame boundaries, not each
+/// delay in isolation, so rounding error does not build up across the file.
+fn gif_delay(frame: u32, fps: u32) -> image::Delay {
+    let centiseconds =
+        |frame| (animatix::time::frame_seconds(frame, f64::from(fps)) * 100.0).round() as u64;
+    let delay_cs = (centiseconds(frame + 1) - centiseconds(frame)).max(1);
+    image::Delay::from_numer_denom_ms((delay_cs * 10) as u32, 1)
+}
+
 /// Append one rendered frame to the GIF and report progress on stdout.
 fn encode_gif_frame(
     encoder: &mut image::codecs::gif::GifEncoder<std::fs::File>,
     frame: usize,
     total_frames: u32,
-    frame_duration_ms: u16,
+    delay: image::Delay,
     scene_frame: crate::offscreen::RenderedFrame,
 ) -> Result<(), ExportError> {
     let img = image::RgbaImage::from_raw(
@@ -192,14 +202,7 @@ fn encode_gif_frame(
     .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
 
     encoder
-        .encode_frame(image::Frame::from_parts(
-            img,
-            0,
-            0,
-            image::Delay::from_saturating_duration(std::time::Duration::from_millis(
-                frame_duration_ms as u64,
-            )),
-        ))
+        .encode_frame(image::Frame::from_parts(img, 0, 0, delay))
         .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
 
     use std::io::Write;

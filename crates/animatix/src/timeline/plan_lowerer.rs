@@ -12,6 +12,7 @@ use animatix_syntax::visit::{walk_fold_expr, walk_fold_stmt};
 
 use super::*;
 use crate::timeline::plan_value::{ActorRef, BoundBuiltinCall, PlanDuration, PlanOp, TimelinePlan};
+use crate::timeline::utils::seconds_to_millis;
 
 mod baseline;
 mod depth;
@@ -493,7 +494,7 @@ impl Timeline {
         let value = match time {
             Time::Expression(expr) => match evaluate_expr(expr, &self.env) {
                 Ok(Value::Duration(seconds)) if seconds.is_finite() && seconds >= 0.0 => {
-                    seconds * 1000.0
+                    seconds_to_millis(seconds)
                 },
                 Ok(value) => {
                     diagnostics.push(plan_timing_error(

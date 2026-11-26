@@ -47,10 +47,10 @@ impl Composition {
             .filter_map(|name| Some((self.scenes.get(name)?, *self.scene_start_times.get(name)?)))
             .flat_map(|(scene, offset)| {
                 scene.timeline.audio_segments().iter().cloned().map(move |mut segment| {
-                    segment.start_time_s += offset;
+                    segment.start_time_s = crate::time::add_seconds(offset, segment.start_time_s);
                     if let Some(envelope) = &mut segment.volume_envelope {
                         for (time, _) in envelope {
-                            *time += offset;
+                            *time = crate::time::add_seconds(offset, *time);
                         }
                     }
                     segment
@@ -59,19 +59,9 @@ impl Composition {
             .collect()
     }
 
-    /// Interactive pause points across the entire composition in global milliseconds.
-    pub fn pause_points(&self) -> &[u64] {
+    /// Interactive pause points across the composition in global seconds.
+    pub fn pause_points_s(&self) -> &[f64] {
         &self.pause_points
-    }
-
-    /// The next pause point strictly after `current_time_ms`.
-    pub fn step_next(&self, current_time_ms: u64) -> Option<u64> {
-        self.pause_points.iter().copied().find(|&t| t > current_time_ms)
-    }
-
-    /// The previous pause point strictly before `current_time_ms`.
-    pub fn step_prev(&self, current_time_ms: u64) -> Option<u64> {
-        self.pause_points.iter().copied().rfind(|&t| t < current_time_ms)
     }
 }
 
@@ -112,11 +102,14 @@ impl BuildTarget {
                 for name in composition.playback_order() {
                     let scene = &composition.scenes[name];
                     let offset = composition.scene_start_times[name];
-                    let limit = scene.duration_s.min(composition.global_duration_s - offset);
+                    let limit = scene.duration_s.min(crate::time::scene_local_seconds(
+                        composition.global_duration_s,
+                        offset,
+                    ));
                     cues.extend(scene.timeline.subtitle_cues(limit, track).into_iter().map(
                         |mut cue| {
-                            cue.start_s += offset;
-                            cue.end_s += offset;
+                            cue.start_s = crate::time::add_seconds(offset, cue.start_s);
+                            cue.end_s = crate::time::add_seconds(offset, cue.end_s);
                             cue
                         },
                     ));
@@ -292,28 +285,23 @@ impl BuildTarget {
         }
     }
 
-    /// Returns all interactive pause points in global milliseconds.
-    pub fn pause_points(&self) -> &[u64] {
-        match self {
-            BuildTarget::SingleScene(timeline) => timeline.pause_points(),
-            BuildTarget::MultiScene(composition) => composition.pause_points(),
-        }
+    /// Interactive pause points on the same global clock as frame sampling.
+    pub fn pause_points_s(&self) -> impl DoubleEndedIterator<Item = f64> + '_ {
+        let (local, global) = match self {
+            Self::SingleScene(timeline) => (timeline.pause_points(), &[][..]),
+            Self::MultiScene(composition) => (&[][..], composition.pause_points_s()),
+        };
+        local.iter().map(|&ms| ms as f64 / 1000.0).chain(global.iter().copied())
     }
 
-    /// The next pause point strictly after `current_time_ms`.
-    pub fn step_next(&self, current_time_ms: u64) -> Option<u64> {
-        match self {
-            BuildTarget::SingleScene(timeline) => timeline.step_next(current_time_ms),
-            BuildTarget::MultiScene(composition) => composition.step_next(current_time_ms),
-        }
+    /// The next pause point strictly after the requested sample time.
+    pub fn step_next(&self, seconds: f64) -> Option<f64> {
+        self.pause_points_s().find(|&t| t > seconds)
     }
 
-    /// The previous pause point strictly before `current_time_ms`.
-    pub fn step_prev(&self, current_time_ms: u64) -> Option<u64> {
-        match self {
-            BuildTarget::SingleScene(timeline) => timeline.step_prev(current_time_ms),
-            BuildTarget::MultiScene(composition) => composition.step_prev(current_time_ms),
-        }
+    /// The previous pause point strictly before the requested sample time.
+    pub fn step_prev(&self, seconds: f64) -> Option<f64> {
+        self.pause_points_s().rfind(|&t| t < seconds)
     }
 
     fn set_asset_source_base(&mut self, source_path: &std::path::Path) {

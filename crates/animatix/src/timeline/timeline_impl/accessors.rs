@@ -382,7 +382,7 @@ impl Timeline {
                 collect_all_keyframe_times(entity_id, self.world.effects(entity_id), &self.world)
                     .iter()
             {
-                let ms = (time_s * 1000.0) as u64;
+                let ms = crate::timeline::utils::seconds_to_millis(time_s) as u64;
                 times_ms.insert(ms);
             }
             // D4 exception: dynamic plot parameter tracks (not statically representable)

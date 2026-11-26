@@ -23,7 +23,7 @@ fn rows(timeline: Option<&Timeline>, detail: SpeechDetail) -> Vec<TranscriptRow>
             let start_s = clip.map_or(0.0, |clip| clip.start_time_s);
             let end_s = clip
                 .and_then(|clip| clip.duration_s)
-                .map_or(f64::INFINITY, |duration| start_s + duration);
+                .map_or(f64::INFINITY, |duration| animatix::time::add_seconds(start_s, duration));
             let cues = transcript
                 .segments
                 .iter()
@@ -48,7 +48,7 @@ fn rows(timeline: Option<&Timeline>, detail: SpeechDetail) -> Vec<TranscriptRow>
                 })
                 .filter_map(|mut cue| {
                     cue.start += start_s;
-                    cue.end = (cue.end + start_s).min(end_s);
+                    cue.end = animatix::time::add_seconds(start_s, cue.end).min(end_s);
                     let visible = match detail {
                         SpeechDetail::Selected(interval) => {
                             interval.is_some_and(|(start, end)| cue.end > start && cue.start < end)
@@ -61,7 +61,7 @@ fn rows(timeline: Option<&Timeline>, detail: SpeechDetail) -> Vec<TranscriptRow>
             let mut markers: Vec<_> = transcript
                 .markers
                 .iter()
-                .map(|(name, time)| (name.clone(), start_s + time))
+                .map(|(name, time)| (name.clone(), animatix::time::add_seconds(start_s, *time)))
                 .collect();
             markers.sort_by(|a, b| a.0.cmp(&b.0));
             if let Some(existing) = result
@@ -149,7 +149,7 @@ pub(crate) fn render_speech_track(
             );
         }
         for (name, time) in &row.markers {
-            let time = time + scene_offset_s;
+            let time = animatix::time::add_seconds(scene_offset_s, *time);
             if time < coords.scroll_s || time > coords.scroll_s + coords.visible_s {
                 continue;
             }
@@ -188,7 +188,7 @@ fn cue(
     id: egui::Id,
     theme: eparts::Theme,
 ) {
-    let start = start + offset;
+    let start = animatix::time::add_seconds(offset, start);
     let end = end + offset;
     if end <= coords.scroll_s || start >= coords.scroll_s + coords.visible_s || end <= start {
         return;

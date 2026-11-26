@@ -124,7 +124,7 @@ fn render_aggregate_diamond(
     bar_area: Rect,
     ctx: &mut KeyframeRenderCtx<'_>,
 ) {
-    let global_time_s = ctx.scene_offset + diamond.time_s;
+    let global_time_s = animatix::time::add_seconds(ctx.scene_offset, diamond.time_s);
     let x = ctx.coords.time_to_x(global_time_s);
     if x < bar_area.left() || x > bar_area.right() {
         return;
@@ -222,7 +222,7 @@ pub(crate) fn render_property_keyframes(
     ctx: &mut KeyframeRenderCtx<'_>,
 ) {
     for &time_ms in keyframe_times {
-        let time_s = ctx.scene_offset + time_ms as f64 / 1000.0;
+        let time_s = animatix::time::add_seconds(ctx.scene_offset, time_ms as f64 / 1000.0);
         let x = ctx.coords.time_to_x(time_s);
         if x < bar_area.left() || x > bar_area.right() {
             continue;
