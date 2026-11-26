@@ -385,8 +385,8 @@ $$
         [
             (0, 3, Kind::Setup),
             (4, 5, Kind::Scene),
-            (5, 8, Kind::Time),
-            (9, 11, Kind::Time)
+            (5, 8, Kind::Absolute),
+            (9, 11, Kind::Relative)
         ]
     );
     let text = "#voice@intro\r\n#cue:start\r\n// 中文🎬\r\n#step\r\n#pause\r\n";
@@ -395,6 +395,15 @@ $$
         cells.iter().map(|c| (c.start, c.end)).collect::<Vec<_>>(),
         [(0, 3), (3, 4), (4, 5)]
     );
+
+    let source = "# Scene\n#0s\n#+1s\n#+1s\n#+";
+    let kinds: Vec<_> = cells_for(source).iter().map(|c| (c.start, c.kind)).collect();
+    assert!(kinds.starts_with(&[
+        (0, Kind::Scene),
+        (1, Kind::Absolute),
+        (2, Kind::Relative),
+        (3, Kind::Relative)
+    ]));
 }
 
 #[test]

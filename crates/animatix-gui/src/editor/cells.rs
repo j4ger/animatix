@@ -1,7 +1,7 @@
 //! Source ranges only. Every glyph, caret and selection belongs to a single TextEdit.
 use std::collections::BTreeMap;
 
-use animatix_syntax::ast::Stmt;
+use animatix_syntax::ast::{Stmt, Time};
 use animatix_syntax::parser::parse_source;
 use animatix_syntax::token::LineIndex;
 
@@ -10,6 +10,8 @@ pub(crate) enum Kind {
     Setup,
     Scene,
     Time,
+    Absolute,
+    Relative,
 }
 
 #[derive(Clone, Debug)]
@@ -20,16 +22,46 @@ pub(crate) struct Cell {
     pub kind: Kind,
 }
 
-pub(crate) fn scene_headers(stmts: &[Stmt]) -> BTreeMap<usize, Kind> {
-    stmts
-        .iter()
-        .filter_map(|stmt| match stmt {
-            Stmt::Scene {
-                span: Some(span), ..
-            } => Some((span.start_line.saturating_sub(1), Kind::Scene)),
-            _ => None,
-        })
-        .collect()
+fn time_kind(stmt: &Stmt) -> Option<Kind> {
+    match stmt {
+        Stmt::RelativeKeyframe { .. } => Some(Kind::Relative),
+        Stmt::Keyframe { .. } if stmt.is_cue_only_keyframe() => None,
+        Stmt::Keyframe {
+            time: Time::Seconds(_) | Time::Milliseconds(_) | Time::Beats(_) | Time::Expression(_),
+            ..
+        } => Some(Kind::Absolute),
+        Stmt::Keyframe { .. } | Stmt::Step { .. } => Some(Kind::Time),
+        _ => None,
+    }
+}
+
+pub(crate) fn authored_headers(stmts: &[Stmt]) -> BTreeMap<usize, Kind> {
+    fn collect(stmts: &[Stmt], headers: &mut BTreeMap<usize, Kind>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Scene { span, body, .. } => {
+                    if let Some(span) = span {
+                        headers.insert(span.start_line.saturating_sub(1), Kind::Scene);
+                    }
+                    collect(body, headers);
+                },
+                Stmt::Keyframe {
+                    span: Some(span), ..
+                }
+                | Stmt::RelativeKeyframe {
+                    span: Some(span), ..
+                } => {
+                    if let Some(kind) = time_kind(stmt) {
+                        headers.entry(span.start_line.saturating_sub(1)).or_insert(kind);
+                    }
+                },
+                _ => {},
+            }
+        }
+    }
+    let mut headers = BTreeMap::new();
+    collect(stmts, &mut headers);
+    headers
 }
 
 /// While semantic analysis is pending, carry intact headers across the edit.
@@ -84,14 +116,11 @@ pub(crate) fn source_cells(
         if start != index.line_col_to_byte(line, 0) + lines[line].len() - text.len() {
             continue;
         }
-        let kind = if role == "keyframe" {
-            Some(Kind::Time)
-        } else {
-            headers
-                .get(&line)
-                .copied()
-                .or_else(|| recover.then(|| recovered_header(text)).flatten())
-        };
+        let kind = headers
+            .get(&line)
+            .copied()
+            .or_else(|| recover.then(|| recovered_header(text)).flatten())
+            .or_else(|| (role == "keyframe").then_some(Kind::Time));
         if let Some(kind) = kind {
             if line == 0 {
                 cells.clear();
@@ -124,12 +153,6 @@ fn recovered_header(text: &str) -> Option<Kind> {
     }
     match ast.as_deref()?.first()? {
         Stmt::Scene { .. } => Some(Kind::Scene),
-        stmt @ (Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. })
-            if !stmt.is_cue_only_keyframe() =>
-        {
-            Some(Kind::Time)
-        },
-        Stmt::Step { .. } => Some(Kind::Time),
-        _ => None,
+        stmt => time_kind(stmt),
     }
 }

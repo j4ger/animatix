@@ -250,9 +250,9 @@ impl EditorBuffer {
 
         let available = ui.available_size_before_wrap();
         let char_width = ui.fonts_mut(|fonts| fonts.glyph_width(&TextRole::Mono.font_id(), '0'));
-        let gutter = cell_view::gutter_width(line_count);
-        let viewport_width = (available.x - gutter - 10.0).max(40.0);
         let wrap = available.x < 520.0;
+        let gutter = cell_view::gutter_width(line_count, wrap);
+        let viewport_width = (available.x - gutter - 10.0).max(40.0);
         let text_width = if wrap {
             viewport_width
         } else {

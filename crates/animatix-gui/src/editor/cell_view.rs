@@ -11,10 +11,11 @@ pub(crate) struct CellPlayback<'a> {
     pub timing: Option<&'a SourceTiming>,
     pub line: Option<usize>,
     pub seek: Option<f64>,
+    pub fps: f32,
 }
 
-pub(super) fn gutter_width(lines: usize) -> f32 {
-    (lines.max(1).ilog10() + 1).max(2) as f32 * 7.0 + 42.0
+pub(super) fn gutter_width(lines: usize, compact: bool) -> f32 {
+    (lines.max(1).ilog10() + 1).max(2) as f32 * 7.0 + if compact { 34.0 } else { 42.0 }
 }
 
 pub(super) fn galley(ui: &egui::Ui, layout: &SourceLayout, height: f32, width: f32) -> Arc<Galley> {
@@ -26,15 +27,27 @@ pub(super) fn galley(ui: &egui::Ui, layout: &SourceLayout, height: f32, width: f
         .iter()
         .map(|cell| {
             let tail = &job.text[cell.byte..];
-            cell.byte..cell.byte + tail.find('\n').unwrap_or(tail.len())
+            (cell.byte..cell.byte + tail.find('\n').unwrap_or(tail.len()), cell.kind)
         })
         .peekable();
+    let medium = egui::FontFamily::Name("JetBrainsMonoMedium".into());
+    let has_medium = ui.fonts(|f| f.definitions().families.contains_key(&medium));
     for section in &mut job.sections {
         let start = section.byte_range.start.0;
-        while headers.next_if(|header| header.end <= start).is_some() {}
-        let is_header =
-            headers.peek().is_some_and(|header| header.start < section.byte_range.end.0);
-        section.format.line_height = Some(if is_header { height + 8.0 } else { height });
+        while headers.next_if(|(header, _)| header.end <= start).is_some() {}
+        let header = headers.peek().filter(|(header, _)| header.start < section.byte_range.end.0);
+        let padding = match header {
+            Some((_, Kind::Scene)) => {
+                if has_medium {
+                    section.format.font_id.family = medium.clone();
+                }
+                section.format.font_id.size += 1.0;
+                16.0
+            },
+            Some(_) => 4.0,
+            None => 0.0,
+        };
+        section.format.line_height = Some(height + padding);
     }
     job.wrap.max_width = width;
     ui.fonts_mut(|f| f.layout_job(job))
@@ -89,66 +102,72 @@ pub(super) fn paint(
         let playing = current && playback.line == Some(cell.start);
         let focused = caret.is_some_and(|y| (first.top()..last.bottom()).contains(&y));
         let accent = if playing {
-            palette.accent.primary
+            palette.status.warning
         } else {
             palette.text.secondary
         };
-        let fill = if playing {
-            palette.surface.panel.lerp_to_gamma(palette.accent.primary, 0.075)
-        } else if cell.kind == Kind::Scene {
+        let fill = if cell.kind == Kind::Scene {
             palette.surface.widget
         } else {
             palette.surface.surface
         };
-        let edge = if playing {
-            fill.lerp_to_gamma(accent, 0.55)
-        } else if focused {
+        let edge = if focused {
             palette.border.strong
         } else {
-            palette.border.default
+            fill.lerp_to_gamma(palette.border.default, 0.5)
         };
         shapes.push(Shape::rect_filled(card, 5.0, fill));
         shapes.push(Shape::rect_stroke(card, 5.0, Stroke::new(1.0, edge), StrokeKind::Inside));
+        let row = output.galley.rows[rows[cell.start].start].rect().translate(origin.to_vec2());
+        let center = Pos2::new(rail + 12.5, row.center().y + 0.5);
         if playing {
             shapes.push(Shape::line_segment(
                 [
-                    card.left_top() + Vec2::new(1.0, 4.0),
-                    card.left_bottom() + Vec2::new(1.0, -4.0),
+                    Pos2::new(rail, center.y - 6.0),
+                    Pos2::new(rail, center.y + 6.0),
                 ],
                 Stroke::new(2.0, accent),
             ));
         }
-        let row = output.galley.rows[rows[cell.start].start].rect().translate(origin.to_vec2());
-        let center = Pos2::new(rail + 12.5, row.center().y + 0.5);
         let target = playback.timing.filter(|_| current).and_then(|t| t.at_header(cell.start));
         let mut ink = if cell.kind == Kind::Scene {
             palette.accent.cyan
+        } else if target.is_none() {
+            palette.text.muted
         } else {
             accent
         };
         if let Some(time) = target {
             let button = ui.interact(
-                Rect::from_center_size(center, Vec2::new(21.0, row.height())),
+                Rect::from_center_size(center, Vec2::new(24.0, row.height())),
                 output.response.id.with(("seek-cell", cell.start)),
                 Sense::click(),
             );
-            let label = format!(
-                "{} · {}",
-                crate::app::i18n::text(ui, "gui-shortcut-sheet-scrub-to-time"),
-                crate::app::i18n::render(
-                    ui,
-                    "gui-timeline-marker-time",
-                    &[("time", format!("{time:.2}"))]
+            let code = crate::app::format_timecode(time, playback.fps);
+            let key = match cell.kind {
+                Kind::Absolute => "gui-editor-seek-absolute",
+                Kind::Relative => "gui-editor-seek-relative",
+                _ => "gui-editor-seek-time",
+            };
+            button.widget_info(|| {
+                egui::WidgetInfo::labeled(
+                    egui::Role::Button,
+                    true,
+                    crate::app::i18n::render(ui, key, &[("time", code.clone())]),
                 )
-            );
-            button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+            });
             if button.hovered() || button.has_focus() {
-                ui.painter().circle_filled(center, 9.0, palette.surface.hover);
-                ink = palette.accent.primary;
+                ui.painter().circle_filled(center, 10.0, palette.surface.hover);
+                if !playing {
+                    ink = palette.text.primary;
+                }
+            }
+            if button.has_focus() && !button.hovered() {
+                button.show_tooltip_text(&code);
             }
             if button
                 .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .on_hover_text(label)
+                .on_hover_text(code)
                 .clicked()
             {
                 playback.seek = Some(time);
@@ -166,8 +185,12 @@ pub(super) fn paint(
                 center.y - 3.0..=center.y + 3.0,
                 Stroke::new(1.0, ink),
             );
-        } else if cell.kind == Kind::Time {
+        } else if cell.kind != Kind::Setup {
             let r = if playing { 4.0 } else { 3.4 };
+            if cell.kind == Kind::Relative {
+                ui.painter()
+                    .hline(center.x - 11.5..=center.x - r, center.y, Stroke::new(1.5, ink));
+            }
             let points = vec![
                 center + Vec2::new(0.0, -r),
                 center + Vec2::new(r, 0.0),
@@ -195,7 +218,7 @@ pub(super) fn paint(
         {
             palette.text.primary
         } else if current && playback.line == Some(line) {
-            palette.accent.primary
+            palette.status.warning
         } else {
             palette.text.muted
         };

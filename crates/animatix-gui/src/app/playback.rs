@@ -1,5 +1,14 @@
 use super::*;
 
+pub(crate) fn format_timecode(time: f64, fps: f32) -> String {
+    let total_seconds = time.max(0.0);
+    let hours = (total_seconds / 3600.0).floor() as u32;
+    let minutes = ((total_seconds % 3600.0) / 60.0).floor() as u32;
+    let seconds = (total_seconds % 60.0).floor() as u32;
+    let frame = ((total_seconds % 1.0) * fps as f64).floor() as u32;
+    format!("{:02}:{:02}:{:02}:{:02}", hours, minutes, seconds, frame)
+}
+
 impl PlaybackController {
     /// Read the current playback time in seconds.
     pub(crate) fn current_time_s(&self) -> f64 {
@@ -68,12 +77,7 @@ impl PlaybackController {
 
     /// Return the current time formatted as HH:MM:SS:FF at the stored fps.
     pub(crate) fn timecode_string(&self) -> String {
-        let total_seconds = self.current_time_s.max(0.0);
-        let hours = (total_seconds / 3600.0).floor() as u32;
-        let minutes = ((total_seconds % 3600.0) / 60.0).floor() as u32;
-        let seconds = (total_seconds % 60.0).floor() as u32;
-        let frame = ((total_seconds % 1.0) * self.fps as f64).floor() as u32;
-        format!("{:02}:{:02}:{:02}:{:02}", hours, minutes, seconds, frame)
+        format_timecode(self.current_time_s, self.fps)
     }
 
     pub(super) fn go_to_next_keyframe(&mut self, keyframes: &[f64]) {

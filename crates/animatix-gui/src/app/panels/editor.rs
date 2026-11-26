@@ -17,6 +17,7 @@ pub(crate) struct EditorContext<'a> {
     pub diagnostics: &'a [Diagnostic],
     pub document: &'a crate::app::document::DocumentSession,
     pub playhead_time: f64,
+    pub fps: f32,
     pub source_epoch: SourceEpoch,
     pub commands: &'a mut ActionQueue,
 }
@@ -196,6 +197,7 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     timing: Some(&ctx.document.source_timing),
                     line: ctx.document.find_keyframe_line_at(ctx.playhead_time),
                     seek: None,
+                    fps: ctx.fps,
                 };
                 let changed = ctx.editor.show_cells(ui, &mut playback).changed();
                 if let Some(time) = playback.seek {
