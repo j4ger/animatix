@@ -1,0 +1,17 @@
+config { canvas_size: (640, 360), duration: 4 }
+scene.background_color = hex_color("14212C")
+
+component Panel(fill: Color) {
+  body: Rect, size: (126,68), color: fill
+  port: Ellipse, at: (30,0), size: (18,18), color: hex_color("DCEFF0")
+}
+
+#0s
+source: Ellipse, at: (110,190), size: (20,20), color: hex_color("FFD080")
+wire: Connector, from: (source, right), to: (moving.port, left), routing: "straight", stroke: hex_color("7CD9D1"), stroke_width: 3
+moving: Panel, fill: hex_color("306b91"), at: (245,190)
+badge: Rect, at: (355,159), size: (28,26), color: hex_color("FFD080")
+letter: Text, at: (355,159), text: "P", font_size: 16, color: hex_color("14212C")
+
+#1s
+moving.at = (465,190) [2s]

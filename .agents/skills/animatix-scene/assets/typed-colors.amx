@@ -1,0 +1,15 @@
+config { colorscheme: "editorial-dark", canvas_size: (640, 360), duration: 4 }
+
+component Swatch(fill: Color) {
+  tile: Rect, size: (104,104), color: fill
+}
+
+#0s
+scene.background_color = hex_color("141b24")
+fixed: Swatch, at: (100,180), fill: hex_color("Ff2D55")
+translucent: Rect, at: (247,180), size: (104,104), color: hex_color("FF2D5580"), stroke: hex_color("fff1d6"), stroke_width: 2
+computed: Rect, at: (393,180), size: (104,104), color: rgb(24 / 255, 130 / 255, 210 / 255)
+scheme: Rect, at: (540,180), size: (104,104), color: accent.primary
+always {
+  computed.color = rgba(24 / 255, (110 + 30 * sin(t)) / 255, 210 / 255, 1.0)
+}

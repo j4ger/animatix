@@ -62,6 +62,21 @@ For CLI rendering, video export, and other build setups, see the [development gu
 
 </details>
 
+## AI-assisted authoring (preview)
+
+Codex finds the [project skills](.agents/skills/) when opened in this repository.
+Use `$animatix-explainer` to draft and storyboard a complete explanation, or
+`$animatix-scene` to turn a settled brief into AMX and inspect the result.
+The explainer stops for separate approval of the text and of the storyboard
+before production.
+
+Start with the normal [visual checks](docs/audit.md). For a fragile timing claim,
+the optional frame-evidence helper plans frames with Python 3. Its capture mode
+requires a compatible renderer adapter; Animatix does not install one for you.
+For a frame-boundary claim, verify the resulting frames at the delivery rate
+against the actual renderer or decoded export. A CLI still sampled by seconds
+is a preview, not proof of what appears in the final video.
+
 ---
 
 [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE)
