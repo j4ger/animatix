@@ -8,7 +8,7 @@
 #
 # Usage: tools/release/dist-package.sh <platform> [<bin-dir>] [--video]
 #   linux          animatix + animatix-gui, `video` built, .tar.gz
-#   macos          CLI/GUI binaries + Finder Animatix.app, .zip
+#   macos          CLI/GUI binaries + Finder Animatix Studio.app, .zip
 #   windows        same two .exe, .zip
 #   site           the deployed tree (web/tools/site/site-artifact.sh), .zip
 #   web-sdk        one verified SDK, including optional code and font faces
@@ -94,8 +94,8 @@ case "$platform" in
     name="animatix-${NAME_V}-${triple}-${platform}"
     for b in animatix animatix-gui; do cp "$bindir/$b$ext" "$stage/"; done
     if [ "$platform" = macos ]; then
-      python3 crates/animatix-gui/tools/packaging/package-macos.py "$bindir/animatix-gui" "$stage/Animatix.app" "$V"
-      python3 crates/animatix-gui/tools/packaging/platform-icon-check.py macos "$stage/Animatix.app"
+      python3 crates/animatix-gui/tools/packaging/package-macos.py "$bindir/animatix-gui" "$stage/Animatix Studio.app" "$V"
+      python3 crates/animatix-gui/tools/packaging/platform-icon-check.py macos "$stage/Animatix Studio.app"
     else
       python3 crates/animatix-gui/tools/packaging/platform-icon-check.py windows "$stage/animatix-gui.exe"
     fi
@@ -106,7 +106,7 @@ case "$platform" in
       if [ "$platform" = windows ]; then
         cp "$bindir/"*.dll "$stage/"
       else
-        cp "$bindir/ffmpeg" "$stage/Animatix.app/Contents/MacOS/"
+        cp "$bindir/ffmpeg" "$stage/Animatix Studio.app/Contents/MacOS/"
       fi
     fi
     for license in LICENSE LICENSE-MIT LICENSE-APACHE; do

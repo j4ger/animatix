@@ -49,7 +49,7 @@ def verify_workbench(gui, scene, project, env):
 def verify(package, project, version, env):
     suffix = ".exe" if sys.platform == "win32" else ""
     gui = package / ("animatix-gui" + suffix)
-    bundle = package / "Animatix.app/Contents/MacOS/animatix-gui"
+    bundle = package / "Animatix Studio.app/Contents/MacOS/animatix-gui"
     if version and sys.platform == "darwin":
         gui = bundle
 

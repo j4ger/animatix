@@ -13,7 +13,7 @@ builds do not require graphics tools.
 | Native window | Embedded 256 px RGBA PNG, set through eframe |
 | Linux application menu / desktop shell | `io.github.j4ger.animatix.desktop`, hicolor SVG + 256/512 px PNG, matching window app ID |
 | Windows Explorer / executable | Six-resolution ICO (16–256 px), compiled into the GUI PE resources by `build.rs` |
-| macOS Finder / Dock | `Animatix.app`, `Info.plist`, and Retina-capable `Animatix.icns` (16–1024 px) |
+| macOS Finder / Dock | `Animatix Studio.app`, `Info.plist`, and Retina-capable `Animatix.icns` (16–1024 px) |
 
 All platforms use the stable application identity `io.github.j4ger.animatix`.
 Existing toolbar/action glyphs and shapes inside demo scenes are not brand assets.
@@ -38,7 +38,7 @@ icons; validate freshly built artifacts rather than judging an older cached file
 
 ## macOS
 
-The existing macOS archive now also contains `Animatix.app`, with a real executable
+The existing macOS archive now also contains `Animatix Studio.app`, with a real executable
 inside `Contents/MacOS` and icons in `Contents/Resources`. Move that bundle into
 Applications and launch it through Finder for normal Dock identity. Existing raw
 CLI/GUI files remain for compatibility. Icon packaging does not add Developer ID

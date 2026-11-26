@@ -99,6 +99,9 @@ pub fn handle_prev_keyframe(
 ) -> Vec<Effect> {
     let keyframes = collect_keyframes(document_store);
     preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
+    let landed = preview_store.preview.playback.current_time_s();
+    preview_store.preview.keyframe_landing =
+        keyframes.contains(&landed).then(|| (landed, std::time::Instant::now()));
     preview_store.preview_dirty = true;
     keyframe_effects(document_store, preview_store, ui_store, "gui-playback-keyframe-previous")
 }
@@ -110,6 +113,9 @@ pub fn handle_next_keyframe(
 ) -> Vec<Effect> {
     let keyframes = collect_keyframes(document_store);
     preview_store.preview.playback.go_to_next_keyframe(&keyframes);
+    let landed = preview_store.preview.playback.current_time_s();
+    preview_store.preview.keyframe_landing =
+        keyframes.contains(&landed).then(|| (landed, std::time::Instant::now()));
     preview_store.preview_dirty = true;
     keyframe_effects(document_store, preview_store, ui_store, "gui-playback-keyframe-next")
 }

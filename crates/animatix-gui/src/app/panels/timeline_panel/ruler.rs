@@ -1,7 +1,5 @@
 //! Timeline ruler, zoom bar, edge interaction, and playhead rendering.
 
-use std::hash::Hash;
-
 use egui::{Align2, Pos2, Rect, Sense, Stroke, Vec2};
 
 use super::TimelineCoords;
@@ -11,23 +9,75 @@ use crate::app::components::button::Button;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, Spatial};
 use crate::app::design_tokens::typography::TextRole;
 
-/// Handle click-and-drag scrubbing on a timeline bar.
-pub(crate) fn bar_interaction(
+/// Shift-scrub within six screen points of an authored keyframe. The sorted
+/// times are collected once per gesture, including composition scene offsets.
+pub(super) fn scrub_ruler(
     ui: &egui::Ui,
-    bar_rect: Rect,
-    // egui 0.37's `Id::with` requires the salt to be `Hash + Debug` (`AsIdSalt`).
-    id_salt: impl Hash + std::fmt::Debug,
-    cmds: &mut ActionQueue,
-    x_to_time: impl Fn(f32) -> f64,
+    bar: Rect,
+    coords: &TimelineCoords,
+    preview: &mut PreviewPaneState,
+    commands: &mut ActionQueue,
+    times: impl FnOnce() -> Vec<f64>,
 ) {
-    let bar_id = ui.scope_id().with(id_salt);
-    let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
-    if (response.clicked() || response.dragged())
-        && let Some(pos) = response.interact_pointer_pos()
-    {
-        let new_time = x_to_time(pos.x);
-        cmds.push_back(Command::ScrubTo(new_time).into());
+    let id = ui.scope_id().with("ruler");
+    let response = ui.interact(bar, id, Sense::click_and_drag());
+    let cache = id.with("snap_times");
+    let shift = ui.input(|i| i.modifiers.shift);
+    let dragging = response.dragged() || response.clicked();
+    if dragging && let Some(pos) = response.interact_pointer_pos() {
+        let raw = coords.x_to_time(pos.x);
+        let target = if shift {
+            ui.data_mut(|data| {
+                let sorted = data.get_temp_mut_or_insert_with(cache, times);
+                nearest_keyframe(sorted, raw, coords.visible_s * 6.0 / f64::from(coords.bar_width))
+            })
+        } else {
+            None
+        };
+        if let Some(time) = target {
+            if response.clicked()
+                || response.drag_started()
+                || preview.playback.current_time_s() != time
+            {
+                preview.keyframe_landing = Some((time, std::time::Instant::now()));
+            }
+        } else {
+            preview.keyframe_landing = None;
+        }
+        commands.push_back(Command::ScrubTo(target.unwrap_or(raw)).into());
     }
+    if !response.dragged() || !shift {
+        ui.data_mut(|d| d.remove::<Vec<f64>>(cache));
+    }
+    if let Some((time, start)) = preview.keyframe_landing {
+        let elapsed = start.elapsed().as_secs_f32();
+        if elapsed < eparts::tokens::motion::FAST
+            && eparts::motion_preference(ui) == eparts::MotionPreference::Full
+        {
+            let x = coords.time_to_x(time);
+            let color = eparts::theme(ui)
+                .palette
+                .text
+                .primary
+                .gamma_multiply(1.0 - elapsed / eparts::tokens::motion::FAST);
+            let painter = ui.painter_at(bar);
+            for edge in [x - 3.0, x + 3.0] {
+                painter.vline(edge, bar.top()..=bar.bottom(), Stroke::new(1.0, color));
+            }
+            ui.ctx().request_repaint();
+        } else {
+            preview.keyframe_landing = None;
+        }
+    }
+}
+
+fn nearest_keyframe(sorted: &[f64], time: f64, tolerance: f64) -> Option<f64> {
+    let after = sorted.partition_point(|t| *t < time);
+    sorted[after.saturating_sub(1)..(after + 1).min(sorted.len())]
+        .iter()
+        .copied()
+        .min_by(|a, b| (a - time).abs().total_cmp(&(b - time).abs()))
+        .filter(|t| (t - time).abs() <= tolerance)
 }
 
 /// Timeline-local controls: zoom. Playback transport is global (`shell::transport`).
@@ -344,5 +394,20 @@ pub(crate) fn render_playhead(
             theme.palette.status.warning,
             Stroke::NONE,
         ));
+    }
+}
+
+#[cfg(test)]
+mod snap_tests {
+    use super::nearest_keyframe;
+
+    #[test]
+    fn snap_only_within_the_visible_tolerance() {
+        let keys = [0.5, 1.0, 1.04];
+        assert_eq!(nearest_keyframe(&[], 0.0, 0.01), None);
+        assert_eq!(nearest_keyframe(&keys, 0.49, 0.02), Some(0.5));
+        assert_eq!(nearest_keyframe(&keys, 1.03, 0.02), Some(1.04));
+        assert_eq!(nearest_keyframe(&keys, 1.05, 0.02), Some(1.04));
+        assert_eq!(nearest_keyframe(&keys, 0.7, 0.02), None);
     }
 }

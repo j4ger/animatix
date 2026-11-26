@@ -1,4 +1,7 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+const FADE_IN: Duration = Duration::from_millis(150);
+const FADE_OUT: Duration = Duration::from_millis(300);
 
 use egui::{Color32, Pos2, Rect, Vec2};
 
@@ -58,19 +61,19 @@ impl Toast {
     pub fn alpha(&self, now: Instant) -> f32 {
         let elapsed = now.duration_since(self.created_at).as_secs_f32();
         let total = self.duration.as_secs_f32();
-        if elapsed < 0.15 {
+        if elapsed < FADE_IN.as_secs_f32() {
             // Fade in
-            elapsed / 0.15
-        } else if elapsed > total - 0.3 {
+            elapsed / FADE_IN.as_secs_f32()
+        } else if elapsed > total - FADE_OUT.as_secs_f32() {
             // Fade out in last 0.3s
-            ((total - elapsed) / 0.3).max(0.0)
+            ((total - elapsed) / FADE_OUT.as_secs_f32()).max(0.0)
         } else {
             1.0
         }
     }
 
     pub fn is_expired(&self, now: Instant) -> bool {
-        now.duration_since(self.created_at) > self.duration
+        now.duration_since(self.created_at) >= self.duration
     }
 
     pub fn icon(&self) -> &'static str {
@@ -177,10 +180,20 @@ impl ToastQueue {
             ToastPlacement::TopCenter => (viewport.center().x - toast_w / 2.0, margin, false),
         };
 
+        let reduced = crate::motion_preference(ui) == crate::MotionPreference::Reduced;
         let mut i = 0;
         while i < self.toasts.len() {
             let toast = &self.toasts[i];
-            let alpha = toast.alpha(now);
+            let age = now.saturating_duration_since(toast.created_at);
+            let fade_start = toast.duration.saturating_sub(FADE_OUT);
+            if reduced {
+                ui.ctx().request_repaint_after(toast.duration.saturating_sub(age));
+            } else if age < FADE_IN || age >= fade_start {
+                ui.ctx().request_repaint();
+            } else {
+                ui.ctx().request_repaint_after(fade_start - age);
+            }
+            let alpha = if reduced { 1.0 } else { toast.alpha(now) };
             if alpha <= 0.01 {
                 i += 1;
                 continue;
@@ -253,11 +266,6 @@ impl ToastQueue {
             let text_pos = Pos2::new(text_x, rect.center().y - galley.size().y / 2.0);
             ui.painter().galley(text_pos, galley, text_color);
             i += 1;
-        }
-
-        // Request repaint while toasts are visible for fade animation
-        if !self.toasts.is_empty() {
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
         }
     }
 }

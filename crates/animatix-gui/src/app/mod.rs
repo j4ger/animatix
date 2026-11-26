@@ -165,6 +165,10 @@ pub(crate) struct PreviewPaneState {
     pub overlay: crate::app::preview::overlay::PreviewOverlay,
     /// Timeline horizontal zoom (1.0 = fit to width).
     pub timeline_zoom: f32,
+    /// Height required by the currently visible timeline lanes, including the toolbar.
+    pub timeline_content_height: Option<f32>,
+    /// Last exact keyframe reached with the transport or ruler.
+    pub keyframe_landing: Option<(f64, Instant)>,
     /// Timeline horizontal scroll offset in seconds (when zoomed).
     pub timeline_scroll_offset: f64,
     /// When true, the preview panel will recompute zoom to fit on next frame.

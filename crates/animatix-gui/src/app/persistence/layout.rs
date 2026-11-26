@@ -10,11 +10,11 @@ fn preset_regions(preset: LayoutPreset) -> PresetRegions {
     match preset {
         LayoutPreset::Animate => PresetRegions {
             left: (LEFT_RATIO, LEFT_MIN, LEFT_MAX),
-            bottom: (0.32, 200.0, 420.0),
+            bottom: (0.14, 120.0, 150.0),
         },
         LayoutPreset::Code => PresetRegions {
             left: (0.14, 170.0, 290.0),
-            bottom: (0.18, 138.0, 245.0),
+            bottom: (0.12, 120.0, 140.0),
         },
     }
 }
@@ -214,6 +214,33 @@ fn set_vertical_shares(tree: &mut Tree<WorkspaceTab>, height: f32, bottom: f32, 
     if let Some(top) = linear.children.iter().copied().find(|id| *id != region) {
         linear.shares.set_share(top, (height - bottom).max(1.0));
         linear.shares.set_share(region, bottom.max(1.0));
+    }
+}
+
+/// Grow a sparse default to fit new lanes. Shrink an automatically fitted region
+/// when lanes close, and preserve extra height a user gave the splitter.
+pub(crate) fn fit_timeline_content(
+    tree: &mut Tree<WorkspaceTab>,
+    height: f32,
+    previous: Option<f32>,
+    desired: f32,
+) {
+    let Some(root) = tree.root else { return };
+    let Some(pane) = tree.tiles.find_pane(&WorkspaceTab::Timeline) else {
+        return;
+    };
+    let Some(region) = direct_region(tree, root, pane) else {
+        return;
+    };
+    let Some(Container::Linear(linear)) = tree.tiles.get_container(root) else {
+        return;
+    };
+    let Some(index) = linear.children.iter().position(|id| *id == region) else {
+        return;
+    };
+    let current = linear.shares.split(&linear.children, height)[index];
+    if desired > current || previous.is_some_and(|old| current <= old + 4.0) {
+        set_vertical_shares(tree, height, desired, false);
     }
 }
 

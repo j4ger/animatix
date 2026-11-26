@@ -12,9 +12,9 @@ pub(crate) fn install_theme(ctx: &egui::Context, theme: &eparts::Theme, dark: bo
 
     // Map the eparts Theme onto egui Visuals so stock widgets match the palette.
     style.visuals = theme.to_visuals(dark);
-    use eparts::tokens::spatial::{RADIUS_L, RADIUS_XL};
+    use eparts::tokens::spatial::{RADIUS_M, RADIUS_XL};
     style.visuals.window_corner_radius = egui::CornerRadius::same(RADIUS_XL as u8);
-    style.visuals.menu_corner_radius = egui::CornerRadius::same(RADIUS_L as u8);
+    style.visuals.menu_corner_radius = egui::CornerRadius::same(RADIUS_M as u8);
     style.visuals.popup_shadow = theme.elevation_raised();
     style.visuals.window_shadow = theme.elevation_overlay();
     style.visuals.window_stroke = egui::Stroke::new(1.0, theme.palette.border.subtle);

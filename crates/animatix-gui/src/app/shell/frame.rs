@@ -236,9 +236,7 @@ impl GuiShell {
         }
 
         // Export dialog overlay
-        if self.export_store.export_dialog_open {
-            self.export_dialog_ui(ui);
-        }
+        self.export_dialog_ui(ui);
 
         // Shortcut cheat sheet overlay
         if self.ui_store.view.shortcuts_open {
@@ -515,6 +513,7 @@ impl GuiShell {
             self.ui_store.find_last_match,
         );
 
+        let previous_height = self.preview_store.preview.timeline_content_height;
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
             language: crate::app::i18n::current_language(ui.ctx()),
@@ -544,6 +543,17 @@ impl GuiShell {
                 behavior.pane_ui(ui, egui_tiles::TileId::from_u64(0), &mut WorkspaceTab::Preview);
         } else {
             tree.ui(&mut behavior, ui);
+            if let Some(desired) = self.preview_store.preview.timeline_content_height
+                && previous_height != Some(desired)
+            {
+                crate::app::persistence::fit_timeline_content(
+                    tree,
+                    avail.y,
+                    previous_height,
+                    desired,
+                );
+                ui.ctx().request_repaint();
+            }
         }
     }
 }

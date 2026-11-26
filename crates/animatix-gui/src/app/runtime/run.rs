@@ -23,7 +23,7 @@ pub fn run_gui(path: Option<PathBuf>, perf_log_path: Option<PathBuf>, script: Op
     let window_maximized = persistence.as_ref().and_then(|p| p.window_maximized).unwrap_or(false);
 
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("Animatix")
+        .with_title("Animatix Studio")
         .with_app_id("io.github.j4ger.animatix")
         .with_inner_size(
             window_size

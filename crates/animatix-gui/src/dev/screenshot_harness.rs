@@ -6,8 +6,8 @@
 
 use egui::Vec2;
 
-use crate::app::components::{button, layout, row};
 use crate::app::design_tokens::typography::TextRole;
+use eparts::widget::{button, layout, row};
 
 /// Registry of screenshot-able widgets.
 pub const WIDGET_REGISTRY: &[(&str, &str)] = &[

@@ -263,7 +263,7 @@ gui-transport-toggle-loop = Toggle loop playback
 gui-welcome-new-scene = Create new scene
 gui-welcome-open-file = Open existing file
 gui-welcome-tagline = Layout-first animation for creative coders
-gui-welcome-title = Welcome to Animatix
+gui-welcome-title = Welcome to Animatix Studio
 gui-welcome-workspace = Open workspace
 gui-workspace-directory-path = Directory path
 gui-workspace-switch-title = Switch Workspace
@@ -591,6 +591,7 @@ gui-file-summary-render = render: { $errors } error(s), { $warnings } warning(s)
 gui-file-workspace = Switched workspace to { $path }
 
 gui-export-active-scene = Active Scene
+gui-export-lock-canvas = Lock to canvas
 gui-export-aspect-ratio = Aspect ratio
 gui-export-build = Build the current source successfully before exporting
 gui-export-cancelled = Export cancelled by user

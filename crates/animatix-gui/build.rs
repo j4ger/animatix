@@ -5,8 +5,8 @@ fn main() -> std::io::Result<()> {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         winresource::WindowsResource::new()
             .set_icon("assets/icon.ico")
-            .set("ProductName", "Animatix")
-            .set("FileDescription", "Animatix animation studio")
+            .set("ProductName", "Animatix Studio")
+            .set("FileDescription", "Animatix Studio")
             .set("OriginalFilename", "animatix-gui.exe")
             .compile()?;
     }

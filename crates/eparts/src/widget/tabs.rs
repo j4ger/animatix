@@ -1,7 +1,7 @@
 use egui::{Id, Rect, Response, Sense, Vec2};
 
 use crate::spatial;
-use crate::tokens::motion::{HOVER, PANEL};
+use crate::tokens::motion::{HOVER, TAB_SWITCH};
 use crate::tokens::spatial::{RADIUS_L, RADIUS_M, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
 use crate::widget::IntoWidgetId;
@@ -179,7 +179,7 @@ impl<'a> TabBar<'a> {
                 ui.ctx(),
                 self.id.with(("indicator", self.tabs.len())),
                 *self.selected_index as f32,
-                PANEL,
+                TAB_SWITCH,
             );
             let face = face_at(position);
             if self.underlined {
@@ -189,7 +189,6 @@ impl<'a> TabBar<'a> {
                 );
                 ui.painter().rect_filled(mark, 1.0, slots.active.indicator);
             } else {
-                ui.painter().add(t.elevation_raised().as_shape(face, RADIUS_M));
                 ui.painter().rect(
                     face,
                     RADIUS_M,

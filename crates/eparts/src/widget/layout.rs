@@ -4,8 +4,7 @@ use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
 use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
 
-/// A styled container with our surface background, rounded corners,
-/// and layered shadow for depth.
+/// An in-panel card with a subtle border and rounded corners.
 pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     let t = theme(ui);
     let s = spatial(ui);
@@ -14,7 +13,6 @@ pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
         .corner_radius(CornerRadius::same(crate::tokens::spatial::RADIUS_L as u8))
         .stroke(Stroke::new(STROKE_WIDTH, t.palette.border.subtle))
         .inner_margin(Margin::same(s.space_3 as i8))
-        .shadow(t.elevation.raised)
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             add_contents(ui);

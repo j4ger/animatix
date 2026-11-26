@@ -114,6 +114,11 @@ pub const HOVER: Transition = Transition {
     duration: FAST,
     easing: STANDARD,
 };
+/// Travel between neighboring segments in a switcher.
+pub const TAB_SWITCH: Transition = Transition {
+    duration: 0.15,
+    easing: STANDARD,
+};
 pub const PANEL: Transition = Transition {
     duration: NORMAL,
     easing: STANDARD,

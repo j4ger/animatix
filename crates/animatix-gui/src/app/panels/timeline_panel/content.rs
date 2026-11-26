@@ -13,7 +13,7 @@ use egui::{Pos2, Rect, Stroke, Vec2};
 
 use super::keyframes::{self, KeyframeRenderCtx};
 use super::narration::ScriptReview;
-use super::ruler::{bar_interaction, render_playhead, render_range_slider, render_ruler};
+use super::ruler::{render_playhead, render_range_slider, render_ruler};
 use super::toolbar::review_controls;
 use super::track_lanes::{
     property_group_color, property_group_for_prop, render_action_blocks, render_speech_track,
@@ -499,10 +499,9 @@ impl TimelineRowCtx<'_> {
 }
 
 pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
-    let theme = eparts::theme(ui);
-    let sp = crate::app::design_tokens::spatial::spatial(ui);
     // Empty state when no timeline is loaded
     if ctx.timeline.is_none() && ctx.composition.is_none() {
+        ctx.preview.timeline_content_height = Some(120.0);
         ui.strong(crate::app::i18n::text(ui, "gui-panel-timeline"));
         crate::app::i18n::empty_state(
             ui,
@@ -514,6 +513,29 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
     }
 
     let source_markers = ctx.authored_markers(ui);
+    let panel_id = egui::Id::unique("workbench_timeline");
+    let show_debug = review_controls(
+        ui,
+        ctx.preview,
+        ctx.commands,
+        panel_id,
+        &source_markers,
+        ctx.source_current,
+    );
+    egui::ScrollArea::vertical().id_salt("timeline_scroll").show(ui, |ui| {
+        render_timeline_lanes(ctx, ui, &source_markers, show_debug, panel_id);
+    });
+}
+
+fn render_timeline_lanes(
+    ctx: &mut TimelineContext<'_>,
+    ui: &mut egui::Ui,
+    source_markers: &[markers::TimingMarker],
+    show_debug: bool,
+    panel_id: egui::Id,
+) {
+    let theme = eparts::theme(ui);
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let TimelineContext {
         preview,
         timeline,
@@ -527,7 +549,6 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
     } = ctx;
 
     let duration_s = preview.playback.duration_s.max(0.1);
-    let panel_id = egui::Id::unique("workbench_timeline");
     let active_scene = ctx.active_scene;
     let scene_for_selection = active_scene.map(ToOwned::to_owned);
     let shift_held = ui.input(|i| i.modifiers.shift);
@@ -536,8 +557,6 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         .copied()
         .unwrap_or(0.0);
     let curve = curves::Control::new(ui, panel_id, active_scene);
-    let show_debug =
-        review_controls(ui, preview, commands, panel_id, &source_markers, ctx.source_current);
     let script = ScriptReview {
         history: ctx.voiceover_history,
         source: ctx.source_text,
@@ -547,153 +566,166 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         revision: ctx.audio_revision,
         scene: active_scene,
         timeline: *timeline,
-        markers: &source_markers,
+        markers: source_markers,
         offset: scene_offset,
     };
 
-    // ── All content lives inside the ScrollArea ──
-    egui::ScrollArea::vertical().id_salt("timeline_scroll").show(ui, |ui| {
-        let viewport = TimelineViewport::new(ui, preview, &sp, duration_s);
-        handle_timeline_navigation(ui, preview, &viewport.coords, duration_s);
+    let viewport = TimelineViewport::new(ui, preview, &sp, duration_s);
+    handle_timeline_navigation(ui, preview, &viewport.coords, duration_s);
 
-        let has_audio = !ctx.audio_segments.is_empty();
-        let controls_top =
-            viewport.scroll_rect.top() + pre_speech_height(&sp, composition.is_some(), has_audio);
-        // Lay out the paragraph controls beside their tracks. A child UI lets
-        // the controls wrap without moving the parent cursor before allocation.
-        let mut speech_ui = ui.new_child(
-            egui::UiBuilder::new()
-                .id_salt("paragraph_controls")
-                .max_rect(
-                    viewport
-                        .scroll_rect
-                        .with_max_y(viewport.scroll_rect.bottom().max(controls_top))
-                        .with_min_y(controls_top),
-                )
-                .layout(egui::Layout::top_down(egui::Align::Min)),
-        );
-        let script_track = script.show(&mut speech_ui, commands, panel_id);
-        let controls_height = (speech_ui.min_rect().bottom() - controls_top).max(0.0);
-        let speech_detail = script_track.detail;
-        let word_rows = match speech_detail {
-            super::narration::SpeechDetail::Paragraphs => 0,
-            _ => speech_row_count(*timeline, speech_detail),
-        };
-        let transcript_rows = word_rows + usize::from(script_track.has_script());
-        let (actor_tree, extra_prop_lanes) =
-            actor_rows(*timeline, collapsed_actors, expanded_properties);
-        let total_track_rows = if show_debug {
-            actor_tree.len() + extra_prop_lanes
+    let has_audio = !ctx.audio_segments.is_empty();
+    let controls_top =
+        viewport.scroll_rect.top() + pre_speech_height(&sp, composition.is_some(), has_audio);
+    // Lay out the paragraph controls beside their tracks. A child UI lets
+    // the controls wrap without moving the parent cursor before allocation.
+    let mut speech_ui = ui.new_child(
+        egui::UiBuilder::new()
+            .id_salt("paragraph_controls")
+            .max_rect(
+                viewport
+                    .scroll_rect
+                    .with_max_y(viewport.scroll_rect.bottom().max(controls_top))
+                    .with_min_y(controls_top),
+            )
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    let script_track = script.show(&mut speech_ui, commands, panel_id);
+    let controls_height = (speech_ui.min_rect().bottom() - controls_top).max(0.0);
+    let speech_detail = script_track.detail;
+    let word_rows = match speech_detail {
+        super::narration::SpeechDetail::Paragraphs => 0,
+        _ => speech_row_count(*timeline, speech_detail),
+    };
+    let transcript_rows = word_rows + usize::from(script_track.has_script());
+    let (actor_tree, extra_prop_lanes) =
+        actor_rows(*timeline, collapsed_actors, expanded_properties);
+    let total_track_rows = if show_debug {
+        actor_tree.len() + extra_prop_lanes
+    } else {
+        0
+    };
+    let curve_height = curves::lane_height(ui.clip_rect().height() * 0.4);
+    let sections = layout_sections(
+        viewport.scroll_rect.top(),
+        &sp,
+        composition.is_some(),
+        controls_height,
+        transcript_rows,
+        has_audio,
+        total_track_rows,
+        preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some(),
+        if show_debug && has_open_curve(*timeline, &actor_tree, expanded_properties, &curve, theme)
+        {
+            curve_height
         } else {
-            0
-        };
-        let curve_height = curves::lane_height(ui.clip_rect().height() * 0.4);
-        let sections = layout_sections(
-            viewport.scroll_rect.top(),
-            &sp,
-            composition.is_some(),
-            controls_height,
-            transcript_rows,
-            has_audio,
-            total_track_rows,
-            preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some(),
-            if show_debug
-                && has_open_curve(*timeline, &actor_tree, expanded_properties, &curve, theme)
-            {
-                curve_height
+            0.0
+        },
+    );
+
+    preview.timeline_content_height = Some(
+        (sections.content_bottom - viewport.scroll_rect.top() + sp.base.row_l + sp.base.space_6)
+            .ceil()
+            .clamp(120.0, 420.0),
+    );
+    ui.allocate_space(Vec2::new(
+        viewport.scroll_rect.width(),
+        sections.content_bottom - ui.cursor().min.y,
+    ));
+
+    // ── Ruler and click-to-scrub ──
+    render_ruler(
+        ui.painter(),
+        viewport.scroll_rect,
+        sections.ruler_top,
+        sections.ruler_bot,
+        &viewport.coords,
+        theme,
+        &sp,
+    );
+    let bar = ruler_bar(&viewport, &sections);
+    super::ruler::scrub_ruler(ui, bar, &viewport.coords, preview, commands, || {
+        crate::app::document::timeline_keyframe_times_s(
+            if composition.is_some() {
+                None
             } else {
-                0.0
+                *timeline
             },
-        );
-
-        ui.allocate_space(Vec2::new(
-            viewport.scroll_rect.width(),
-            sections.content_bottom - ui.cursor().min.y,
-        ));
-
-        // ── Ruler and click-to-scrub ──
-        render_ruler_and_scrubber(ui, &viewport, &sections, &sp, theme, commands);
-        let playhead_x = viewport.coords.time_to_x(preview.playback.current_time_s());
-
-        render_review_tracks(
-            ui,
-            &viewport,
-            &sections,
             *composition,
-            ctx.audio_segments,
-            ctx.audio_revision,
-            commands,
-        );
+            active_scene,
+        )
+    });
+    let playhead_x = viewport.coords.time_to_x(preview.playback.current_time_s());
 
-        render_speech_review(
-            ui,
-            &script_track,
-            *timeline,
-            word_rows,
-            &viewport,
-            &sections,
-            preview,
-            commands,
+    render_review_tracks(
+        ui,
+        &viewport,
+        &sections,
+        *composition,
+        ctx.audio_segments,
+        ctx.audio_revision,
+        commands,
+    );
+
+    render_speech_review(
+        ui,
+        &script_track,
+        *timeline,
+        word_rows,
+        &viewport,
+        &sections,
+        preview,
+        commands,
+        scene_offset,
+        panel_id,
+        theme,
+        &sp,
+    );
+
+    // Debug property tracks are read-only, selectable inspection rows.
+    if show_debug {
+        let mut rows = TimelineRowCtx {
+            timeline: *timeline,
+            coords: &viewport.coords,
+            scroll_rect: viewport.scroll_rect,
+            bar_origin_x: viewport.coords.bar_origin_x,
+            playhead_x,
             scene_offset,
-            panel_id,
+            active_scene,
+            scene_for_selection: scene_for_selection.clone(),
+            shift_held,
+            theme,
+            sp: &sp,
+            preview,
+            collapsed_actors,
+            expanded_properties,
+            selected_actors,
+            selected_keyframes,
+            curve: &curve,
+            curve_height,
+            commands,
+        };
+        let mut current_y = sections.actor_first_top;
+        for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
+            current_y = rows.render_actor_row(ui, actor_label, *depth, track_idx, current_y);
+        }
+    }
+
+    // Keep the range handles available only while looping.
+    if sections.range_bot > sections.range_top {
+        render_range_slider(
+            ui,
+            sections.range_top,
+            sections.range_bot,
+            viewport.scroll_rect,
+            &viewport.coords,
+            duration_s,
+            preview,
             theme,
             &sp,
         );
+    }
 
-        // Debug property tracks are read-only, selectable inspection rows.
-        if show_debug {
-            let mut rows = TimelineRowCtx {
-                timeline: *timeline,
-                coords: &viewport.coords,
-                scroll_rect: viewport.scroll_rect,
-                bar_origin_x: viewport.coords.bar_origin_x,
-                playhead_x,
-                scene_offset,
-                active_scene,
-                scene_for_selection: scene_for_selection.clone(),
-                shift_held,
-                theme,
-                sp: &sp,
-                preview,
-                collapsed_actors,
-                expanded_properties,
-                selected_actors,
-                selected_keyframes,
-                curve: &curve,
-                curve_height,
-                commands,
-            };
-            let mut current_y = sections.actor_first_top;
-            for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
-                current_y = rows.render_actor_row(ui, actor_label, *depth, track_idx, current_y);
-            }
-        }
-
-        // Keep the range handles available only while looping.
-        if sections.range_bot > sections.range_top {
-            render_range_slider(
-                ui,
-                sections.range_top,
-                sections.range_bot,
-                viewport.scroll_rect,
-                &viewport.coords,
-                duration_s,
-                preview,
-                theme,
-                &sp,
-            );
-        }
-
-        render_timeline_overlays(
-            ui,
-            &viewport,
-            &sections,
-            playhead_x,
-            theme,
-            &source_markers,
-            commands,
-        );
-    });
+    render_timeline_overlays(ui, &viewport, &sections, playhead_x, theme, source_markers, commands);
 }
 
 fn render_timeline_overlays(
@@ -828,29 +860,6 @@ fn render_audio_lane(
     if let Some(time) = audio::render_audio_track(ui, rect, &viewport.coords, segments, revision) {
         commands.push_back(Command::ScrubTo(time).into());
     }
-}
-
-fn render_ruler_and_scrubber(
-    ui: &mut egui::Ui,
-    viewport: &TimelineViewport,
-    sections: &TimelineSections,
-    sp: &Spatial,
-    theme: eparts::Theme,
-    commands: &mut ActionQueue,
-) {
-    render_ruler(
-        ui.painter(),
-        viewport.scroll_rect,
-        sections.ruler_top,
-        sections.ruler_bot,
-        &viewport.coords,
-        theme,
-        sp,
-    );
-
-    bar_interaction(ui, ruler_bar(viewport, sections), "ruler", commands, |x| {
-        viewport.coords.x_to_time(x)
-    });
 }
 
 fn ruler_bar(viewport: &TimelineViewport, sections: &TimelineSections) -> Rect {

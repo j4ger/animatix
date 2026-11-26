@@ -44,7 +44,7 @@ accent.size = (640, 3) [800ms, ease: ease_out]
 
 See [GitHub Releases](https://github.com/j4ger/animatix/releases) for available builds. The nightly workflow packages a Linux x86-64 development snapshot. For runtime dependencies and portability, see [Downloaded builds](docs/contributing.md#downloaded-builds). Use the Nix shell below to build from source.
 
-Start with a narrated explainer, a math explainer, or a metric brief. The native workbench and `animatix init` offer the same templates. [First project instructions](docs/contributing.md#start-from-a-built-in-template)
+Start with a narrated explainer, a math explainer, or a metric brief. Animatix Studio, the native workbench, and `animatix init` offer the same templates. [First project instructions](docs/contributing.md#start-from-a-built-in-template)
 
 <details>
 <summary><strong>Build from source with Nix</strong></summary>

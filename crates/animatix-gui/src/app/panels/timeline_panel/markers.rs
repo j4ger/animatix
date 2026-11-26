@@ -244,6 +244,7 @@ mod tests {
         ];
         assert_eq!(clusters(&markers, &coords), vec![vec![1, 2], vec![3]]);
         let mut commands = ActionQueue::default();
+        let mut preview = crate::app::PreviewPaneState::new(20.0, crate::app::DEFAULT_PREVIEW_SIZE);
         let mut frame = |events| {
             let mut output = ctx.run_ui(
                 RawInput {
@@ -252,9 +253,14 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    super::super::ruler::bar_interaction(ui, bar, "ruler", &mut commands, |x| {
-                        coords.x_to_time(x)
-                    });
+                    super::super::ruler::scrub_ruler(
+                        ui,
+                        bar,
+                        &coords,
+                        &mut preview,
+                        &mut commands,
+                        Vec::new,
+                    );
                     render_ruler_markers(ui, bar, &coords, &markers, &mut commands);
                 },
             );

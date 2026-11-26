@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use egui::{Color32, RichText, Stroke, Vec2};
+use egui::{RichText, Stroke, Vec2};
 use eparts::{Button, Checkbox, NumberField, ProgressBar, TextField};
 
 use crate::app::GuiShell;
-use crate::app::components::{TabBar, Tag, layout};
+use crate::app::components::{TabBar, Tag};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;

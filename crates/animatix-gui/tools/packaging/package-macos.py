@@ -23,12 +23,12 @@ def package(binary: Path, destination: Path, version: str):
     shutil.copyfile(ROOT / "crates/animatix-gui/assets/icon.icns", contents / "Resources/Animatix.icns")
     info = {
         "CFBundleDevelopmentRegion": "en",
-        "CFBundleDisplayName": "Animatix",
+        "CFBundleDisplayName": "Animatix Studio",
         "CFBundleExecutable": "animatix-gui",
         "CFBundleIdentifier": "io.github.j4ger.animatix",
         "CFBundleIconFile": "Animatix.icns",
         "CFBundleInfoDictionaryVersion": "6.0",
-        "CFBundleName": "Animatix",
+        "CFBundleName": "Animatix Studio",
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": match[1],
         "CFBundleVersion": match[1],

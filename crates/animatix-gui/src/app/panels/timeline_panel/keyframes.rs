@@ -141,12 +141,12 @@ fn render_aggregate_diamond(
     } else if active {
         ctx.theme.palette.text.primary
     } else {
-        ctx.theme.palette.status.warning
+        ctx.theme.palette.accent.primary
     };
     let center = Pos2::new(x, bar_area.center().y);
-    let hit_rect = Rect::from_center_size(center, Vec2::splat(KF_DIAMOND_HALF * 2.5));
+    let hit_rect = Rect::from_center_size(center, Vec2::splat(KF_DIAMOND_HALF * 4.0));
     let response = ui.interact(
-        hit_rect,
+        hit_rect.intersect(bar_area),
         ui.scope_id().with(("kf_diamond", track_idx, diamond.time_ms)),
         Sense::click(),
     );
@@ -169,7 +169,11 @@ fn render_aggregate_diamond(
         } else {
             color.linear_multiply(0.85)
         },
-        Stroke::new(0.5, Color32::from_rgba_unmultiplied(255, 255, 255, 70)),
+        if selected {
+            Stroke::new(1.5, ctx.theme.palette.text.primary)
+        } else {
+            Stroke::new(0.5, ctx.theme.palette.border.default)
+        },
     ));
     text_tooltip(
         ui,
@@ -233,7 +237,7 @@ pub(crate) fn render_property_keyframes(
         let active = (time_s - ctx.preview.playback.current_time_s()).abs() < 0.01;
         let base_color = group
             .map(|group| property_group_color(group, ctx.theme))
-            .unwrap_or(ctx.theme.palette.status.warning);
+            .unwrap_or(ctx.theme.palette.accent.primary);
         let color = if selected {
             ctx.theme.palette.accent.primary
         } else if active {
@@ -242,9 +246,9 @@ pub(crate) fn render_property_keyframes(
             base_color
         };
         let center = Pos2::new(x, bar_area.center().y);
-        let hit_rect = Rect::from_center_size(center, Vec2::splat(KF_DIAMOND_HALF * 2.5));
+        let hit_rect = Rect::from_center_size(center, Vec2::splat(KF_DIAMOND_HALF * 4.0));
         let response = ui.interact(
-            hit_rect,
+            hit_rect.intersect(bar_area),
             ui.scope_id().with(("prop_kf_diamond", track_idx, property, time_ms)),
             Sense::click(),
         );
@@ -267,7 +271,11 @@ pub(crate) fn render_property_keyframes(
             } else {
                 color.linear_multiply(0.85)
             },
-            Stroke::new(STROKE_WIDTH, color),
+            if selected {
+                Stroke::new(1.5, ctx.theme.palette.text.primary)
+            } else {
+                Stroke::new(STROKE_WIDTH, color)
+            },
         ));
         text_tooltip(
             ui,

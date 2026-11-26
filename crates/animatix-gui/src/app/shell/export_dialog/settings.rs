@@ -27,7 +27,7 @@ impl GuiShell {
 
             Self::export_shared_settings_rows(ui, &theme, sp, scene_dims, state);
 
-            ui.add_space(sp.base.space_1);
+            ui.add_space(sp.base.space_5);
 
             Self::export_format_settings_rows(
                 ui,
@@ -40,7 +40,7 @@ impl GuiShell {
                 state,
             );
 
-            ui.add_space(sp.base.space_2);
+            ui.add_space(sp.base.space_5);
 
             // ── Output path ──
             Self::export_output_row(ui, state);
@@ -100,25 +100,19 @@ impl GuiShell {
         // ── Resolution row ──
         Self::settings_row(ui, "gui-export-resolution", |ui| {
             let mut w_f64 = state.width as f64;
-            layout::field_sized(ui, Some(78.0), |ui| {
-                NumberField::new(&mut w_f64)
-                    .speed(10.0)
-                    .range(1.0..=8192.0)
-                    .prefix("W: ")
-                    .desired_width(78.0)
-                    .show(ui);
-            });
-            ui.add_space(sp.base.space_2);
+            NumberField::new(&mut w_f64)
+                .speed(10.0)
+                .range(1.0..=8192.0)
+                .desired_width(78.0)
+                .show(ui);
+            ui.weak("×");
 
             let mut h_f64 = state.height as f64;
-            layout::field_sized(ui, Some(78.0), |ui| {
-                NumberField::new(&mut h_f64)
-                    .speed(10.0)
-                    .range(1.0..=8192.0)
-                    .prefix("H: ")
-                    .desired_width(78.0)
-                    .show(ui);
-            });
+            NumberField::new(&mut h_f64)
+                .speed(10.0)
+                .range(1.0..=8192.0)
+                .desired_width(78.0)
+                .show(ui);
             let (width, height) = (w_f64 as u32, h_f64 as u32);
             let width_changed = width != state.width;
             let height_changed = height != state.height;
@@ -164,7 +158,7 @@ impl GuiShell {
         ui.add_space(sp.base.space_1);
 
         Self::settings_row(ui, "gui-export-aspect-ratio", |ui| {
-            ui.checkbox(&mut state.lock_aspect, "Lock to canvas");
+            ui.checkbox(&mut state.lock_aspect, text(ui, "gui-export-lock-canvas"));
         });
         ui.add_space(sp.base.space_1);
 
@@ -223,14 +217,12 @@ impl GuiShell {
             ExportFormat::Image | ExportFormat::WebP => {
                 Self::settings_row(ui, "gui-export-time", |ui| {
                     let mut t = state.time_s as f64;
-                    layout::field_sized(ui, Some(100.0), |ui| {
-                        NumberField::new(&mut t)
-                            .speed(0.1)
-                            .range(0.0..=max_time as f64)
-                            .suffix(" s")
-                            .desired_width(100.0)
-                            .show(ui);
-                    });
+                    NumberField::new(&mut t)
+                        .speed(0.1)
+                        .range(0.0..=max_time as f64)
+                        .suffix(" s")
+                        .desired_width(100.0)
+                        .show(ui);
                     state.time_s = t as f32;
 
                     ui.add_space(sp.base.space_2);
@@ -256,14 +248,12 @@ impl GuiShell {
                 // FPS
                 Self::settings_row(ui, "gui-export-fps", |ui| {
                     let mut fps_f64 = state.fps as f64;
-                    layout::field_sized(ui, Some(70.0), |ui| {
-                        NumberField::new(&mut fps_f64)
-                            .speed(1.0)
-                            .range(1.0..=120.0)
-                            .suffix(" fps")
-                            .desired_width(70.0)
-                            .show(ui);
-                    });
+                    NumberField::new(&mut fps_f64)
+                        .speed(1.0)
+                        .range(1.0..=120.0)
+                        .suffix(" fps")
+                        .desired_width(70.0)
+                        .show(ui);
                     state.fps = fps_f64 as u32;
                 });
 
@@ -284,27 +274,23 @@ impl GuiShell {
                         );
 
                         let mut hold = state.hold_s as f64;
-                        layout::field_sized(ui, Some(80.0), |ui| {
-                            NumberField::new(&mut hold)
-                                .speed(0.1)
-                                .range(0.0..=10.0)
-                                .suffix(" s")
-                                .desired_width(80.0)
-                                .show(ui);
-                        });
+                        NumberField::new(&mut hold)
+                            .speed(0.1)
+                            .range(0.0..=10.0)
+                            .suffix(" s")
+                            .desired_width(80.0)
+                            .show(ui);
                         state.hold_s = hold as f32;
                     } else {
                         ui.add_space(sp.base.space_2);
 
                         let mut dur = state.duration_s as f64;
-                        layout::field_sized(ui, Some(80.0), |ui| {
-                            NumberField::new(&mut dur)
-                                .speed(0.5)
-                                .range(0.1..=3600.0)
-                                .suffix(" s")
-                                .desired_width(80.0)
-                                .show(ui);
-                        });
+                        NumberField::new(&mut dur)
+                            .speed(0.5)
+                            .range(0.1..=3600.0)
+                            .suffix(" s")
+                            .desired_width(80.0)
+                            .show(ui);
                         state.duration_s = dur as f32;
                     }
                 });
@@ -343,27 +329,6 @@ impl GuiShell {
                 if matches!(format, ExportFormat::Video | ExportFormat::Mov) {
                     ui.add_space(sp.base.space_1);
                     Self::settings_row(ui, "gui-export-encoder", |ui| {
-                        // Added right-to-left: preset first so it lands on
-                        // the right of the codec selector.
-                        const PRESETS: &[animatix_render::encode::H264Preset] =
-                            animatix_render::encode::H264Preset::ALL;
-                        let preset_names: Vec<&str> = PRESETS.iter().map(|p| p.as_str()).collect();
-                        let mut preset_idx = PRESETS.iter().position(|p| p == &state.h264_preset);
-                        ui.add_sized(
-                            Vec2::new(96.0, sp.base.row_s),
-                            eparts::widget::Select::new(
-                                "export_h264_preset",
-                                &mut preset_idx,
-                                &preset_names,
-                            )
-                            .placeholder(&crate::app::i18n::text(ui, "gui-export-preset")),
-                        );
-                        if let Some(idx) = preset_idx {
-                            state.h264_preset = PRESETS[idx];
-                        }
-
-                        ui.add_space(sp.base.space_2);
-
                         const CODECS: &[animatix_render::encode::VideoCodec] =
                             animatix_render::encode::VideoCodec::ALL;
                         let codec_names: Vec<String> =
@@ -380,6 +345,22 @@ impl GuiShell {
                         );
                         if let Some(idx) = codec_idx {
                             state.video_codec = CODECS[idx];
+                        }
+                        const PRESETS: &[animatix_render::encode::H264Preset] =
+                            animatix_render::encode::H264Preset::ALL;
+                        let preset_names: Vec<&str> = PRESETS.iter().map(|p| p.as_str()).collect();
+                        let mut preset_idx = PRESETS.iter().position(|p| p == &state.h264_preset);
+                        ui.add_sized(
+                            Vec2::new(96.0, sp.base.row_s),
+                            eparts::widget::Select::new(
+                                "export_h264_preset",
+                                &mut preset_idx,
+                                &preset_names,
+                            )
+                            .placeholder(&crate::app::i18n::text(ui, "gui-export-preset")),
+                        );
+                        if let Some(idx) = preset_idx {
+                            state.h264_preset = PRESETS[idx];
                         }
                     });
                 }
@@ -398,52 +379,76 @@ impl GuiShell {
         });
     }
 
-    /// Render a settings row with a left-aligned label and right-aligned content.
+    /// Render a settings row with a left-aligned label and a shared leading edge for controls.
     fn settings_row(ui: &mut egui::Ui, label: &str, add_content: impl FnOnce(&mut egui::Ui)) {
         let theme = eparts::theme(ui);
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
         let available = ui.available_width();
-        let row_h = sp.base.row_m;
-        let (row_rect, _) =
-            ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
-
-        let label_width = (available * 0.32).clamp(70.0, 110.0);
-        let content_left = row_rect.min.x + label_width + sp.base.space_4;
-
-        // Label (left side)
-        let label_rect = egui::Rect::from_min_max(
-            egui::pos2(row_rect.min.x, row_rect.min.y),
-            egui::pos2(row_rect.min.x + label_width, row_rect.max.y),
-        );
-        ui.scope_builder(egui::UiBuilder::new().max_rect(label_rect), |ui| {
-            ui.with_layout(
-                egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+        let row_h = sp.base.row_l;
+        let label_width = (available * 0.26).clamp(66.0, 110.0);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = sp.base.space_4;
+            ui.allocate_ui_with_layout(
+                Vec2::new(label_width, row_h),
+                egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
+                    ui.set_min_width(label_width);
                     ui.add(
                         egui::Label::new(
                             RichText::new(text(ui, label))
                                 .size(TextRole::BodyS.size())
                                 .color(theme.palette.text.secondary),
                         )
+                        .wrap()
                         .selectable(false),
                     );
                 },
             );
-        });
-
-        // Content (right side)
-        let content_rect = egui::Rect::from_min_max(
-            egui::pos2(content_left, row_rect.min.y),
-            egui::pos2(row_rect.max.x, row_rect.max.y),
-        );
-        ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {
-            ui.with_layout(
-                egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(false),
-                add_content,
+            ui.allocate_ui_with_layout(
+                Vec2::new(ui.available_width(), row_h),
+                egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = sp.base.space_3;
+                    add_content(ui);
+                },
             );
         });
     }
+}
 
-    // ─── Action Bar ───────────────────────────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::GuiShell;
+    use egui::{Context, Pos2, RawInput, Rect, Sense, vec2};
+
+    #[test]
+    fn export_controls_align_and_wrapped_controls_leave_room_for_the_next_row() {
+        for (width, wraps) in [(360.0, true), (580.0, false)] {
+            let ctx = Context::default();
+            crate::fonts::install_fonts(&ctx);
+            let mut output = ctx.run_ui(
+                RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(width, 300.0))),
+                    ..Default::default()
+                },
+                |ui| {
+                    let mut controls = Vec::new();
+                    GuiShell::settings_row(ui, "gui-export-preset", |ui| {
+                        for _ in 0..3 {
+                            controls
+                                .push(ui.allocate_exact_size(vec2(90.0, 24.0), Sense::hover()).0);
+                        }
+                    });
+                    GuiShell::settings_row(ui, "gui-export-output", |ui| {
+                        controls.push(ui.allocate_exact_size(vec2(70.0, 24.0), Sense::hover()).0);
+                    });
+                    assert!((controls[0].left() - controls[3].left()).abs() < 0.5);
+                    assert_eq!(controls[2].top() > controls[0].bottom(), wraps);
+                    assert!(controls[3].top() >= controls[2].bottom());
+                },
+            );
+            output.textures_delta.clear();
+        }
+    }
 }

@@ -71,6 +71,16 @@ impl Widget for Spinner {
         let (rect, response) =
             ui.allocate_exact_size(egui::Vec2::splat(size), egui::Sense::hover());
 
+        if crate::motion_preference(ui) == crate::MotionPreference::Reduced {
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                egui_phosphor::regular::HOURGLASS,
+                egui::FontId::proportional(size),
+                color,
+            );
+            return response;
+        }
         // Drive continuous rotation from egui's global clock (f64 → f32).
         let time = ui.input(|i| i.time) as f32;
         let rotation = time * std::f32::consts::TAU * 0.75;

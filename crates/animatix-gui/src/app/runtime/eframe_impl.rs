@@ -25,6 +25,14 @@ impl eframe::App for AnimatixApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         crate::app::i18n::set_language(ui.ctx(), self.shell.ui_store.view.language);
+        let name = self.shell.document_store.source.document.file_path.file_name();
+        let title = match (self.shell.ui_store.view.welcome_open, name) {
+            (false, Some(name)) => format!("{} — Animatix Studio", name.to_string_lossy()),
+            _ => "Animatix Studio".to_owned(),
+        };
+        if ui.input(|i| i.viewport().title.as_ref() != Some(&title)) {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(title));
+        }
         // Intercept close when document has unsaved changes
         if self.shell.document_store.source.is_dirty()
             && !self.shell.ui_store.unsaved_changes.is_open

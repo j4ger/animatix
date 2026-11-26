@@ -287,7 +287,7 @@ impl GuiShell {
             .with_tooltips(&tip_refs)
             .height(34.0)
             .show(ui)
-            .clicked()
+            .changed()
         {
             commands.push_back(ShellAction::View(ViewAction::ApplyLayout(presets[active])));
         }

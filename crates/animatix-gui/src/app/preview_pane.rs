@@ -41,6 +41,8 @@ impl PreviewPaneState {
             time_lens: crate::app::preview::time_lens::TimeLens::default(),
             overlay: crate::app::preview::overlay::PreviewOverlay::default(),
             timeline_zoom: 1.0,
+            timeline_content_height: None,
+            keyframe_landing: None,
             timeline_scroll_offset: 0.0,
             fit_zoom_requested: false,
         }

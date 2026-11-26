@@ -344,7 +344,23 @@ impl<'a> NumberField<'a> {
         // DragValue has its own minimum height. A vertical inset makes the
         // widget overflow its cell downward instead of staying centered.
         let inner_rect = outer_rect.shrink2(egui::vec2(inner_margin, 0.0));
-        let inner_resp = ui.place(inner_rect, dv);
+        let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(inner_rect));
+        if !self.enabled {
+            inner.disable();
+        }
+        // The outer frame owns the border in both drag and text-entry modes.
+        let visuals = inner.visuals_mut();
+        visuals.button_frame = false;
+        visuals.text_edit_bg_color = Some(egui::Color32::TRANSPARENT);
+        visuals.selection.stroke = Stroke::NONE;
+        for state in [
+            &mut visuals.widgets.inactive,
+            &mut visuals.widgets.hovered,
+            &mut visuals.widgets.active,
+        ] {
+            state.bg_stroke = Stroke::NONE;
+        }
+        let inner_resp = inner.place(inner_rect, dv);
 
         let is_focused = inner_resp.has_focus();
         let is_hovered = outer_resp.hovered() || inner_resp.hovered();

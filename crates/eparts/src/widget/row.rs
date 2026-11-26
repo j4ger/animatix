@@ -181,7 +181,12 @@ impl<'a> Row<'a> {
             Color32::TRANSPARENT
         };
         if bg != Color32::TRANSPARENT {
-            painter.rect_filled(rect, 0.0, bg);
+            let radius = if hovered || self.is_selected || self.secondary_selected {
+                crate::tokens::spatial::RADIUS_S
+            } else {
+                0.0
+            };
+            painter.rect_filled(rect, radius, bg);
         }
 
         if self.is_selected {

@@ -1,7 +1,7 @@
 # macOS application bundle
 
 `tools/release/dist-package.sh macos BIN_DIR` retains the existing CLI/GUI executables
-and also creates `Animatix.app` with a real `Contents/MacOS/animatix-gui`,
+and also creates `Animatix Studio.app` with a real `Contents/MacOS/animatix-gui`,
 `Info.plist`, and `Contents/Resources/Animatix.icns`. The application can be moved
 independently of the command-line binaries. Its identifier is
 `io.github.j4ger.animatix`; the version comes from the workspace manifest.

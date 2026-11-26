@@ -158,6 +158,7 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
     let mut selected = SIDEBAR_TABS.iter().position(|entry| entry.0 == *active_tab).unwrap_or(0);
     if eparts::TabBar::new(ui.next_auto_id(), &mut selected, &label_refs)
         .with_icons(&icons)
+        .underlined()
         .uniform_content()
         .show(ui)
         .changed()

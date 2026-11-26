@@ -263,7 +263,7 @@ gui-transport-toggle-loop = 切换循环播放
 gui-welcome-new-scene = 新建场景
 gui-welcome-open-file = 打开现有文件
 gui-welcome-tagline = 面向创意编程的布局优先动画工具
-gui-welcome-title = 欢迎使用 Animatix
+gui-welcome-title = 欢迎使用 Animatix Studio
 gui-welcome-workspace = 打开工作区
 gui-workspace-directory-path = 目录路径
 gui-workspace-switch-title = 切换工作区
@@ -583,6 +583,7 @@ gui-file-summary-render = 渲染：{ $errors } 个错误、{ $warnings } 个警�
 gui-file-workspace = 已切换到工作区 { $path }
 
 gui-export-active-scene = 当前场景
+gui-export-lock-canvas = 锁定画布比例
 gui-export-aspect-ratio = 宽高比
 gui-export-build = 请先成功构建当前源码，再导出
 gui-export-cancelled = 已取消导出

@@ -107,9 +107,9 @@ rail opens the Project and Outline drawers. The bottom region houses the
 Timeline heading and tools. The command palette opens an optional tab for
 comparing curves.
 
-Use a recessed rounded track for workspace modes and sidebar views. The
-selected segment has a raised face and a subtle shadow. Comparison tabs show
-selection with a highlight. Retain the entire row height as a click target.
+Use a recessed rounded track for workspace modes and a lighter face for the active mode.
+Sidebar and export tabs mark selection with an underline. In-panel cards have a thin
+border. Keep each numeric input inside one 6-point frame across drag and text entry. Retain the entire row height as a click target.
 Small menus and modal windows use distinct shadow
 depths and progressively larger corner radii. A rounded matte frames the preview
 while the rendered scene and its ruler coordinates retain their rectangular bounds.
@@ -164,10 +164,13 @@ Use the shared [`anim` helpers](../crates/eparts/src/widget/anim.rs), not scatte
 `animate_value_with_time` calls. Use tokenized durations/easing: ordinary panel
 transitions use `NORMAL`/`STANDARD`; durations longer than `SLOW` need an explicit
 reason. Selection changes and playhead scrubbing take effect immediately. The segmented
-control moves its highlight to the new tab over 200 ms. Its position follows tab
+control moves its highlight to the new tab over 150 ms. Its position follows tab
 geometry during resizes. Hover and selection highlights settle over 100 ms.
 Content stays in place while switching sidebar views. Dialogs enter over 200 ms
 and dismiss over 100 ms, including when dismissed partway through entry.
+Export travels six points on entry and contracts around its center when progress appears.
+Reduced motion shows static loading indicators and keeps notifications fully legible for
+their normal duration. It applies to workbench controls independently of scene playback.
 
 Respect `MotionPreference::Reduced`: non-essential transitions resolve to
 `INSTANT`. The existing helpers apply this preference; do not bypass it with a

@@ -7,35 +7,19 @@ impl GuiShell {
         dialog_rect: egui::Rect,
     ) {
         let theme = eparts::theme(ui);
-        // Keep spinner animating
-        ui.ctx().request_repaint();
+        // Progress counters are published by the encoder worker.
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
         let content_rect = dialog_rect.shrink(sp.base.space_5);
         let center_y = content_rect.center().y;
         let spinner_center = egui::pos2(content_rect.center().x, center_y - 36.0);
 
-        // Animated spinner ring
-        let time = ui.ctx().input(|i| i.time);
-        let n_dots = 8;
-        let radius = 14.0;
-        let base_alpha = theme.palette.status.warning.a();
-        for i in 0..n_dots {
-            let angle = (i as f32 / n_dots as f32) * std::f32::consts::TAU - (time * 3.0) as f32;
-            let pos = spinner_center + Vec2::new(angle.cos() * radius, angle.sin() * radius);
-            let fade = ((i as f32) / (n_dots as f32 - 1.0)).clamp(0.0, 1.0);
-            let alpha = (fade * base_alpha as f32) as u8;
-            ui.painter().circle_filled(
-                pos,
-                2.5,
-                Color32::from_rgba_premultiplied(
-                    theme.palette.status.warning.r(),
-                    theme.palette.status.warning.g(),
-                    theme.palette.status.warning.b(),
-                    alpha,
-                ),
-            );
-        }
+        let indicator = egui::Rect::from_center_size(spinner_center, Vec2::splat(28.0));
+        ui.put(
+            indicator,
+            eparts::Spinner::new().set_size(28.0).with_color(theme.palette.status.warning),
+        );
 
         // Status text
         ui.painter().text(

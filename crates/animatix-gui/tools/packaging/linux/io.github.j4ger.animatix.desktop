@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Animatix
+Name=Animatix Studio
 Comment=Create declarative vector animations
 Exec=animatix-gui %f
 Icon=io.github.j4ger.animatix

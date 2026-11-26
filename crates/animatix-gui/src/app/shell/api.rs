@@ -24,8 +24,14 @@ impl GuiShell {
             ViewAction::ShowCode => ui::handle_show_code(&mut self.ui_store),
             ViewAction::ShowCurves => ui::handle_show_curves(&mut self.ui_store),
             ViewAction::ShowTimeline => ui::handle_show_timeline(&mut self.ui_store),
-            ViewAction::ApplyLayout(preset) => ui::handle_apply_layout(&mut self.ui_store, preset),
-            ViewAction::ResetLayout => ui::handle_reset_layout(&mut self.ui_store),
+            ViewAction::ApplyLayout(preset) => {
+                self.preview_store.preview.timeline_content_height = None;
+                ui::handle_apply_layout(&mut self.ui_store, preset)
+            },
+            ViewAction::ResetLayout => {
+                self.preview_store.preview.timeline_content_height = None;
+                ui::handle_reset_layout(&mut self.ui_store)
+            },
             ViewAction::OpenFileDialog => {
                 match rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file() {
                     Some(path) => self.handle_command(Command::OpenFile(path)),

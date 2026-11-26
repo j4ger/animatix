@@ -113,16 +113,17 @@ class PlatformIconTests(unittest.TestCase):
         archive = self.package("macos")
         with zipfile.ZipFile(archive) as zipped:
             self.assertIn("animatix", zipped.namelist())
-            prefix = "Animatix.app/Contents/"
+            prefix = "Animatix Studio.app/Contents/"
             info = plistlib.loads(zipped.read(prefix + "Info.plist"))
             self.assertEqual(info["CFBundleVersion"], "0.1.0")
+            self.assertEqual(info["CFBundleDisplayName"], "Animatix Studio")
             self.assertEqual(info["CFBundleIconFile"], "Animatix.icns")
             self.assertIn("record narration", info["NSMicrophoneUsageDescription"])
             self.assertEqual(zipped.read(prefix + "MacOS/animatix-gui"), binary)
             self.assertEqual(zipped.read(prefix + "Resources/Animatix.icns"), icns())
             self.assertTrue(zipped.getinfo(prefix + "MacOS/animatix-gui").external_attr >> 16 & 0o111)
             zipped.extractall(self.root / "extracted")
-        bundle = self.root / "extracted/Animatix.app"
+        bundle = self.root / "extracted/Animatix Studio.app"
         (bundle / "Contents/MacOS/animatix-gui").chmod(0o755)
         CHECK["check_macos"](bundle)
         # It remains complete when moved away from the root command-line binaries.

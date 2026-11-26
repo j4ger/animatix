@@ -1,6 +1,6 @@
-# Code-first GUI workbench
+# Animatix Studio
 
-The GUI combines source editing, preview, and timing review. The `.amx` source
+Animatix Studio (`animatix-gui`) combines source editing, preview, and timing review. The `.amx` source
 and its referenced files define scene playback and export. The companion
 `.amxn` redb database holds the workbench's recording history.
 
@@ -12,6 +12,8 @@ and its referenced files define scene playback and export. The companion
    switch modes. **Project** shows files and resources. **Outline** shows scenes
    and objects. Both open from the icon rail when space is tight.
 2. Use the controls below the preview to play, seek, step frames, or loop. The
+   timeline fits its visible lanes when their content changes. Drag the divider to set a custom height.
+   Drag the ruler to scrub freely or hold Shift to land on a nearby keyframe. The
    timeline bracket button sets the loop to the visible interval; its range
    row appears when a loop range is set. The playback menu also offers speed,
    ping-pong, and presentation mode. Grid, guides, and preview zoom are above
