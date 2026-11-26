@@ -16,6 +16,7 @@ pub(crate) mod panels;
 mod perf_log;
 mod persistence;
 mod playback;
+pub(crate) use playback::format_timecode;
 pub(crate) mod preview;
 mod preview_pane;
 mod runtime;

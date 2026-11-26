@@ -818,3 +818,7 @@ gui-timeline-paragraph-number = 第 { $number } 段
 gui-timeline-paragraphs-all = 所有段落
 gui-timeline-paragraph-option = { $number }   { $script } · { $status }
 gui-timeline-paragraph-bindings = 绑定（{ $count }）
+
+gui-editor-seek-absolute = 绝对关键帧，跳转到全局时间 { $time }
+gui-editor-seek-relative = 相对关键帧，跳转到全局时间 { $time }
+gui-editor-seek-time = 时间标记，跳转到全局时间 { $time }

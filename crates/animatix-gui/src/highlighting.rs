@@ -203,7 +203,7 @@ impl SourceLayout {
         let (roles, headers, recover) = if let Some(analyzer) = analyzer {
             (
                 analyzer.token_roles(),
-                cells::scene_headers(analyzer.ast().unwrap_or_default()),
+                cells::authored_headers(analyzer.ast().unwrap_or_default()),
                 !analyzer.parse_errors().is_empty(),
             )
         } else {

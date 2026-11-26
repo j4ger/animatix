@@ -826,3 +826,7 @@ gui-timeline-paragraph-number = Paragraph { $number }
 gui-timeline-paragraphs-all = All paragraphs
 gui-timeline-paragraph-option = { $number }   { $script } · { $status }
 gui-timeline-paragraph-bindings = Bindings ({ $count })
+
+gui-editor-seek-absolute = Absolute keyframe, seek to global time { $time }
+gui-editor-seek-relative = Relative keyframe, seek to global time { $time }
+gui-editor-seek-time = Time marker, seek to global time { $time }
