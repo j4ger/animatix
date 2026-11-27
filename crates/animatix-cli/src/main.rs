@@ -35,6 +35,38 @@ struct SetArgs {
     set: Vec<(String, String)>,
 }
 
+#[derive(clap::Args, Debug)]
+struct ImageArgs {
+    /// The input Animatix scene file (.amx)
+    input: PathBuf,
+    #[command(flatten)]
+    set: SetArgs,
+
+    /// Output image width (defaults to the configured canvas size, else 1280)
+    #[arg(long)]
+    width: Option<u32>,
+
+    /// Output image height (defaults to the configured canvas size, else 720)
+    #[arg(long)]
+    height: Option<u32>,
+
+    /// Render time in seconds
+    #[arg(long, default_value_t = 0.0)]
+    time: f32,
+
+    /// Output filename
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Draw per-node content bounding boxes for debugging
+    #[arg(long)]
+    debug_bounds: bool,
+
+    /// Convert the final rendered RGB image to grayscale, preserving alpha
+    #[arg(long)]
+    grayscale: bool,
+}
+
 #[cfg(feature = "video")]
 #[derive(clap::Args, Debug)]
 struct VideoArgs {
@@ -198,32 +230,7 @@ enum Commands {
     },
 
     /// Render a specific frame to an image file (PNG/WebP)
-    Image {
-        /// The input Animatix scene file (.amx)
-        input: PathBuf,
-        #[command(flatten)]
-        set: SetArgs,
-
-        /// Output image width (defaults to the configured canvas size, else 1280)
-        #[arg(long)]
-        width: Option<u32>,
-
-        /// Output image height (defaults to the configured canvas size, else 720)
-        #[arg(long)]
-        height: Option<u32>,
-
-        /// Render time in seconds
-        #[arg(long, default_value_t = 0.0)]
-        time: f32,
-
-        /// Output filename
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-
-        /// Draw per-node content bounding boxes for debugging
-        #[arg(long)]
-        debug_bounds: bool,
-    },
+    Image(ImageArgs),
 
     /// Render a visual storyboard contact sheet of keyframe beats across the animation
     Storyboard {
@@ -492,6 +499,20 @@ fn exit_on_error(result: Result<(), String>) {
     }
 }
 
+fn dispatch_image(args: ImageArgs, extensions: &CliExtensions) {
+    commands::render::run_image(
+        &args.input,
+        args.width,
+        args.height,
+        args.time,
+        args.output,
+        args.debug_bounds,
+        args.grayscale,
+        &args.set.set,
+        extensions,
+    );
+}
+
 fn dispatch(command: Commands, extensions: &CliExtensions) {
     match command {
         Commands::Init {
@@ -572,26 +593,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             },
         },
 
-        Commands::Image {
-            input,
-            width,
-            height,
-            time,
-            output,
-            debug_bounds,
-            set,
-        } => {
-            commands::render::run_image(
-                &input,
-                width,
-                height,
-                time,
-                output,
-                debug_bounds,
-                &set.set,
-                extensions,
-            );
-        },
+        Commands::Image(args) => dispatch_image(args, extensions),
 
         #[cfg(feature = "video")]
         Commands::Video(args) => dispatch_video(args, extensions),

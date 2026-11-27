@@ -15,6 +15,7 @@ pub fn run_image(
     time: f32,
     output: Option<PathBuf>,
     debug_bounds: bool,
+    grayscale: bool,
     set: &[(String, String)],
     extensions: &CliExtensions,
 ) {
@@ -24,22 +25,30 @@ pub fn run_image(
     let output_file = output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
     info!("Output image: {}x{} at {}s -> {}", width, height, time, output_file.display());
     let result = match &target {
-        BuildTarget::MultiScene(comp) => {
-            export::render_image_composition(comp, width, height, time, &output_file)
-        },
-        BuildTarget::SingleScene(timeline) => export::render_image_timeline_with_options(
-            timeline.clone(),
+        BuildTarget::MultiScene(comp) => export::render_image_composition_with_grayscale(
+            comp,
             width,
             height,
             time,
             &output_file,
-            DebugRenderOptions {
-                compute_hit_regions: false,
-                draw_bounds: debug_bounds,
-                ..Default::default()
-            },
-            export::ExportOptions::default(),
+            grayscale,
         ),
+        BuildTarget::SingleScene(timeline) => {
+            export::render_image_timeline_with_options_and_grayscale(
+                timeline.clone(),
+                width,
+                height,
+                time,
+                &output_file,
+                DebugRenderOptions {
+                    compute_hit_regions: false,
+                    draw_bounds: debug_bounds,
+                    ..Default::default()
+                },
+                export::ExportOptions::default(),
+                grayscale,
+            )
+        },
     };
     if let Err(e) = result {
         error!("Error: {e}");

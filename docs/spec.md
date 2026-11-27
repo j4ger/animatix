@@ -2961,7 +2961,11 @@ animatix video crates/animatix-web/tests/fixtures/amx/composition/14_multiscene.
 animatix gif web/content/scenes/quiet-carriage.amx -o out.gif --fps 10
 ```
 
-**Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.
+**Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies. Use `--grayscale` to convert the final rendered RGB image to grayscale while preserving alpha; this works for single scenes and for the final composite of multi-scene compositions and transitions. Without the flag, image colors are unchanged. PNG and WebP output are supported.
+
+```bash
+animatix image demo.amx --time 2 --grayscale -o frame.webp
+```
 
 **Storyboard contact sheet (`animatix storyboard`):** Renders keyframe beats and the resting frame into a single multi-panel contact sheet grid (PNG/WebP) for visual inspection, scene reviews, and AI agent feedback loops. Automatically samples keyframe cues and the final resting frame, or accepts custom timestamps via `--times`. Accepts `--cols`, `--tile-width`, `--tile-height`, and `--max-frames`.
 

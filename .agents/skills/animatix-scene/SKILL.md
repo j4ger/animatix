@@ -2,7 +2,7 @@
 name: animatix-scene
 description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for DSL, reusable animated components, and visual QA of a scene.
 metadata:
-  version: "0.9.0-draft.42"
+  version: "0.9.0-draft.44"
 ---
 
 # Animatix scene
@@ -23,11 +23,13 @@ Show one viewing task at a time. For a causal beat, show the cause before its re
 
 When a material carries the design, choose a visible trace of how it was made. A dry brush can leave slivers of bare paper within a broad stroke. Check what the surface looks like in the whole frame at delivery size before inspecting a detail crop.
 
-Consult [geometry and clearance](references/geometry-and-clearance.md) for attachments, moving ports or overlaps, [layout and data](references/layout-data-qa.md) for charts and readouts, and [typed colors](references/colors.md) for color syntax. [Engine essentials](references/engine-essentials.md) covers opening visibility, timing and optional imagery.
+Consult [geometry and clearance](references/geometry-and-clearance.md) for attachments, moving ports or overlaps, [layout and data](references/layout-data-qa.md) for charts, readouts or states identified by color, and [typed colors](references/colors.md) for color syntax. [Engine essentials](references/engine-essentials.md) covers opening visibility, timing and optional imagery.
 
 ## Verify, then iterate
 
 Check build, size, and duration; render the opening, the informative interior of a move, and the held result at delivery size. Verify the actual paint, including the cue that carries the claim, the unchanged reference, and any risky pass. Watch playback when available. Ask what a fresh viewer can infer before reading the intended answer.
+
+When several elements compete for attention, shrink the frame that carries the beat and glance at it before reading the text. What catches your eye first? Try adjusting the competing elements' relative size, contrast or surrounding space. Check the change again at delivery size, with the context and labels still readable.
 
 Test the inputs that can change an attachment: try the longest label and widest reading with its unit for text, or vary the dimensions for shapes. If the owner has a position input, render the same moment with that input visibly shifted and compare which elements followed and which stayed fixed. Otherwise, swap the owner where supported. Check spacing and ownership at delivery size.
 
