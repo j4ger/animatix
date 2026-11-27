@@ -2,7 +2,7 @@
 name: animatix-explainer
 description: Turn a topic or source into a complete page-first or narrated Animatix explainer, from main text through storyboard and scene handoff. Use for full explanation planning, not standalone AMX implementation.
 metadata:
-  version: "0.8.10-review-candidate"
+  version: "0.8.11-review-candidate"
 ---
 
 # Animatix explainer

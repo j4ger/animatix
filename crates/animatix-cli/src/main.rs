@@ -244,6 +244,9 @@ enum Commands {
         /// Compare this named scene at scene-local times in both files.
         #[arg(long, requires = "compare")]
         scene: Option<String>,
+        /// Show the handoff leaving this named scene, including the middle of a timed overlap
+        #[arg(long, conflicts_with_all = ["compare", "times"])]
+        transition_from: Option<String>,
         /// Number of columns in the grid (default: auto, up to 4)
         #[arg(short = 'c', long)]
         cols: Option<usize>,
@@ -633,6 +636,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             set,
             compare,
             scene,
+            transition_from,
             cols,
             tile_width,
             tile_height,
@@ -648,6 +652,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
                 &input,
                 &set.set,
                 compare.as_deref().map(|path| (path, scene.as_deref())),
+                transition_from.as_deref(),
                 cols,
                 tile_width,
                 tile_height,

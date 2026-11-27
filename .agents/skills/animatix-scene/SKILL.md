@@ -2,7 +2,7 @@
 name: animatix-scene
 description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for scene composition, cue timing, component integration and visual QA of a scene.
 metadata:
-  version: "0.9.0-draft.46"
+  version: "0.9.0-draft.47"
 ---
 
 # Animatix scene
@@ -21,7 +21,7 @@ Resume scene production with the returned import, controls and state references.
 
 ## Stage the beat
 
-Show one viewing task at a time. For a causal beat, show the cause before its result. Keep live labels near their subjects and allow time to read. When one element belongs to another, name the relationship first (beside a label, touching an edge, or following a port). Use a shared layout or bind their attachment points in the same coordinate space. Use the component’s geometry for alignment, the target layout for spacing and the delivery cue for timing. In reusable examples, explain the values a caller would need to choose again. Tie parts of the same event to the same state. Use a cut when interpolation would imply a state that never occurs.
+Show one viewing task at a time. For a causal beat, show the cause before its result. Keep live labels near their subjects and allow time to read. When one element belongs to another, name the relationship first (beside a label, touching an edge, or following a port). Use a shared layout or bind their attachment points in the same coordinate space. Use the component’s geometry for alignment, the target layout for spacing and the delivery cue for timing. In reusable examples, explain the values a caller would need to choose again. Tie parts of the same event to the same state. When connecting two views, run `animatix storyboard FILE --transition-from OUTGOING_SCENE`. For a timed overlap, read the middle tile at delivery size. If two captions compete there, end the old one before revealing its replacement. For changing text in a shared title, the incoming actor can use `shared_text_transition: "fade_through"`. If a mark passes a scale value, or a part appears to release or engage, check whether the story supports that reading. A cut can preserve two distinct observations.
 
 For a timed beat, start with the instant the viewer needs the evidence. If a spoken phrase lands on the result, place the arrival there and work backward to the start of the move. If the phrase introduces an action, start it there. Use a [transcript marker or timed word](../../../docs/spec.md#4-timeline--keyframes) when available. Translate full-track times to the scene’s clock once, accounting for its cut point and the audio placement. Keep independently timed events on their own clock. For a silent sequence, try the move at delivery size. Give the viewer time to find the subject before it moves and to make the intended comparison before the next cue. On a page, let persistent text or a reader-controlled advance carry the reading time.
 

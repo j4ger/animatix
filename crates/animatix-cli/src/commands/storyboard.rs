@@ -9,6 +9,7 @@ use tracing::{error, info};
 use crate::build::load_and_build;
 use crate::extensions::CliExtensions;
 mod comparison;
+mod handoff;
 
 use crate::frame_source::{
     DEFAULT_TOLERANCE, FrameView, frame_ink_fraction, render_frame_observable,
@@ -18,6 +19,7 @@ pub fn run(
     input: &Path,
     set: &[(String, String)],
     compare: Option<(&Path, Option<&str>)>,
+    transition_from: Option<&str>,
     cols: Option<usize>,
     tile_width: Option<u32>,
     tile_height: Option<u32>,
@@ -50,6 +52,7 @@ pub fn run(
     } else {
         render_storyboard(
             input,
+            transition_from,
             set,
             cols,
             tile_width,
@@ -81,6 +84,7 @@ pub fn run(
 #[allow(clippy::too_many_arguments)] // mirrors the CLI surface above
 pub(crate) fn render_storyboard(
     input: &Path,
+    transition_from: Option<&str>,
     set: &[(String, String)],
     cols: Option<usize>,
     tile_width: Option<u32>,
@@ -128,9 +132,10 @@ pub(crate) fn render_storyboard(
     let stem = input.file_stem().and_then(|s| s.to_str()).unwrap_or("storyboard");
     let output_file = output.unwrap_or_else(|| PathBuf::from(format!("{}_storyboard.png", stem)));
 
-    let sample_times = match times {
-        Some(ts) => ts,
-        None => select_storyboard_times(&target, max_frames, min_ink, fast),
+    let sample_times = match (transition_from, times) {
+        (Some(from), _) => handoff::sample_times(&target, from)?,
+        (_, Some(ts)) => ts,
+        _ => select_storyboard_times(&target, max_frames, min_ink, fast),
     };
 
     let settings = export::StoryboardSettings {

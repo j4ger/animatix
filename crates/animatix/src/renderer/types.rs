@@ -182,7 +182,7 @@ impl GradientSpec {
 /// byte churn; with the `Arc` those clones become refcount bumps. Consumers
 /// only ever read the geometry (deref through `Arc` keeps `&path.path` call
 /// sites source-compatible).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VelloPath {
     /// The bezier path geometry.
     pub path: std::sync::Arc<BezPath>,

@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 
+mod shared_shape;
 mod shared_text;
 
 use animatix::easing::Easing;
@@ -422,8 +423,7 @@ impl TransitionCompositor {
 /// Labels matched by `shared_id` across the two scenes of a transition.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SharedActorPlan {
-    /// `(from_label, to_label)` pairs, ordered by `shared_id` so the FLIP
-    /// overlay has a deterministic paint order.
+    /// `(from_label, to_label)` pairs, ordered by `shared_id` for deterministic matching.
     pub pairs: Vec<(String, String)>,
     /// Labels to suppress in the outgoing scene.
     pub suppressed_from: Vec<String>,
@@ -452,9 +452,7 @@ pub struct FlipItem {
 ///
 /// The returned suppression lists drive
 /// [`Timeline::evaluate_program_with_suppressed`]; the label pairs are resolved
-/// into [`FlipItem`]s by [`collect_flip_pairs`]. Ordering follows the sorted
-/// `shared_id` keys (not `HashMap` iteration order), so overlapping shared
-/// elements paint consistently from frame to frame.
+/// into [`FlipItem`]s by [`collect_flip_pairs`]. The overlay resolves their paint order from the outgoing scene.
 pub fn plan_shared_actors(
     from_timeline: &Timeline,
     from_time_s: f64,
@@ -506,17 +504,21 @@ pub fn collect_flip_pairs(
     let to_program =
         to_timeline.evaluate_program_with_debug(to_time_s, dimensions, debug_options, &mut None);
 
-    let mut items = Vec::new();
-    for (from_label, to_label) in &plan.pairs {
-        let from_item = from_program.items.iter().find(|item| item.label == *from_label).cloned();
-        let to_item = to_program.items.iter().find(|item| item.label == *to_label).cloned();
-        if let (Some(from_item), Some(to_item)) = (from_item, to_item) {
-            let text_geometry = shared_text::text_geometry(&from_item, &to_item);
+    let mut matches: std::collections::HashMap<_, _> =
+        plan.pairs.iter().map(|(from, to)| (from.as_str(), to.as_str())).collect();
+    let mut items = Vec::with_capacity(matches.len());
+    // Keep the authored stacking order for touching or layered shared parts.
+    for from in from_program.items {
+        let Some(to_label) = matches.remove(from.label.as_str()) else {
+            continue;
+        };
+        if let Some(to) = to_program.items.iter().find(|item| item.label == to_label) {
+            let text_geometry = shared_text::text_geometry(&from, to);
             let fade_through = text_geometry.is_none()
                 && to_timeline.shared_text_fade_through(to_label, sample_tick_millis(to_time_s));
             items.push(FlipItem {
-                from: from_item,
-                to: to_item,
+                from,
+                to: to.clone(),
                 text_geometry,
                 fade_through,
             });
@@ -572,6 +574,16 @@ pub fn encode_flip_overlay(
             if alpha > 0.001 {
                 for command in &item.commands {
                     command.execute(&mut overlay, &transform, alpha);
+                }
+            }
+            continue;
+        }
+        // Two half-opacity copies leave the backdrop visible through a solid shape.
+        if shared_shape::same_artwork(&from_item.commands, &to_item.commands) {
+            let opacity = (alpha_from + alpha_to).clamp(0.0, 1.0);
+            if opacity > 0.001 {
+                for command in &from_item.commands {
+                    command.execute(&mut overlay, &transform, opacity);
                 }
             }
             continue;

@@ -2983,7 +2983,7 @@ animatix gif web/content/scenes/quiet-carriage.amx -o out.gif --fps 10
 animatix image demo.amx --time 2 --grayscale -o frame.webp
 ```
 
-**Storyboard contact sheet (`animatix storyboard`):** Renders keyframe beats and the resting frame into a single multi-panel contact sheet grid (PNG/WebP) for visual inspection, scene reviews, and AI agent feedback loops. Automatically samples keyframe cues and the final resting frame, or accepts custom timestamps via `--times`. Accepts `--cols`, `--tile-width`, `--tile-height`, and `--max-frames`.
+**Storyboard contact sheet (`animatix storyboard`):** Renders keyframe beats and the resting frame into a single multi-panel contact sheet grid (PNG/WebP) for visual inspection, scene reviews, and AI agent feedback loops. Automatically samples keyframe cues and the final resting frame, or accepts custom timestamps via `--times`. Use `--transition-from SCENE` to inspect the scheduled handoff leaving a named scene. The sheet shows the outgoing view just before the overlap, its temporal midpoint and its end. A zero-duration cut shows the two sides of the boundary. Accepts `--cols`, `--tile-width`, `--tile-height`, and `--max-frames`.
 
 **GUI Preview Audio:** The `animatix-gui` preview panel plays audio segments from `Audio` actors in sync with the timeline during playback. Audio files are decoded via `rodio` and cached in memory. Playback automatically starts, seeks, and pauses in sync with the timeline controller. Missing or unplayable audio files produce a warning but do not block preview.
 
@@ -3369,7 +3369,10 @@ Semantics that are easy to miss:
   support stateless scrubbing and parallel export.
 - **`shared_id` is not a transition.** It matches actors with the same non-empty
   `shared_id` across the two scenes of any `play` transition and draws a
-  floating FLIP overlay. Matched text draws once at the interpolated transform
+  floating FLIP overlay. Shared parts follow the outgoing paint order within
+  the overlay. Matching vector paths or rounded surfaces with identical local
+  geometry and paint draw once at the interpolated transform and opacity.
+  Matched text draws once at the interpolated transform
   and opacity. Compatible glyph outlines and line breaks also interpolate
   font size and the local text anchor. At the midpoint, the title takes its
   content and styling from the incoming scene. A different incoming title

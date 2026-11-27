@@ -754,6 +754,45 @@ fn transition_flip_suppresses_shared_actors_and_repaints_at_midpoint() {
 }
 
 #[test]
+fn transition_flip_preserves_layered_vector_paint_and_interpolates_actor_opacity() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    let scene = |x, opacity, color: &str| {
+        build_checked(&format!(
+            r#"
+config {{ canvas_size: (64, 64) }}
+#0s
+scene.background_color = black
+back: Rect, at: ({x}, 32), size: (24, 24), color: red, shared_id: "z"
+front: Ellipse, at: ({x}, 32), size: (18, 18), color: {color}, opacity: {opacity}, shared_id: "a"
+"#
+        ))
+    };
+    let from = scene(16, 0.4, "white");
+    let to = scene(48, 0.8, "white");
+    let mid = transition(&mut renderer, &from, &to, 0.5, dims);
+    let expected = render(&mut renderer, &scene(32, 0.6, "white"), 0.5, dims);
+    for (x, y) in [(32, 32), (21, 32), (10, 32), (54, 32)] {
+        let actual = pixel(&mid.rgba, 64, x, y);
+        let reference = pixel(&expected.rgba, 64, x, y);
+        assert!(
+            actual.iter().zip(reference).all(|(a, b)| a.abs_diff(b) <= 2),
+            "at ({x}, {y}) expected {reference:?}, got {actual:?}"
+        );
+    }
+    // A real change in local paint must still mix both endpoint colors.
+    let changed =
+        transition(&mut renderer, &scene(16, 1.0, "blue"), &scene(48, 1.0, "green"), 0.5, dims);
+    let center = pixel(&changed.rgba, 64, 32, 32);
+    assert!(center[1] > 20 && center[2] > 20, "expected both paints: {center:?}");
+}
+
+#[test]
 fn transition_flip_preserves_text_brightness_and_hands_off_one_title_at_a_time() {
     let Some(mut renderer) = new_renderer() else {
         return;

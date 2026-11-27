@@ -134,6 +134,7 @@ pub(crate) fn run(args: AuditArgs, extensions: &CliExtensions) {
         let sample_times = report.sample_times_s.clone();
         match crate::commands::storyboard::render_storyboard(
             &input,
+            None,
             &set,
             None,
             None,

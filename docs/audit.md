@@ -62,7 +62,7 @@ animatix audit scene.amx --delta target/review/before.json --evidence target/rev
 | `check` / `lint` | 解析/构建诊断与静态 lint | - |
 | `measure` | 纯事实 JSON | `--display-width`，`kind: "measure"` |
 | `audit` | 事实 + 缺陷 + 有界 anchors | `--policy`, `--anchors`, `--candidates`, `--evidence`, `--delta`, `--budget`, `--fail-on` |
-| `storyboard` | 节拍感知 contact sheet | `--cols`, `--times`, `--max-frames`, `--compare`, `--scene` |
+| `storyboard` | 节拍感知 contact sheet | `--cols`, `--times`, `--max-frames`, `--compare`, `--scene`, `--transition-from` |
 | `image --time <t>` | 单帧预览 (Remotion still) | - |
 | `baseline` | PNG 回归防护 | `--update`, `--threshold` |
 
@@ -136,6 +136,8 @@ badge: Rect, size: (40, 40)
 每个对象取边界高度最小的采样点。提供 `--evidence` 并成功渲染后，
 `evidence.display_frame_path` 指向实际缩放后的全帧。
 多行文字和复杂公式的整体边界可能比个别字形高。
+
+检查跨幕重影时，运行 `animatix storyboard film.amx --transition-from Intro -o handoff.png`，将 `Intro` 换成出场的幕名。三格依次显示重叠前、中点和结束时的实际合成画面。零时长切换只取前后两格。用 `--times` 可以另外检查文字交接、运动经过刻度等具体时刻。
 
 `animatix storyboard after.amx --compare before.amx --tile-width 360`
 把每个采样时刻的原版和新版并排渲染。可加 `--scene Cosine` 对齐两份
