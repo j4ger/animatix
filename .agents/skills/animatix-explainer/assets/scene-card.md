@@ -8,7 +8,7 @@ For authoring, production and storyboard review. For a first-look check, send th
 - **Beat breakdown, when needed:** <ordered cue → visible change → viewer inference; note the held state crossing beats when it could be lost. A beat is not necessarily a cut.>
 - **Motion intent, if needed:** <what the moving part reveals that endpoints cannot; what stays fixed or true during the move; avoid implying a second event just to replay a comparison; where the viewer reads the result>
 - **Timing:** <page section or named narration cue; local duration/interaction; estimated or measured; reading or comparison window if needed; clocks or event times that must not move; if a move depicts a consequence, distinguish it from the event cue>
-- **Continuity:** <incoming/outgoing state or none>
+- **Continuity:** <incoming/outgoing state or none. If viewers follow the same subject across a cut, name the cue they can recognize and what changes in the view. For that handoff, include the preceding held frame when available. If several cards call for one new component, identify its owning scene on those cards.>
 - **Optional asset, if useful:** <image role and native fallback; identify the elements that change separately>
 - **Acceptance:** <observable event, relationship and time/cue window; relevant deliverables>
 - **Critical evidence, only if load-bearing:** <event ID | trigger in model terms | first visible result + exact readout location | what must still be true on the last old frame and what must change on the first new one; link the state record if available>

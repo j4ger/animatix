@@ -24,6 +24,10 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `docs/contributing.md` — workflows, project structure, LSP, error model, release details; `docs/performance_evaluation.md` — measurement method.
 - `docs/roadmap.md` — what is left; `docs/history/` — evidence for what landed and why.
 
+## Authoring skills
+
+For a topic or script, start with [animatix-explainer](.agents/skills/animatix-explainer/SKILL.md). For a settled scene brief, start with [animatix-scene](.agents/skills/animatix-scene/SKILL.md). For an importable object or a component handoff, start with [animatix-component](.agents/skills/animatix-component/SKILL.md). Open the entry that matches the requested deliverable and follow its handoffs as needed.
+
 ## Workflow
 
 0. **Background tasks need no polling.** The harness notifies on completion; a `while pgrep -f '<pattern>'` loop self-matches and never exits. If a bound is truly needed, exclude self (`pgrep -f 'cargo bench' | grep -vx "$$"`).

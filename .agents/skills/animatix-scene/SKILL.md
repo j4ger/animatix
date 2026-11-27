@@ -1,8 +1,8 @@
 ---
 name: animatix-scene
-description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for DSL, reusable animated components, and visual QA of a scene.
+description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for scene composition, cue timing, component integration and visual QA of a scene.
 metadata:
-  version: "0.9.0-draft.44"
+  version: "0.9.0-draft.45"
 ---
 
 # Animatix scene
@@ -15,13 +15,15 @@ Look up the element by its job before drawing it. Check the scene's imports, the
 
 The [component import example](assets/attached-status.amx) runs in this checkout. Resolve its import relative to the scene when moving it.
 
-Use an existing component directly when its inputs cover the beat. Compose a one-off from primitives in the scene. When a new mechanism needs independently changing instances, build a small reusable module and probe its rest, action and result. Check that changing one instance leaves its neighbor stable before assembling the scene. Rerun the probe when the module changes.
+Use an existing component directly when its inputs cover the beat. Compose a one-off from primitives in the scene. In either case, continue with staging here. For a new object shared across scenes, independently actuated instances, or a mechanism that needs its own visual checks, use [animatix-component](../animatix-component/SKILL.md). Pass its planned uses, delivery sizes, cues, attachments and any existing art direction or reference frame. A separate author can own it when several scenes depend on it or the mechanism merits focused work. The same author can follow the component skill inline. Agree on one project-local import path with the other callers. If another scene already owns the module, use its handoff.
+
+Resume scene production with the returned import, controls and state references. Schedule the action, attach through the public anchors and inspect it in the actual composition. Return an interface gap to the component owner and recheck the integrated scene after the fix.
 
 ## Stage the beat
 
 Show one viewing task at a time. For a causal beat, show the cause before its result. Keep live labels near their subjects and allow time to read. When one element belongs to another, name the relationship first (beside a label, touching an edge, or following a port). Use a shared layout or bind their attachment points in the same coordinate space. Use the component’s geometry for alignment, the target layout for spacing and the delivery cue for timing. In reusable examples, explain the values a caller would need to choose again. Tie parts of the same event to the same state. Use a cut when interpolation would imply a state that never occurs.
 
-When a material carries the design, choose a visible trace of how it was made. A dry brush can leave slivers of bare paper within a broad stroke. Check what the surface looks like in the whole frame at delivery size before inspecting a detail crop.
+For a material-led scene, use the [visual review methods](../../../docs/visual-review.md) to compare the surface and silhouette at delivery size.
 
 Consult [geometry and clearance](references/geometry-and-clearance.md) for attachments, moving ports or overlaps, [layout and data](references/layout-data-qa.md) for charts, readouts or states identified by color, and [typed colors](references/colors.md) for color syntax. [Engine essentials](references/engine-essentials.md) covers opening visibility, timing and optional imagery.
 
@@ -29,7 +31,7 @@ Consult [geometry and clearance](references/geometry-and-clearance.md) for attac
 
 Check build, size, and duration; render the opening, the informative interior of a move, and the held result at delivery size. Verify the actual paint, including the cue that carries the claim, the unchanged reference, and any risky pass. Watch playback when available. Ask what a fresh viewer can infer before reading the intended answer.
 
-When several elements compete for attention, shrink the frame that carries the beat and glance at it before reading the text. What catches your eye first? Try adjusting the competing elements' relative size, contrast or surrounding space. Check the change again at delivery size, with the context and labels still readable.
+When several elements compete for attention, use the [attention and motion checks](../../../docs/visual-review.md) on the frame carrying the beat.
 
 Test the inputs that can change an attachment: try the longest label and widest reading with its unit for text, or vary the dimensions for shapes. If the owner has a position input, render the same moment with that input visibly shifted and compare which elements followed and which stayed fixed. Otherwise, swap the owner where supported. Check spacing and ownership at delivery size.
 

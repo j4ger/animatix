@@ -1,0 +1,18 @@
+---
+name: animatix-component
+description: Build or revise an importable AMX object for scene authors, including its public controls, a working caller and visual checks. Use for a reusable object brief or an object handed off by a scene author.
+metadata:
+  version: "0.1.0-review-candidate"
+---
+
+# Animatix component
+
+Start from the requested object and its planned uses. A direct object brief is enough to begin. For a scene handoff, take the relevant approved beat, target sizes, required interactions and any existing art direction or reference frame from the caller.
+
+Look up the object by role in project modules, [shared templates](../../../web/content/templates/layout.amx) (including MetricCard, CaptionPlate and SignalLane) and [native primitives](../../../docs/primitives.md). Try the closest existing export in a minimal caller with the requested inputs. An export in a shared project module is a valid handoff. Keep its dependencies unless the brief calls for standalone distribution. If a supported setting covers the remaining difference, show it in the caller. Deliver the working import, invocation and render. Extend or create a module when a required use is still missing.
+
+1. **Model one recognizable pose.** Choose the silhouette and construction detail that carry the object's identity. Use the project's reference frame or style decisions when supplied. Compare its smallest planned appearance and its largest close-up using the [visual review methods](../../../docs/visual-review.md).
+2. **Design the interface from a caller's cue.** What should the scene be able to place, connect, or ask the object to do? Offer the needed initial pose, meaningful dimensions, actions and named attachment points. Define geometry relative to a common origin. Apply the caller’s placement and scale consistently to the moving parts and their anchors. Explain how a caller should choose a configurable value.
+3. **Specify the interaction the scene relies on.** For each action, give its valid starting state, visible result and timing. If another actor must react to contact or release, identify when that event occurs and how the caller follows the same cue or progress if the action is retimed. Expose progress or adjustable duration when a planned use needs it. The scene schedules the cue and owns the camera, surrounding actors and narration.
+4. **Exercise the public interface.** Build a small runnable caller for the [AMX module](../../../docs/spec.md#12-components). Share the import path early. Publish the callable syntax once a requested use renders correctly at a target size. For an action, inspect the change as well as the resting pose. Mark earlier proposals as provisional. Render each required state and the interior pose most likely to expose a broken relationship. Cover the state label and read the gap, contact or other distinguishing feature at delivery size. For multiple instances, change one beside a stationary copy. For external attachments, move the object and inspect the connection.
+5. **Return to the caller.** Hand back the importable module, invocation, action and anchor contract, plus rendered state references at the tested sizes. For a direct request these are the deliverables. For a scene handoff, the scene author imports the module and checks the actual composition. If the caller has to rebuild a part or guess an internal coordinate, revise the interface here, rerun the small caller and notify the scene authors so they can recheck affected uses.
