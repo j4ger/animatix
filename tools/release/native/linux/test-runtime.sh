@@ -69,9 +69,9 @@ python3 /workspace/tools/release/native/test-first-run.py /package/bin "$testdir
 cat > scene.amx <<'EOF'
 config { duration: 1.0, canvas_size: (320, 180) }
 sound: Audio, source: "tone.wav", transcript: "tone.srt" [delay: 200ms]
-subs: Captions, source: "sound", opacity: 1.0, at: (160, 145), font_size: 28, color: "#FFFFFF", caption_mode: "line", backdrop: false
+subs: Captions, source: "sound", opacity: 1.0, at: (160, 145), font_size: 28, color: hex_color("FFFFFF"), caption_mode: "line", backdrop: false
 #0s
-square: Rect, size: (100, 100), color: "#e74c3c", at: (160, 90)
+square: Rect, size: (100, 100), color: hex_color("e74c3c"), at: (160, 90)
 fade_in(target: square, duration: 200ms)
 EOF
 cat > tone.srt <<'EOF'
@@ -79,6 +79,8 @@ cat > tone.srt <<'EOF'
 00:00:00,000 --> 00:00:00,600
 CAPTION
 EOF
+
+/package/bin/animatix check scene.amx
 
 # Give the launchers only dirname. A subprocess lookup cannot see ffmpeg,
 # even though the test can use the bundled inspection tools by absolute path.

@@ -5,7 +5,7 @@ use animatix::timeline::DebugRenderOptions;
 use animatix_render::encode as export;
 use tracing::{error, info};
 
-use crate::build::load_and_build;
+use crate::build::load_and_build_for_export;
 use crate::extensions::CliExtensions;
 
 pub fn run_image(
@@ -19,7 +19,7 @@ pub fn run_image(
     extensions: &CliExtensions,
 ) {
     info!("Rendering Animatix image: {}", input.display());
-    let (target, _) = load_and_build(input, extensions, set);
+    let target = load_and_build_for_export(input, extensions, set);
     let (width, height) = output_dimensions(&target, width, height, (1280, 720));
     let output_file = output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
     info!("Output image: {}x{} at {}s -> {}", width, height, time, output_file.display());
@@ -65,10 +65,7 @@ pub fn run_video(
     extensions: &CliExtensions,
 ) {
     info!("Rendering Animatix video: {}", input.display());
-    let (target, diagnostics) = load_and_build(input, extensions, set);
-    if scene.is_some() && diagnostics.iter().any(|diagnostic| diagnostic.is_error()) {
-        std::process::exit(1);
-    }
+    let target = load_and_build_for_export(input, extensions, set);
     let (width, height, fps, settings) =
         match effective_video_settings(&target, width, height, fps, settings, export_preset) {
             Ok(settings) => settings,
@@ -183,7 +180,7 @@ pub fn run_gif(
     extensions: &CliExtensions,
 ) {
     info!("Rendering Animatix GIF: {}", input.display());
-    let (target, _) = load_and_build(input, extensions, set);
+    let target = load_and_build_for_export(input, extensions, set);
     let (width, height, fps) = match resolve_preset(&target, export_preset) {
         Ok(Some(preset)) => {
             let (w, h) = export::output_dimensions(

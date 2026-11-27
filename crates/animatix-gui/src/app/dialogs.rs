@@ -9,7 +9,7 @@ use animatix_syntax::diagnostics::Diagnostic;
 use egui::Stroke;
 
 use super::GuiShell;
-use crate::app::commands::{ActionQueue, Command};
+use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
 use crate::app::components::button::Button;
 use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
@@ -18,7 +18,6 @@ use crate::app::design_tokens::spatial::{
     RADIUS_L, ROW_L, SPACE_2, SPACE_3, SPACE_5, STROKE_WIDTH, spatial,
 };
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::document::default_file_path;
 use crate::app::handlers::file;
 
 impl GuiShell {
@@ -81,29 +80,30 @@ impl GuiShell {
 
                         let btn_w = ui.available_width();
 
-                        // Primary: Create new scene
-                        let new_resp = ui.add_sized(
-                            egui::vec2(btn_w, sp.welcome.btn_height),
-                            Button::primary(crate::app::i18n::text(ui, "gui-welcome-new-scene"))
-                                .with_icon(egui_phosphor::regular::PLUS),
-                        );
-                        if new_resp.clicked() {
-                            let path = default_file_path();
-                            match std::fs::write(&path, "#0s\n") {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    self.ui_store.toasts.push(Toast::error(
-                                        crate::app::i18n::StatusText::message(
-                                            "gui-file-new-scene-failed",
-                                            [("detail", e.to_string())],
-                                        )
-                                        .display(self.ui_store.view.language)
-                                        .into_owned(),
-                                    ));
-                                    return; // don't proceed to open
-                                },
-                            }
-                            commands.push_back(Command::OpenFile(path).into());
+                        if ui
+                            .add_sized(
+                                egui::vec2(btn_w, sp.welcome.btn_height),
+                                Button::primary(crate::app::i18n::text(ui, "gui-welcome-narrated"))
+                                    .with_icon(egui_phosphor::regular::PLUS),
+                            )
+                            .clicked()
+                        {
+                            commands.push_back(ShellAction::View(ViewAction::NewProject(
+                                animatix_render::delivery::ProjectTemplate::Narrated,
+                            )));
+                        }
+
+                        ui.add_space(sp.base.space_3);
+
+                        if ui
+                            .add_sized(
+                                egui::vec2(btn_w, sp.welcome.btn_height),
+                                Button::ghost(crate::app::i18n::text(ui, "gui-welcome-new-scene"))
+                                    .with_icon(egui_phosphor::regular::FILE_PLUS),
+                            )
+                            .clicked()
+                        {
+                            commands.push_back(ShellAction::View(ViewAction::NewFile));
                         }
 
                         ui.add_space(sp.base.space_3);

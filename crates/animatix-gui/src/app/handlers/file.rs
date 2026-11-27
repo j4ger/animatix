@@ -205,11 +205,7 @@ fn apply_loaded_document(
     );
     document_store.history.undo_stack.clear();
     document_store.history.redo_stack.clear();
-    if let Some(ref mut reloader) = workspace_store.hot_reloader
-        && let Err(e) = reloader.update_watched_file(&document_store.source.document.file_path)
-    {
-        tracing::warn!("Failed to update watched file: {}", e);
-    }
+    workspace_store.watch_document(&path);
     // Publish initial snapshot (load already ran rebuild)
     document_store.clear_snapshots();
     document_store
@@ -402,24 +398,7 @@ fn rebind_workspace_to_saved_document(
 
     reveal_workspace_file(workspace_store, path, true);
 
-    match workspace_store.hot_reloader.as_mut() {
-        Some(reloader) => {
-            if let Err(err) = reloader.update_watched_file(&path.to_path_buf()) {
-                tracing::warn!("Failed to update watched file: {}", err);
-                workspace_store.hot_reload_error = Some(err);
-            }
-        },
-        None => match crate::hot_reload::HotReloader::new(path) {
-            Ok(reloader) => {
-                workspace_store.hot_reloader = Some(reloader);
-                workspace_store.hot_reload_error = None;
-            },
-            Err(err) => {
-                tracing::warn!("Failed to watch saved file: {}", err);
-                workspace_store.hot_reload_error = Some(err);
-            },
-        },
-    }
+    workspace_store.watch_document(path);
 
     let plugin_workspace_root = crate::app::file_tree::workspace_root_for(path);
     plugin_manager.set_document(path.to_path_buf(), plugin_workspace_root.clone());

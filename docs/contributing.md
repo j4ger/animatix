@@ -37,25 +37,31 @@ cargo run --bin animatix -- image web/content/scenes/first-move.amx --time 1.5 -
 ### Downloaded builds
 
 [Releases](https://github.com/j4ger/animatix/releases) list the available artifacts.
-Do not infer portability from an archive name: the inspected November 12, 2026
-`nightly` archive contains bare CLI/GUI binaries that reference a Nix store loader
-and external FFmpeg libraries. It is not the self-contained Linux package described
-in the [packaging guide](../tools/release/native/linux/README.md). On a host without those
-paths/libraries, use the source-build instructions above instead.
+For Linux x86-64, download and extract the Nightly archive ending in
+`-linux-gnu-video.tar.gz` (the archive with `-source` is for rebuilding).
+Run `./bin/animatix doctor` or `./bin/animatix-gui` from the extracted
+directory; no Rust, Nix, or separate FFmpeg install is required. The
+[Linux packaging guide](../tools/release/native/linux/README.md) describes
+host graphics and audio requirements and optional desktop installation.
 
-The current packaging scripts build a different, relocatable distribution. A
-successful packaging check does not establish that an older uploaded release was
-built with those scripts. Recheck this caveat when replacing the nightly artifact.
+Documentation on main may describe features that have not reached Nightly.
+See `share/BUILD-METADATA.txt` inside the Linux bundle for its exact source
+commit. If the installed workbench does not offer the template picker, use
+`./bin/animatix init` with a project path, then open the generated `main.amx`.
+Older bundles may generate a different set of project files; keep all files
+from the project directory together.
 
 ### Start from a built-in template
 
 | `animatix init --template` | Starting point |
 |---|---|
-| `narrated` (default) | A 30-second project with bundled narration and synchronized captions |
+| `narrated` (default) | An 11-second project with bundled narration and synchronized captions |
 | `math-explainer` | An animated graph with a formula and a takeaway |
 | `metric-brief` | Three metric cards with a summary |
 
 The CLI and the workbench's **New project…** menu offer the same starters.
+On the welcome screen, **Start with narration** opens the narrated starter
+directly. Choose a new or empty project folder.
 Each project comes with `main.amx` and a portable `layout.amx`. Keep the files
 together when copying the project. You can also import `layout.amx` from an
 existing scene to reuse `ChapterHeader`, `Panel`, `CaptionPlate`, or `MetricCard`.
@@ -123,10 +129,11 @@ the narration files currently referenced by the source. [Recording and sharing](
 
 Run `animatix-gui --doctor` from a terminal if the workbench cannot open a
 preview or export. The report checks the renderer, text shaping, and the linked
-FFmpeg AAC and H.264 encoders. Animatix mixes and muxes audio in the export
-process. The Release build verifies the extracted macOS and Windows ZIPs
-before uploading them, including the packaged workbench preview and a
-30-second export with audio. [Native video proof](../tools/release/native/video-proof.sh)
+FFmpeg AAC and H.264 encoders. The GUI report also checks preview audio
+output separately; a missing playback device does not prevent export audio.
+Animatix mixes and muxes audio in the export process. The Release build verifies the extracted macOS and Windows ZIPs
+before uploading them, including the packaged workbench preview and an
+11-second template export with audio. [Native video proof](../tools/release/native/video-proof.sh)
 
 The native proof pins the vcpkg ports tree and its FFmpeg 8.x dependency set.
 It builds against those headers, links the macOS libraries statically, and

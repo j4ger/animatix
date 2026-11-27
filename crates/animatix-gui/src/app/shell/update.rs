@@ -123,9 +123,13 @@ impl GuiShell {
             persistence.as_ref().and_then(|p| p.window_size).unwrap_or([1440.0, 960.0]);
         let window_maximized =
             persistence.as_ref().and_then(|p| p.window_maximized).unwrap_or(false);
-        let (hot_reloader, hot_reload_error) = match HotReloader::new(&document.file_path) {
-            Ok(reloader) => (Some(reloader), None),
-            Err(err) => (None, Some(err)),
+        let (hot_reloader, hot_reload_error) = if is_welcome {
+            (None, None)
+        } else {
+            match HotReloader::new(&document.file_path) {
+                Ok(reloader) => (Some(reloader), None),
+                Err(err) => (None, Some(err)),
+            }
         };
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);

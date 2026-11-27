@@ -79,6 +79,7 @@ pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub statements: &'a [animatix_syntax::ast::Stmt],
     pub source_current: bool,
+    pub named_cues: &'a [markers::TimingMarker],
     pub diagnostics: &'a [animatix_syntax::diagnostics::Diagnostic],
     pub source_epoch: crate::app::document::version::SourceEpoch,
     pub source_text: &'a str,
@@ -512,7 +513,11 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         return;
     }
 
-    let source_markers = ctx.authored_markers(ui);
+    let mut source_markers = ctx.authored_markers(ui);
+    let keyframe_count = source_markers.len();
+    if ctx.source_current {
+        source_markers.extend_from_slice(ctx.named_cues);
+    }
     let panel_id = egui::Id::unique("workbench_timeline");
     let show_debug = review_controls(
         ui,
@@ -523,7 +528,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         ctx.source_current,
     );
     egui::ScrollArea::vertical().id_salt("timeline_scroll").show(ui, |ui| {
-        render_timeline_lanes(ctx, ui, &source_markers, show_debug, panel_id);
+        render_timeline_lanes(ctx, ui, &source_markers[..keyframe_count], show_debug, panel_id);
     });
 }
 

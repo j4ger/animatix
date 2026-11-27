@@ -22,16 +22,35 @@ pub fn load_and_build(
     extensions: &CliExtensions,
     defines: &[(String, String)],
 ) -> (BuildTarget, Vec<Diagnostic>) {
+    load_and_build_with_policy(input, extensions, defines, false)
+}
+
+/// Deliverables must come from a clean build, never a recovered partial timeline.
+pub fn load_and_build_for_export(
+    input: &Path,
+    extensions: &CliExtensions,
+    defines: &[(String, String)],
+) -> BuildTarget {
+    load_and_build_with_policy(input, extensions, defines, true).0
+}
+
+fn load_and_build_with_policy(
+    input: &Path,
+    extensions: &CliExtensions,
+    defines: &[(String, String)],
+    strict: bool,
+) -> (BuildTarget, Vec<Diagnostic>) {
     match try_load_and_build(input, extensions, defines) {
         Ok((target, diagnostics)) => {
             print_build_diagnostics(&diagnostics);
             if diagnostics.iter().any(|diagnostic| {
                 diagnostic.is_error()
-                    && matches!(
-                        diagnostic.code,
-                        animatix_syntax::diagnostics::DiagnosticCode::InvalidConfigValue
-                            | animatix_syntax::diagnostics::DiagnosticCode::VideoClipFailure
-                    )
+                    && (strict
+                        || matches!(
+                            diagnostic.code,
+                            animatix_syntax::diagnostics::DiagnosticCode::InvalidConfigValue
+                                | animatix_syntax::diagnostics::DiagnosticCode::VideoClipFailure
+                        ))
             }) {
                 std::process::exit(1);
             }

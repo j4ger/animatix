@@ -82,15 +82,32 @@ def verify(package, project, version, env):
     if version:
         verify_workbench(gui, scene, project, env)
 
+    # Backdrop deliberately paints a full-canvas gradient. Render that same
+    # layer alone so edge checks distinguish authored background from stray ink.
+    starter_dir = project / starter
+    reference = starter_dir / "backdrop-reference.amx"
+    template = (starter_dir / "main.amx").read_text(encoding="utf-8")
+    config = next(line for line in template.splitlines() if line.startswith("config "))
+    reference.write_text(
+        f'import "./layout.amx"\n{config}\n#0s\nbackdrop: Backdrop\n', encoding="utf-8",
+    )
+
+    def rgb(image):
+        return run("ffmpeg", "-v", "error", "-i", image, "-pix_fmt", "rgb24", "-f", "rawvideo", "-")
+
+    run("animatix", "image", str(reference), "--time", "4", "--output", "backdrop-reference.png")
+    background = rgb("backdrop-reference.png")
     for time, image in [("4", "preview.png"), ("8.5", "preview-last-cue.png")]:
         run("animatix", "image", scene, "--time", time, "--output", image)
-        pixels = run("ffmpeg", "-v", "error", "-i", image, "-pix_fmt", "rgb24", "-f", "rawvideo", "-")
-        if len(set(zip(pixels[::3], pixels[1::3], pixels[2::3]))) < 16:
-            raise ValueError(f"starter preview did not render at {time}s")
+        pixels = rgb(image)
+        if len(pixels) != 640 * 360 * 3 or len(background) != len(pixels):
+            raise ValueError(f"starter preview has unexpected dimensions at {time}s")
+        if sum(before != after for before, after in zip(background, pixels)) < 300:
+            raise ValueError(f"starter preview has no foreground at {time}s")
         row_width = 640 * 3
-        background = pixels[:3]
         for row in range(0, len(pixels), row_width):
-            if pixels[row:row + 3] != background or pixels[row + row_width - 3:row + row_width] != background:
+            left, right = slice(row, row + 3), slice(row + row_width - 3, row + row_width)
+            if pixels[left] != background[left] or pixels[right] != background[right]:
                 raise ValueError(f"starter content touches the canvas edge at {time}s")
 
     run("animatix", "video", scene, "--fps", "10", "--threads", "1", "--hold", "0", "--codec", "libx264", "--output", "narrated.mp4")
@@ -98,18 +115,23 @@ def verify(package, project, version, env):
     (project / "mp4-probe.json").write_bytes(probe)
     metadata = json.loads(probe)
     streams = {row["codec_type"]: row for row in metadata["streams"]}
-    if streams["video"]["codec_name"] != "h264" or streams["video"]["nb_read_frames"] != "300":
-        raise ValueError("expected 300 decodable H.264 frames")
-    if streams["audio"]["codec_name"] != "aac" or abs(float(metadata["format"]["duration"]) - 30.0) > 0.05:
-        raise ValueError("expected an AAC audio stream and a 30-second MP4")
+    if streams["video"]["codec_name"] != "h264" or streams["video"]["nb_read_frames"] != "110":
+        raise ValueError("expected 110 decodable H.264 frames")
+    if streams["audio"]["codec_name"] != "aac" or abs(float(metadata["format"]["duration"]) - 11.0) > 0.05:
+        raise ValueError("expected an AAC audio stream and an 11-second MP4")
     samples = array("h")
     samples.frombytes(run("ffmpeg", "-v", "error", "-xerror", "-i", "narrated.mp4", "-map", "0:a:0", "-ac", "1", "-ar", "16000", "-f", "s16le", "-"))
     if sys.byteorder == "big":
         samples.byteswap()
+    # The template's final sentence is late in the clip; it must not
+    # accidentally regress to a short clip plus a long silent hold.
+    ending = samples[8 * 16000: 10 * 16000]
+    if len(ending) != 2 * 16000 or sum(sample * sample for sample in ending) / len(ending) < 200**2:
+        raise ValueError("the final section of the starter is missing audible narration")
     speech = samples[: 10 * 16000]
     if len(speech) != 10 * 16000 or sum(sample * sample for sample in speech) / len(speech) < 200**2:
         raise ValueError("the AAC stream is missing audible narration")
-    print("Starter preview, 300 decoded H.264 frames, and audible AAC narration verified.")
+    print("Starter preview, 110 decoded H.264 frames, and audible AAC narration verified.")
 
 
 def main():

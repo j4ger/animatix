@@ -11,11 +11,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LIBCLANG_PATH=/usr/lib/llvm-14/lib \
     RUSTUP_USE_CURL=1
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+# winit also dlopens the desktop client libraries; installing their bundle roots
+# in this transaction keeps a second live-index refresh out of the build.
+RUN apt-get -o Acquire::Retries=3 update && \
+    apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
       autoconf automake build-essential ca-certificates clang-14 curl file git \
       libasound2-dev libclang-14-dev libvulkan1 libx11-dev libxcursor-dev libxi-dev \
       libxrandr-dev libxkbcommon-dev libwayland-dev nasm patchelf pax-utils \
+      libx11-xcb1 libxinerama1 libxss1 libxkbcommon-x11-0 \
       perl pkg-config python3 tar xz-utils yasm zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 
@@ -33,13 +36,6 @@ RUN curl --fail --silent --show-error --location --retry 5 --retry-all-errors --
     rustup default 1.95.0 && \
     rm -f /tmp/rustup-init && \
     rustc +1.95.0 --version | grep -q '^rustc 1.95.0 '
-
-# winit loads these desktop client libraries with dlopen; they must be explicit
-# bundle roots because an ELF DT_NEEDED walk cannot discover them.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      libx11-xcb1 libxinerama1 libxss1 libxkbcommon-x11-0 && \
-    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 CMD ["bash"]

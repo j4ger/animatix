@@ -343,6 +343,11 @@ impl Timeline {
         self.named_cues.iter().map(|(name, (time, _))| (name.as_str(), *time))
     }
 
+    /// Source span of this cue's effective header, when one was retained.
+    pub fn named_cue_span(&self, name: &str) -> Option<crate::ast::Span> {
+        self.named_cues.get(name).and_then(|(_, span)| *span)
+    }
+
     pub(crate) fn validate_cue_range(
         &mut self,
         duration_s: f64,

@@ -128,7 +128,11 @@ The first phase indexes direct scene/top-level `#` declarations. Numeric and
 relative seconds and speech anchors can be resolved; beat-based or generated
 control-flow timing is explicitly unresolved rather than inferred with a guessed
 tempo. Authored markers occupy the lower band of the time ruler. Dense or unresolved
-markers can be selected from the marker menu. Debug property tracks
+markers can be selected from the marker menu. The menu also lists compiled
+`#cue:name` anchors by playback time. Select a cue to seek and, when its source
+belongs to the current document, jump to its declaration. In a composition,
+the scene label disambiguates repeated names. Named cues do not add extra stops
+to the previous/next keyframe controls. Debug property tracks
 are opt-in, read-only, and remain distinct from authored keyframes.
 
 Audio-backed transcript cues use the clip's start in the scene and the scene's start in the composition. A standalone transcript uses scene-relative timestamps. Source timing markers use the engine's compiled resolution for speech. Identical Audio/Captions transcripts at the same time share a review row.

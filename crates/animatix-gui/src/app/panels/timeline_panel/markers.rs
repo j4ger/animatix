@@ -45,6 +45,18 @@ fn marker_label(ui: &egui::Ui, marker: &TimingMarker) -> String {
         .line
         .map(|l| render(ui, "gui-timeline-marker-line", &[("line", (l + 1).to_string())]))
         .unwrap_or_else(|| text(ui, "gui-timeline-marker-no-source"));
+    if marker.named_cue {
+        return render(
+            ui,
+            "gui-timeline-named-cue-label",
+            &[
+                ("expression", marker.expression.clone()),
+                ("scene", scene),
+                ("time", time),
+                ("location", line),
+            ],
+        );
+    }
     render(
         ui,
         "gui-timeline-marker-label",
@@ -163,16 +175,30 @@ pub(super) fn marker_menu(
     }
     let response = ui.add(button.with_size(size).with_tooltip(tooltip));
     egui::Popup::menu(&response).show(|ui| {
-        ui.label(crate::app::i18n::text(ui, "gui-timeline-markers-order"));
+        if markers.iter().any(|m| m.named_cue) {
+            ui.label(crate::app::i18n::text(ui, "gui-timeline-named-cues"));
+        }
         if !source_current {
             ui.weak(crate::app::i18n::text(ui, "gui-source-navigation-paused"));
         }
-        for marker in markers {
-            if ui.button(marker_label(ui, marker)).clicked() {
-                navigate(marker, commands);
-                ui.close();
+        egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
+            for marker in markers.iter().filter(|m| m.named_cue) {
+                if ui.button(marker_label(ui, marker)).clicked() {
+                    navigate(marker, commands);
+                    ui.close();
+                }
             }
-        }
+            if markers.iter().any(|m| m.named_cue) {
+                ui.separator();
+            }
+            ui.label(crate::app::i18n::text(ui, "gui-timeline-markers-order"));
+            for marker in markers.iter().filter(|m| !m.named_cue) {
+                if ui.button(marker_label(ui, marker)).clicked() {
+                    navigate(marker, commands);
+                    ui.close();
+                }
+            }
+        });
     });
 }
 
@@ -186,6 +212,7 @@ mod tests {
             scene: None,
             time_s: time,
             action_count: 1,
+            named_cue: false,
         }
     }
     #[test]
@@ -298,6 +325,24 @@ mod tests {
             }
         }
         assert!(commands.pop_front().is_none());
+    }
+
+    #[test]
+    fn named_cue_navigates_to_compiled_time_and_authored_line() {
+        let store = crate::app::test_support::make_document_store(
+            "config { duration: 6 }
+#4.65s
+#cue:commit",
+        );
+        let cue = &store.source.document.source_timing.named_cues()[0];
+        let mut queue = ActionQueue::default();
+        navigate(cue, &mut queue);
+        use crate::app::commands::ShellAction;
+        assert!(matches!(queue.pop_front(), Some(ShellAction::Command(Command::ScrubTo(4.65)))));
+        assert!(matches!(
+            queue.pop_front(),
+            Some(ShellAction::Command(Command::ScrollToLine(2, 0)))
+        ));
     }
 
     #[test]

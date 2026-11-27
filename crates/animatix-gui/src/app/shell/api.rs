@@ -40,7 +40,13 @@ impl GuiShell {
             },
             ViewAction::NewFile => {
                 let path = crate::app::document::default_file_path();
-                match std::fs::write(&path, "#0s\n") {
+                use std::io::Write as _;
+                let created = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&path)
+                    .and_then(|mut file| file.write_all(b"#0s\n"));
+                match created {
                     Ok(()) => self.handle_command(Command::OpenFile(path)),
                     Err(err) => vec![Effect::Notice(
                         crate::app::components::toast::ToastLevel::Error,

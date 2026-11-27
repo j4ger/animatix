@@ -18,14 +18,22 @@ fn main() {
             },
             "-h" | "--help" => {
                 println!(
-                    "{} {}\n\nUsage: animatix-gui [OPTIONS] [FILE]\n\nOptions:\n  --doctor               Diagnose preview and narrated MP4 prerequisites\n  --perf-log <PATH>      Drain stage tracer telemetry into a .jsonl file\n  --demo-script <PATH>   Run scripted GUI performance sessions\n  -h, --help             Print help\n  -V, --version          Print version",
+                    "{} {}\n\nUsage: animatix-gui [OPTIONS] [FILE]\n\nOptions:\n  --doctor               Diagnose preview, export encoding, and audio output\n  --perf-log <PATH>      Drain stage tracer telemetry into a .jsonl file\n  --demo-script <PATH>   Run scripted GUI performance sessions\n  -h, --help             Print help\n  -V, --version          Print version",
                     env!("CARGO_PKG_NAME"),
                     env!("CARGO_PKG_VERSION")
                 );
                 return;
             },
             "--doctor" => {
-                if !animatix_render::delivery::print_doctor() {
+                let ready = animatix_render::delivery::print_doctor();
+                // Headless exports can still encode and mux audio without a sound device.
+                match rodio::OutputStream::try_default() {
+                    Ok(_) => println!("OK      Preview audio output"),
+                    Err(err) => println!(
+                        "OPTIONAL Preview audio output unavailable: {err} (does not affect export)"
+                    ),
+                }
+                if !ready {
                     std::process::exit(1);
                 }
                 return;

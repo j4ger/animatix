@@ -43,6 +43,17 @@ impl WorkspaceStore {
         }
     }
 
+    pub(crate) fn watch_document(&mut self, path: &Path) {
+        let result = match self.hot_reloader.as_mut() {
+            Some(reloader) => reloader.update_watched_file(path),
+            None => HotReloader::new(path).map(|reloader| self.hot_reloader = Some(reloader)),
+        };
+        self.hot_reload_error = result.err();
+        if self.hot_reload_error.is_some() {
+            self.hot_reloader = None;
+        }
+    }
+
     pub(crate) fn set_root(&mut self, path: PathBuf) {
         self.expanded_dirs = HashSet::from([path.clone()]);
         if self.workspace_root != path {

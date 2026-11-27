@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 pub(crate) struct SourceTiming {
     // An unresolved header ends the preceding source interval.
     entries: BTreeMap<usize, (Option<String>, Option<f64>)>,
+    named_cues: Vec<TimingMarker>,
 }
 
 impl SourceTiming {
@@ -37,7 +38,20 @@ impl SourceTiming {
                 entries.insert(line, (marker.scene, marker.time_s));
             }
         }
-        Self { entries }
+        let named_cues = named_cue_markers(
+            doc.raw_statements.as_deref().unwrap_or_default(),
+            doc.timeline.as_ref(),
+            doc.composition.as_ref(),
+            &doc.source_text,
+        );
+        Self {
+            entries,
+            named_cues,
+        }
+    }
+
+    pub(crate) fn named_cues(&self) -> &[TimingMarker] {
+        &self.named_cues
     }
 
     pub(crate) fn at_header(&self, line: usize) -> Option<f64> {
@@ -65,6 +79,7 @@ pub(crate) struct TimingMarker {
     pub scene: Option<String>,
     pub time_s: Option<f64>,
     pub action_count: usize,
+    pub named_cue: bool,
 }
 
 pub(crate) fn collect_markers(
@@ -96,6 +111,109 @@ pub(crate) fn review_markers(
         }
     }
     markers
+}
+
+/// Use the same compiled named anchors and scene offsets as the Web SDK.
+fn named_cue_markers(
+    statements: &[Stmt],
+    timeline: Option<&Timeline>,
+    composition: Option<&Composition>,
+    source: &str,
+) -> Vec<TimingMarker> {
+    let mut result = Vec::new();
+    if let Some(composition) = composition {
+        for (name, start) in &composition.scene_start_times {
+            let Some(scene) = composition.scenes.get(name) else {
+                continue;
+            };
+            let local_source = statements.iter().find_map(|stmt| match stmt {
+                Stmt::Scene {
+                    name: local, body, ..
+                } if local == name => Some(body.as_slice()),
+                _ => None,
+            });
+            append_cue_markers(
+                &scene.timeline,
+                Some(name),
+                *start,
+                local_source,
+                source,
+                &mut result,
+            );
+        }
+    } else if let Some(timeline) = timeline {
+        append_cue_markers(timeline, None, 0.0, Some(statements), source, &mut result);
+    }
+    result.sort_by(|a, b| {
+        a.time_s
+            .unwrap_or_default()
+            .total_cmp(&b.time_s.unwrap_or_default())
+            .then_with(|| a.scene.cmp(&b.scene))
+            .then_with(|| a.expression.cmp(&b.expression))
+    });
+    result
+}
+
+fn append_cue_markers(
+    timeline: &Timeline,
+    scene: Option<&str>,
+    start: f64,
+    local_statements: Option<&[Stmt]>,
+    source: &str,
+    out: &mut Vec<TimingMarker>,
+) {
+    let mut lines = BTreeMap::new();
+    if let Some(statements) = local_statements
+        && timeline.named_cues().next().is_some()
+    {
+        let source_lines: Vec<_> = source.lines().collect();
+        for statement in statements {
+            let (group, span) = match statement {
+                Stmt::Keyframe {
+                    cue_group: Some(group),
+                    span: Some(span),
+                    ..
+                }
+                | Stmt::RelativeKeyframe {
+                    cue_group: Some(group),
+                    span: Some(span),
+                    ..
+                } => (group, span),
+                _ => continue,
+            };
+            for name in &group.names {
+                if timeline.named_cue_span(name) != Some(*span) {
+                    continue;
+                }
+                // The span covers the header group and its body. Locate the
+                // actual #cue line in the current source, not in an import.
+                let Some(header) =
+                    source_lines.get(span.start_line.saturating_sub(1)..span.end_line)
+                else {
+                    continue;
+                };
+                let line = header.iter().position(|line| {
+                    use animatix_syntax::token::{TokenKind, tokenize};
+                    let tokens = tokenize(line);
+                    matches!(tokens.as_slice(), [hash, cue, colon, id, ..]
+                        if hash.kind == TokenKind::Hash && colon.kind == TokenKind::Colon
+                        && matches!(&cue.kind, TokenKind::Ident(keyword) if keyword == "cue")
+                        && matches!(&id.kind, TokenKind::Ident(value) if value == name))
+                });
+                if let Some(line) = line {
+                    lines.insert(name.as_str(), span.start_line.saturating_sub(1) + line);
+                }
+            }
+        }
+    }
+    out.extend(timeline.named_cues().map(|(name, time)| TimingMarker {
+        expression: format!("#cue:{name}"),
+        line: lines.get(name).copied(),
+        scene: scene.map(str::to_owned),
+        time_s: Some(animatix::time::add_seconds(start, time)),
+        action_count: 0,
+        named_cue: true,
+    }));
 }
 
 fn collect_scope(
@@ -150,6 +268,7 @@ fn collect_scope(
                         .zip(local)
                         .map(|(a, b)| animatix::time::add_seconds(a, b)),
                     action_count: body.len(),
+                    named_cue: false,
                 });
             },
             // These structural forms can change the engine's current build time.
@@ -243,6 +362,69 @@ pub(crate) fn locate(source: &str, markers: &mut [TimingMarker]) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn named_cues_resolve_and_keep_their_distinct_source_lines_without_adding_keyframes() {
+        let text = "config { duration: 6 }
+#1s
+a: Rect
+#+500ms
+#cue:memory
+#cue:alias
+#2s
+#cue:memory
+#8s
+#cue:out_of_range
+#+1s
+a.opacity = 1";
+        let mut store = crate::app::test_support::make_document_store(text);
+        let timing = &store.source.document.source_timing;
+        let rows: Vec<_> = timing
+            .named_cues()
+            .iter()
+            .map(|m| (m.expression.as_str(), m.time_s, m.line))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("#cue:alias", Some(1.5), Some(5)),
+                ("#cue:memory", Some(2.0), Some(7)),
+            ]
+        );
+        assert_eq!(timing.at_header(5), None);
+        assert_eq!(timing.at_header(10), Some(2.0));
+        store.replace_text(format!(
+            "// draft
+{text}"
+        ));
+        assert!(store.source.document.source_timing.named_cues().is_empty());
+    }
+
+    #[test]
+    fn named_cues_in_compositions_are_scene_scoped_and_seek_global_time() {
+        let text = "# First
+config { duration: 3 }
+#1s
+#cue:start
+play Second
+# Second
+config { duration: 2 }
+#500ms
+#cue:start";
+        let store = crate::app::test_support::make_document_store(text);
+        let markers = store.source.document.source_timing.named_cues();
+        let rows: Vec<_> = markers
+            .iter()
+            .map(|m| (m.scene.as_deref(), m.expression.as_str(), m.time_s, m.line))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                (Some("First"), "#cue:start", Some(1.0), Some(3)),
+                (Some("Second"), "#cue:start", Some(3.5), Some(8)),
+            ]
+        );
+    }
+
     #[test]
     fn combined_fixture_resolves_authored_relative_headers_across_scenes() {
         let text = include_str!("../../editor/fixtures/cell-highlighting.amx");

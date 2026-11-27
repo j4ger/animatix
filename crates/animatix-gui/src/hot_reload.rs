@@ -81,7 +81,7 @@ impl HotReloader {
         ReloadStatus::NoChange
     }
 
-    pub fn update_watched_file(&mut self, new_path: &PathBuf) -> Result<(), String> {
+    pub fn update_watched_file(&mut self, new_path: &Path) -> Result<(), String> {
         if new_path != &self.watched_path {
             // Unwatch old file
             if let Err(e) = self._watcher.unwatch(&self.watched_path) {
@@ -93,7 +93,7 @@ impl HotReloader {
                 .watch(new_path, RecursiveMode::NonRecursive)
                 .map_err(|e| format!("Failed to watch new file: {}", e))?;
 
-            self.watched_path = new_path.clone();
+            self.watched_path = new_path.to_path_buf();
             self.last_event = None;
         }
         Ok(())

@@ -91,6 +91,7 @@ pub(crate) fn toolbar(
 fn adjacent_marker(markers: &[TimingMarker], time: f64, forward: bool) -> Option<&TimingMarker> {
     markers
         .iter()
+        .filter(|m| !m.named_cue)
         .filter(|m| {
             m.time_s.is_some_and(|t| {
                 if forward {
@@ -182,12 +183,13 @@ mod tests {
     use super::*;
     #[test]
     fn navigation_orders_by_time_not_source_order() {
-        let markers = [4.0, 1.0, 3.0].map(|time| TimingMarker {
+        let markers = [4.0, 1.0, 3.0, 2.5].map(|time| TimingMarker {
             expression: String::new(),
             line: None,
             scene: None,
             time_s: Some(time),
             action_count: 0,
+            named_cue: time == 2.5,
         });
         assert_eq!(adjacent_marker(&markers, 2.0, true).unwrap().time_s, Some(3.0));
         assert_eq!(adjacent_marker(&markers, 2.0, false).unwrap().time_s, Some(1.0));

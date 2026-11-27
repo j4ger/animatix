@@ -1,6 +1,6 @@
 import "./layout.amx"
 
-config { duration: 30, canvas_size: (640, 360), colorscheme: "editorial-dark", style: "editorial" }
+config { duration: 11, canvas_size: (640, 360), colorscheme: "editorial-dark", style: "editorial" }
 
 let motion = "subtle"
 let heading = "Tell it in time"

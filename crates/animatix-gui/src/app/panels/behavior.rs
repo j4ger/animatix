@@ -177,6 +177,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     diagnostics: &self.document_store.source.document.diagnostics,
                     source_epoch: self.document_store.source.epoch(),
                     source_text: &self.document_store.source.document.source_text,
+                    named_cues: self.document_store.source.document.source_timing.named_cues(),
                     source_current: !self.preview_store.has_pending_rebuild()
                         && !self.preview_store.rebuild_in_progress
                         && self.preview_store.in_flight_rebuild.is_none()
