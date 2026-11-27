@@ -8,7 +8,7 @@ Record only checks that could change your decision. Use the approved card or ind
 - **Viewer inference:** give a fresh viewer only the rendered clip or ordered frames and a neutral question. Keep this plan, the brief, and the scene cards with the author. Record their answer before comparing it with the expectation. If the image is responsible for the inference, hide only external captions/narration for this diagnostic; keep on-diagram labels. A reader unable to answer isn't evidence of a different state. Recheck normal delivery.
 
 ## Capture frame evidence
-For an ordinary move, render directly; no ledger is required. For exact boundaries or windows, save a small JSON plan, e.g.:
+For an ordinary move, render directly. For a boundary test, use the delivery frame rate and the time of the event. In this constant-rate example, frame zero starts at 0 s and the new state starts at 2 s. At 30000/1001 fps, the first frame starting at or after the cue is frame 60 (round 2 × fps up). Inspect frame 59 for the old state and frames 60–62 for the new state and its hold. For an encoded delivery with variable frame durations, use its actual frame timestamps.
 
 ```json
 {

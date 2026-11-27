@@ -4,7 +4,7 @@ For authoring, production and storyboard review. For a first-look check, send th
 
 - **Approved source:** <draft revision / section or line ID>
 - **Viewer inference:** <one sentence>
-- **Visible sequence:** <start → decisive visible cause → outcome or contrast>
+- **Visible sequence:** <order of the visible evidence, e.g. a cause and its outcome or two features shown together for comparison>
 - **Beat breakdown, when needed:** <ordered cue → visible change → viewer inference; note the held state crossing beats when it could be lost. A beat is not necessarily a cut.>
 - **Motion intent, if needed:** <what the moving part reveals that endpoints cannot; what stays fixed or true during the move; avoid implying a second event just to replay a comparison; where the viewer reads the result>
 - **Timing:** <page section or named narration cue; local duration/interaction; estimated or measured; reading or comparison window if needed; clocks or event times that must not move; if a move depicts a consequence, distinguish it from the event cue>

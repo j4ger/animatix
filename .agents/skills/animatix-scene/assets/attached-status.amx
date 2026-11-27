@@ -1,0 +1,26 @@
+import "../../../../web/content/templates/layout.amx"
+
+config { style: "editorial", canvas_size: (1280, 720), duration: 2 }
+
+let metric_name = "Throughput"
+let reading = "48 req/s"
+let card_x = scene_width / 2
+// Match the mark to the label at delivery size. Use half a theme gap to group them.
+let icon_size = 24 * unit()
+let gap = theme.gap / 2
+
+#0s
+// Size the card for the longest label, value with unit, and detail plus padding.
+// These proportions give the three lines room on this canvas.
+metric: MetricCard, label: metric_name, value: reading, detail: "Last minute",
+  width: scene_width * 0.46, height: scene_height / 3, at: (card_x, scene_height / 2)
+// Built-in stroke icons use a 24-unit square with its origin at the top left.
+mark: Path, icon: "check", scale: icon_size / 24, stroke: accent.success,
+  stroke_width: 2.5, fill_opacity: 0, opacity: 0
+always {
+  mark.at = metric.card_label.right + (gap, -icon_size / 2)
+}
+
+// Let the viewer read the value, then reveal the mark and hold the result.
+#1s
+fade_in(target: mark, duration: 240ms)
