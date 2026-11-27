@@ -23,7 +23,7 @@ ALWAYS_IDS = {"doc-links"}
 KNOWN_IDS = {
     "fast-checks", "doc-links", "security-audit", "check-lint", "eparts-linux", "eparts-macos",
     "eparts-windows", "test-examples", "render-scenes", "benchmarks",
-    "web-check", "web-build",
+    "web-check", "web-build", "default-native-build",
 }
 
 ENGINE_PACKAGES = {
@@ -31,9 +31,22 @@ ENGINE_PACKAGES = {
     "animatix-syntax", "animatix-text",
 }
 BENCHMARK_PACKAGES = {
-    "animatix", "animatix-plugin-api", "animatix-plugin-demo",
-    "animatix-plugin-tooling",
+    "animatix", "animatix-core", "animatix-std", "animatix-syntax", "animatix-text",
+    "animatix-plugin-api", "animatix-plugin-demo", "animatix-plugin-tooling",
 }
+NATIVE_ROOTS = ("crates/animatix-cli/", "crates/animatix-gui/", "crates/animatix-render/")
+NATIVE_LINK_INPUTS = {
+    "crates/animatix-cli/src/commands/mod.rs",
+    "crates/animatix-cli/src/commands/render.rs",
+    "crates/animatix-render/src/delivery.rs",
+    "crates/animatix-render/src/render_pipeline.rs",
+}
+NATIVE_LINK_PREFIXES = (
+    "crates/animatix-render/src/encode/",
+    "crates/animatix-render/src/video_assets/",
+    "crates/animatix-gui/src/app/shell/export_dialog/",
+    "crates/animatix-gui/assets/",
+)
 WEB_TOOL_PACKAGES = {"animatix-web-build", "animatix-text-parity"}
 FULL_PATHS = {
     "Cargo.toml", "Cargo.lock", "flake.nix", "flake.lock", "rust-toolchain.toml",
@@ -250,7 +263,11 @@ def classify_paths(changed_paths: list[str], roots: dict[str, Path],
         if path in DOC_GENERATOR_PATHS:
             docs_generator_changed = True
             continue
-        if path.startswith("docs/") or path in DOC_ROOT_FILES:
+        # Markdown skill guides are not executable CI inputs. Keep sibling
+        # scripts, fixtures and unrecognized skill trees conservative.
+        authoring_guide = path.startswith((".agents/skills/animatix-scene/",
+                                           ".agents/skills/animatix-explainer/")) and path.endswith(".md")
+        if path.startswith("docs/") or path in DOC_ROOT_FILES or authoring_guide:
             continue
         if path.startswith("web/"):
             web_changed = True
@@ -299,6 +316,15 @@ def _reverse_edges(repo: Path):
     return load_workspace(repo)[2]
 
 
+def changes_default_native_link(path: str) -> bool:
+    if not path.startswith(NATIVE_ROOTS):
+        return False
+    # Manifests and package/CI tooling already force the full matrix.
+    return (path in NATIVE_LINK_INPUTS or path.startswith(NATIVE_LINK_PREFIXES)
+            or path.split("/", 2)[-1] in {"src/main.rs", "src/lib.rs", "build.rs"}
+            or path.endswith((".c", ".cc", ".cpp", ".h", ".m", ".mm", ".rc", ".def", ".ld", ".s", ".S")))
+
+
 def selected_ids(classification: dict) -> set[str]:
     """Return stable JOB_TABLE ids needed for the classified changes."""
     selected = set(ALWAYS_IDS)
@@ -309,13 +335,18 @@ def selected_ids(classification: dict) -> set[str]:
     # Cargo/Nix/workflow roots are handled earlier as full-matrix changes.
     if seeds:
         selected.update({"fast-checks", "check-lint", "test-examples"})
+    if any(changes_default_native_link(path) for path in classification["changed_paths"]):
+        selected.add("default-native-build")
     if classification["docs_generator_changed"]:
         selected.add("check-lint")
     if classification["examples_changed"]:
         selected.update({"fast-checks", "test-examples", "render-scenes"})
     if packages & ENGINE_PACKAGES:
         selected.add("render-scenes")
-    if packages & BENCHMARK_PACKAGES:
+    # The threshold measures VM/property lookup and timeline evaluation, not
+    # post-evaluation rendering. The general graph includes dev edges and
+    # would otherwise bring renderer-only changes into the benchmark.
+    if seeds & BENCHMARK_PACKAGES:
         selected.add("benchmarks")
     if "eparts" in packages:
         selected.update({"eparts-linux", "eparts-macos", "eparts-windows"})
@@ -463,11 +494,16 @@ def make_plan_from_classification(classification: dict, event: str, base: str,
 
 def make_plan(repo: Path, event: str, base: str, head: str,
               all_jobs: list[dict], enable_pruning: bool = False, main_baseline: dict | None = None):
+    comparison_base = base
     if event == "push" and main_baseline and main_baseline.get("trusted") is True:
-        if main_baseline.get("sha") != base or main_baseline.get("head") != head:
-            main_baseline = {"trusted": False, "reason": "baseline proof does not match diff range"}
+        candidate = main_baseline.get("sha")
+        if (main_baseline.get("before") != base or main_baseline.get("head") != head
+                or not isinstance(candidate, str) or not candidate):
+            main_baseline = {"trusted": False, "reason": "baseline proof does not match push range"}
+        else:
+            comparison_base = candidate
     try:
-        changed = git_changes(repo, base, head)
+        changed = git_changes(repo, comparison_base, head)
         roots, _, reverse = load_workspace(repo)
         classification = classify_paths(changed, roots, repo, reverse)
         classification["changed_paths"] = changed
@@ -478,9 +514,10 @@ def make_plan(repo: Path, event: str, base: str, head: str,
             "package_seeds": [],
             "affected_packages": [],
         }
-    return make_plan_from_classification(
+    plan = make_plan_from_classification(
         classification, event, base, head, all_jobs, enable_pruning, main_baseline
     )
+    return {**plan, "comparison_base": comparison_base}
 
 
 def main(argv=None):

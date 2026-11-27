@@ -20,6 +20,8 @@ import urllib.request
 WORKFLOW = ".github/workflows/ci.yml"
 POLICY_PATHS = ("tools/ci", WORKFLOW)
 MAX_PAGES = 20
+MAX_ANCESTORS = 32
+MAX_CANDIDATES = 5
 MAX_RESPONSE = 8 * 1024 * 1024
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
@@ -34,11 +36,13 @@ def evidence(trusted=False, reason="unverified", **fields):
 
 
 def assess_proof(*, repository, before, head, event_name, event, checkout_ref,
-                 ancestor, policy_equal, expected_jobs, run, jobs, workflow_id, jobs_attempt):
+                 ancestor, policy_equal, expected_jobs, run, jobs, workflow_id, jobs_attempt,
+                 baseline=None):
     """Pure validation of already-fetched evidence. No external writes or IO."""
     if not isinstance(event, dict) or not isinstance(run, dict):
         return evidence(reason="malformed push/run evidence")
-    fields = {"sha": before, "head": head, "run_id": run.get("id"),
+    anchor = before if baseline is None else baseline
+    fields = {"sha": anchor, "before": before, "head": head, "run_id": run.get("id"),
               "run_attempt": run.get("run_attempt")}
     def reject(reason):
         return evidence(reason=reason, **fields)
@@ -65,7 +69,7 @@ def assess_proof(*, repository, before, head, event_name, event, checkout_ref,
         return reject("run repository mismatch")
     if type(workflow_id) is not int or run.get("path") != WORKFLOW or run.get("workflow_id") != workflow_id:
         return reject("run workflow mismatch")
-    if run.get("head_sha") != before or run.get("head_branch") != "main" or run.get("event") != "push":
+    if run.get("head_sha") != anchor or run.get("head_branch") != "main" or run.get("event") != "push":
         return reject("run is not the exact push-main baseline")
     if run.get("status") != "completed" or run.get("conclusion") != "success":
         return reject("latest baseline run is not completed successfully")
@@ -82,7 +86,7 @@ def assess_proof(*, repository, before, head, event_name, event, checkout_ref,
     for job in jobs:
         # The attempt-specific endpoint is authoritative. GitHub does not
         # promise run_attempt on every job object; check it when present.
-        if job.get("run_id") != run["id"] or job.get("run_attempt", attempt) != attempt or job.get("head_sha") != before:
+        if job.get("run_id") != run["id"] or job.get("run_attempt", attempt) != attempt or job.get("head_sha") != anchor:
             return reject("job belongs to another commit/run/attempt")
     for name in ["Plan", "CI Required", *expected_jobs]:
         matches = [job for job in jobs if job.get("name") == name]
@@ -191,11 +195,44 @@ def prove(args, get=None):
     workflow = get(prefix + "/workflows/ci.yml")
     if workflow.get("path") != WORKFLOW or type(workflow.get("id")) is not int:
         raise ProofError("workflow identity mismatch")
-    query = urllib.parse.urlencode({"head_sha": before, "event": "push", "branch": "main"})
-    runs = fetch_all(get, prefix + "/workflows/ci.yml/runs?" + query, "workflow_runs")
+    def verify(anchor):
+        result = verify_candidate(get, prefix, anchor, workflow["id"], expected, initial)
+        result["policy_digest"] = current_policy
+        return result
+
+    immediate = verify(before)
+    if immediate["trusted"]:
+        return immediate
+
+    # A selectively green tip is not proof of the skipped jobs. Instead use a
+    # fully green first-parent ancestor and revalidate the complete net diff
+    # from that SHA. The branch listing is only a bounded discovery hint.
+    ancestors = git(args.repo, "rev-list", "--first-parent", f"--max-count={MAX_ANCESTORS}", before).decode().splitlines()
+    branch_query = urllib.parse.urlencode({"event": "push", "branch": "main", "per_page": 100, "page": 1})
+    recent = get(prefix + "/workflows/ci.yml/runs?" + branch_query).get("workflow_runs")
+    if not isinstance(recent, list) or len(recent) > 100:
+        raise ProofError("malformed recent workflow runs")
+    eligible = {item.get("head_sha") for item in recent
+                if isinstance(item, dict) and isinstance(item.get("head_sha"), str)
+                and item.get("status") == "completed" and item.get("conclusion") == "success"}
+    candidates = [sha for sha in ancestors if sha != before and sha in eligible][:MAX_CANDIDATES]
+    for anchor in candidates:
+        if policy_identity(args.repo, anchor) != current_policy:
+            continue
+        result = verify(anchor)
+        if result["trusted"]:
+            return result
+    return {**immediate, "reason": immediate["reason"] + "; no proven full ancestor in bounded search"}
+
+
+def verify_candidate(get, prefix, anchor, workflow_id, expected, initial):
+    query = urllib.parse.urlencode({"head_sha": anchor, "event": "push", "branch": "main"})
+    runs_path = prefix + "/workflows/ci.yml/runs?" + query
+    runs = fetch_all(get, runs_path, "workflow_runs")
     if not runs:
-        return evidence(reason="no baseline workflow run", sha=before, head=args.head)
-    # Never select an older green run if a newer run/attempt failed or is pending.
+        return evidence(reason="no baseline workflow run", sha=anchor, before=initial["before"], head=initial["head"])
+    # Never select an older green run for this SHA if a newer run/attempt
+    # failed or is pending. A different ancestor may still be proven.
     latest = max(runs, key=lambda run: run["id"])
     run_path = prefix + f"/runs/{latest['id']}"
     run = get(run_path)
@@ -208,13 +245,12 @@ def prove(args, get=None):
     checked = get(run_path)
     if any(checked.get(key) != run.get(key) for key in ("id", "run_attempt", "status", "conclusion", "head_sha", "workflow_id", "path")):
         raise ProofError("run changed during proof")
-    refreshed = fetch_all(get, prefix + "/workflows/ci.yml/runs?" + query, "workflow_runs")
+    refreshed = fetch_all(get, runs_path, "workflow_runs")
     if not refreshed or max(item["id"] for item in refreshed) != run["id"]:
         raise ProofError("new baseline run appeared during proof")
-    result = assess_proof(**{**initial, "ancestor": True, "policy_equal": True,
-                            "expected_jobs": expected, "workflow_id": workflow["id"], "run": run, "jobs": jobs, "jobs_attempt": attempt})
-    result["policy_digest"] = current_policy
-    return result
+    return assess_proof(**{**initial, "ancestor": True, "policy_equal": True,
+                           "expected_jobs": expected, "workflow_id": workflow_id, "run": run,
+                           "jobs": jobs, "jobs_attempt": attempt, "baseline": anchor})
 
 
 def main():

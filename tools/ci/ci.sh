@@ -53,7 +53,8 @@ fmt|nix|ubuntu-latest|nix|pr
 lint|nix|ubuntu-latest|nix|pr
 check|nix|ubuntu-latest|nix|pr
 test|nix|ubuntu-latest|nix|pr
-no-video|nix|ubuntu-latest|nix|pr
+feature-contracts|nix|ubuntu-latest|nix|pr
+default-native-build|nix|ubuntu-latest|nix|pr
 renderer-dependencies|nix|ubuntu-latest|nix|pr
 render-smoke|nix|ubuntu-latest|nix|pr
 examples|nix|ubuntu-latest|nix|pr
@@ -142,7 +143,8 @@ eparts|eparts|nix|ubuntu-latest|nix|pr|eparts-linux
 eparts|eparts|native|macos-latest|rust-stable|pr|eparts-macos
 eparts|eparts|native|windows-latest|rust-stable|pr|eparts-windows
 Security Audit|audit|nix|ubuntu-latest|nix|pr|security-audit
-Check & Lint|renderer-dependencies scene-audit budget-audit canonical-audit check lint doc no-video|nix|ubuntu-latest|nix|pr|check-lint
+Check & Lint|renderer-dependencies scene-audit budget-audit canonical-audit check lint doc feature-contracts|nix|ubuntu-latest|nix|pr|check-lint
+Default Native Build|default-native-build|nix|ubuntu-latest|nix|pr|default-native-build
 Test & Examples|test examples|nix|ubuntu-latest|nix|pr|test-examples
 Render Smoke & Scenes|render-smoke|nix|ubuntu-latest|nix|pr|render-scenes
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr|benchmarks
@@ -256,19 +258,20 @@ measure_phase() {
   python3 "$root/tools/ci/phase-timing.py" --gate "$gate" --phase "$phase" --kind "$kind" -- "$@"
 }
 
-gate_no_video() {
+gate_default_native_build() {
   want_cargo
-  # The `video` feature must stay truly opt-in. This gate runs in the nix dev
-  # shell, which ships FFmpeg, so "it built without FFmpeg present" cannot be
-  # demonstrated here — the old comment claimed exactly that and was false.
-  # Build the default user-facing binaries, run the engine with every optional
-  # feature off, and inspect the resolved feature graph: rsmpeg is pulled in
-  # only by animatix-render/video, so its presence means a default build turned
-  # video on. The minimal engine must also exclude rich-text and GPU renderers.
-  measure_phase no-video default-binaries cargo cargo build -p animatix-cli -p animatix-gui
-  measure_phase no-video minimal-engine cargo cargo check -p animatix --no-default-features
+  # Link the default CLI and GUI together as a standalone package selection,
+  # not as workspace test harnesses. The Nix shell itself still ships FFmpeg.
+  measure_phase default-native-build default-binaries cargo cargo build -p animatix-cli -p animatix-gui
+}
+
+gate_feature_contracts() {
+  want_cargo
+  # Keep the cheap feature checks with ordinary native validation. FFmpeg in
+  # the dev shell is not proof that the default Cargo graph leaves video off.
+  measure_phase feature-contracts minimal-engine cargo cargo check -p animatix --no-default-features
   local pkg tree
-  tree=$(measure_phase no-video minimal-dependency-graph cargo cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
+  tree=$(measure_phase feature-contracts minimal-dependency-graph cargo cargo tree -p animatix --no-default-features -e normal --prefix none --format '{p}')
   if grep -Eq '^(typst([_-][[:alnum:]_-]+)?|syntect) v' <<<"$tree"; then
     echo "error: minimal engine dependencies include the rich-text stack" >&2
     return 1
@@ -278,7 +281,7 @@ gate_no_video() {
     return 1
   fi
   for pkg in animatix-cli animatix-gui; do
-    if ! tree="$(measure_phase no-video "$pkg-feature-graph" cargo cargo tree -e features -p "$pkg" 2>/dev/null)"; then
+    if ! tree="$(measure_phase feature-contracts "$pkg-feature-graph" cargo cargo tree -e features -p "$pkg" 2>/dev/null)"; then
       echo "error: cargo tree failed for $pkg; cannot verify the video feature is off" >&2
       return 1
     fi
@@ -287,7 +290,7 @@ gate_no_video() {
       return 1
     fi
   done
-  echo "no-video: minimal engine excludes rich text; default CLI/GUI exclude rsmpeg (video)"
+  echo "feature-contracts: minimal engine excludes rich text and GPU; default CLI/GUI exclude rsmpeg (video)"
 }
 
 gate_canonical_audit() {

@@ -1,13 +1,15 @@
 # Measuring CI before changing it
 
-The original instrumentation baseline retained gate names, commands, feature
-sets, shell selection and the **Check & Lint** order below. The current explicit
-gate-list dispatcher can combine the adjacent scene/budget pair as described
-below; this is an optimization beyond that no-op baseline:
+The current **Check & Lint** job runs these phases in order. The adjacent
+scene/budget pair shares work as described below:
 
 ```text
-audit → scene-audit → budget-audit → canonical-audit → check → lint → doc → no-video
+renderer-dependencies → scene-audit → budget-audit → canonical-audit → check → lint → doc → feature-contracts
 ```
+
+Security auditing and full default CLI/GUI linking are separate matrix jobs.
+The latter runs for native entry/build/export changes and always in the full
+matrix. It does not serialize routine checks.
 
 A timing change is instrumentation, not evidence of a speedup. Gate totals,
 subcommand phases and runner preparation answer different questions; report them
@@ -23,7 +25,8 @@ do not add both together. Failed or interrupted runs are not successful samples.
 | scene-audit | `build-cli` (cargo); `audit-corpus` (execution) | The corpus phase includes enumeration, worker startup and validation, not only engine execution. |
 | budget-audit | `build-cli` (cargo); `check-budget` (execution) | Standalone calls retain their own build, even on a cache hit. The adjacent union records shared work instead. |
 | scene-budget-audit | `build-cli` (cargo); `audit-corpus` (execution) | Shared scene/budget union, never two invented independent gate durations. |
-| no-video | `default-binaries`; `minimal-engine`; `minimal-dependency-graph`; `animatix-cli-feature-graph`; `animatix-gui-feature-graph` (all cargo) | Keep default and no-default-feature operations distinct. A working FFmpeg-equipped Nix environment does not prove FFmpeg-free compilation. |
+| feature-contracts | `minimal-engine`; `minimal-dependency-graph`; `animatix-cli-feature-graph`; `animatix-gui-feature-graph` (all cargo) | Check the minimal engine and default feature graph without linking the GUI. |
+| default-native-build | `default-binaries` (cargo) | Link CLI and GUI with default features. A working FFmpeg-equipped Nix environment does not prove FFmpeg-free compilation. |
 | doc | `rustdoc` (cargo); `property-reference` (mixed) | `cargo run -p animatix --example property_reference -- --check` includes build **and** execution. Do not label it execution-only or invent a split. |
 
 The phase wrapper interface is:
@@ -111,7 +114,7 @@ parallelism, runner image, toolchain, Cargo profile and flags fixed. Record the
 commit, machine facts, experiment order and cache provenance beside the timing
 files. Do not use the developer's active workspace or competing builds.
 
-Baseline A is the order above. A small **candidate**, not a CI change, is B with
+Baseline A is the Check & Lint order above. A small **candidate**, not a CI change, is B with
 only `check` and `lint` exchanged. It tests whether their shared incremental work
 or earlier diagnostic failures alter total time. Keep every original gate and
 argument; never replace the two operations with a broader command or omit a
@@ -120,12 +123,18 @@ successful gate. Run the full sequence, not just the apparently faster step:
 ```bash
 # A; run from a clean shell at the repository root.
 nix develop --command tools/ci/ci.sh gate \
-  audit scene-audit budget-audit check lint doc no-video
+  renderer-dependencies scene-audit budget-audit canonical-audit check lint doc feature-contracts
 
 # B; local experiment only, not the registered CI order.
 nix develop --command tools/ci/ci.sh gate \
-  audit scene-audit budget-audit lint check doc no-video
+  renderer-dependencies scene-audit budget-audit canonical-audit lint check doc feature-contracts
 ```
+
+Older evidence grouped both native checks under `no-video`. For equivalent
+comparisons, match its individual phase records to the new jobs. Report the
+longest parallel path separately from the sum of runner times. For snapshot
+comparisons across the gate rename, use repeated `--gate` options to name the
+gates common to both commits.
 
 Before each trial, restore the **same** target/cache seed to the **same** paths.
 The gates currently execute the CLI under `target/debug`, so do not assume an

@@ -4,6 +4,8 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import tempfile
+from urllib.parse import parse_qs, urlsplit
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -133,6 +135,73 @@ class ProofTests(unittest.TestCase):
                 result = b.prove(args, forbidden)
                 self.assertFalse(result["trusted"])
                 self.assertIn("policy differs", result["reason"])
+
+    def test_walks_first_parent_after_selective_or_pending_push(self):
+        anchor, side = "c" * 40, "d" * 40
+        f = fixture()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "event.json"
+            path.write_text(json.dumps(f["event"]))
+            args = SimpleNamespace(repo=Path(temporary), event_file=str(path), repository=REPO,
+                                   head=HEAD, event="push", checkout_ref="")
+
+            def git(_repo, *cmd):
+                if cmd[0] == "rev-parse":
+                    return HEAD.encode()
+                if cmd[0] == "rev-list":
+                    self.assertIn("--first-parent", cmd)
+                    self.assertIn(f"--max-count={b.MAX_ANCESTORS}", cmd)
+                    return f"{BEFORE}\n{anchor}\n".encode()
+                return b""
+
+            for outcome in ("selective", "pending", "older-policy", "older-selective", "older-attempt"):
+                checked = []
+                def get(path):
+                    parsed = urlsplit(path)
+                    query = parse_qs(parsed.query)
+                    if parsed.path.endswith("/workflows/ci.yml"):
+                        return {"id": 10, "path": b.WORKFLOW}
+                    if parsed.path.endswith("/workflows/ci.yml/runs"):
+                        if "head_sha" not in query:
+                            return {"workflow_runs": [
+                                {"id": 300, "head_sha": side, "status": "completed", "conclusion": "success"},
+                                {"id": 100, "head_sha": anchor, "status": "completed", "conclusion": "success"},
+                            ]}
+                        sha = query["head_sha"][0]
+                        checked.append(sha)
+                        ident = {BEFORE: 200, anchor: 100}[sha]
+                        return {"total_count": 1, "workflow_runs": [{"id": ident}]}
+                    if parsed.path.endswith("/runs/200"):
+                        return {**f["run"], **({"status": "in_progress", "conclusion": None}
+                                               if outcome == "pending" else {})}
+                    if parsed.path.endswith("/runs/100"):
+                        return {**f["run"], "id": 100, "head_sha": anchor}
+                    if "/runs/200/attempts/2/jobs" in parsed.path:
+                        jobs = f["jobs"][:-1]
+                    elif "/runs/100/attempts/2/jobs" in parsed.path:
+                        jobs = [{**job, "run_id": 100, "head_sha": anchor,
+                                 "run_attempt": 1 if outcome == "older-attempt" else 2}
+                                for job in f["jobs"]]
+                        if outcome == "older-selective":
+                            jobs.pop()
+                    else:
+                        self.fail(path)
+                    return {"total_count": len(jobs), "jobs": jobs}
+
+                def policy(_repo, sha):
+                    return "old" if sha == anchor and outcome == "older-policy" else "current"
+
+                with self.subTest(outcome=outcome), patch.object(b, "git", side_effect=git), \
+                     patch.object(b, "policy_identity", side_effect=policy), \
+                     patch.object(b.subprocess, "check_output", return_value=json.dumps(
+                         {"include": [{"name": name} for name in f["expected_jobs"]]}).encode()):
+                    proof = b.prove(args, get)
+                    self.assertEqual(proof["trusted"], outcome in ("selective", "pending"))
+                    self.assertNotIn(side, checked)
+                    if outcome == "older-policy":
+                        self.assertNotIn(anchor, checked)
+                    if proof["trusted"]:
+                        self.assertEqual((proof["sha"], proof["before"], proof["head"]), (anchor, BEFORE, HEAD))
 
     def test_fetches_latest_run_and_attempt_and_rechecks_race(self):
         import tempfile

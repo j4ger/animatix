@@ -17,7 +17,7 @@ SPEC.loader.exec_module(PLAN)
 JOB_IDS = [
     "fast-checks", "doc-links", "eparts-linux", "eparts-macos",
     "eparts-windows", "security-audit", "check-lint", "test-examples", "render-scenes",
-    "benchmarks", "web-check", "web-build",
+    "benchmarks", "web-check", "web-build", "default-native-build",
 ]
 
 
@@ -263,6 +263,7 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(set(PLAN.git_changes(self.repo, base, "HEAD")), {
             "crates/animatix-gui/src/old.rs", "crates/animatix-web/src/moved.rs", "docs/deleted.md",
         })
+        previous_tip = git("rev-parse", "HEAD")
         # A direct push can contain several commits; do not inspect HEAD~1 only.
         (self.repo / "README.md").write_text("second commit\n")
         git("add", "README.md")
@@ -271,13 +272,64 @@ class PlannerTests(unittest.TestCase):
             "crates/animatix-gui/src/old.rs", "crates/animatix-web/src/moved.rs", "docs/deleted.md", "README.md",
         })
         head = git("rev-parse", "HEAD")
-        plan = PLAN.make_plan(self.repo, "push", base, head, self.jobs, True, {"trusted": True, "sha": base, "head": head})
+        plan = PLAN.make_plan(self.repo, "push", previous_tip, head, self.jobs, True,
+                              {"trusted": True, "before": previous_tip, "sha": base, "head": head})
+        self.assertEqual(plan["base"], previous_tip)
+        self.assertEqual(plan["comparison_base"], base)
         self.assertIn("check-lint", plan["job_ids"])
         self.assertIn("web-build", plan["job_ids"])
         self.assertFalse(plan["force_full"])
         mismatched = PLAN.make_plan(self.repo, "push", base, head, self.jobs, True,
-                                    {"trusted": True, "sha": "wrong", "head": head})
+                                    {"trusted": True, "before": base, "sha": "wrong", "head": head})
         self.assertTrue(mismatched["force_full"])
+
+    def test_default_native_link_selection_and_release_fallback(self):
+        for path in (
+            "crates/animatix-gui/src/main.rs", "crates/animatix-gui/build.rs",
+            "crates/animatix-gui/assets/windows.rc",
+            "crates/animatix-gui/src/app/shell/export_dialog/actions.rs",
+            "crates/animatix-cli/src/commands/render.rs",
+            "crates/animatix-render/src/encode/video.rs", "Cargo.lock", "flake.nix",
+        ):
+            with self.subTest(path=path):
+                self.assertIn("default-native-build", self.plan([path])[1]["job_ids"])
+        plan = self.plan(["crates/animatix-gui/src/editor.rs"])[1]
+        self.assertNotIn("default-native-build", plan["job_ids"])
+        self.assertTrue({"check-lint", "test-examples"} <= set(plan["job_ids"]))
+        for event in ("workflow_call", "push"):
+            self.assertIn("default-native-build", self.plan(["README.md"], event=event)[1]["job_ids"])
+
+    def test_benchmark_depends_on_measured_inputs_not_reverse_dev_edges(self):
+        # A renderer dev dependency creates a reverse edge to the engine.
+        write_package(self.repo, "crates/animatix-render", "animatix-render", {"animatix": "animatix"})
+        manifest = self.repo / "Cargo.toml"
+        manifest.write_text(manifest.read_text().replace('  "crates/animatix",',
+            '  "crates/animatix",\n  "crates/animatix-render",'))
+        engine = self.repo / "crates/animatix/Cargo.toml"
+        engine.write_text(engine.read_text() +
+                          '\n[dev-dependencies]\nanimatix-render = { path = "../animatix-render" }\n')
+        self.roots, _, self.reverse = PLAN.load_workspace(self.repo)
+        for path, benchmark in (
+            ("crates/animatix-render/src/transition.rs", False),
+            ("crates/animatix-gui/src/editor.rs", False),
+            ("crates/animatix/src/timeline/evaluate.rs", True),
+            ("crates/animatix-core/src/lib.rs", True),
+            ("crates/animatix/benches/vm.rs", True),
+            ("tools/quality/extension-bench.sh", True),
+            ("Cargo.lock", True),
+        ):
+            with self.subTest(path=path):
+                _, plan = self.plan([path])
+                self.assertEqual("benchmarks" in plan["job_ids"], benchmark)
+                if path.startswith("crates/animatix-render/"):
+                    self.assertTrue({"render-scenes", "test-examples", "web-build"} <= set(plan["job_ids"]))
+
+    def test_authoring_markdown_does_not_force_full_or_hide_executables(self):
+        _, plan = self.plan([".agents/skills/animatix-explainer/assets/scene-card.md"])
+        self.assertEqual(plan["job_ids"], ["doc-links"])
+        for path in (".agents/skills/animatix-explainer/evaluate.py", ".agents/skills/unknown/guide.md"):
+            with self.subTest(path=path):
+                self.assertTrue(self.plan([path])[1]["force_full"])
 
     def test_diff_failure_falls_back_to_the_complete_registry(self):
         with patch.object(PLAN, "git_changes", side_effect=PLAN.PlanError("diff failed")):

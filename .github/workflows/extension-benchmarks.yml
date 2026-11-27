@@ -1,0 +1,45 @@
+name: Extension Benchmarks
+
+# Scheduled health evidence, independent of the distributable Nightly.
+on:
+  schedule:
+    - cron: '25 3 * * 2,5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NIX_CONFIG: |
+        fallback = true
+        extra-substituters = https://cache.nixos.org/
+      ANIMATIX_GATE_TIMINGS: target/ci/timings.jsonl
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - uses: cachix/cachix-action@v17
+        with:
+          name: animatix
+          extraPullNames: nix-community
+          skipPush: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: nix
+      - name: Measure extension health
+        run: nix develop --command tools/ci/ci.sh gate ext-bench
+      - name: Retain extension health evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-health-${{ github.run_attempt }}
+          path: |
+            target/ci/ext-bench.*/evidence/
+            target/ci/timings.jsonl
+          if-no-files-found: warn
+          retention-days: 14

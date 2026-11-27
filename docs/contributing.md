@@ -214,9 +214,17 @@ Run formatting and the gates affected by your change before committing. A
 single-crate check is not evidence that the GUI, analyzer, LSP or wasm build
 passes. Public API doc comments are required by the affected crates' lint rules.
 
-The `no-video` gate also checks the minimal engine's normal dependency graph:
-disabling all optional features must exclude Typst and syntax-highlighting
-dependencies. Rich text enters through `animatix-text/rich-text` only.
+The `feature-contracts` gate stays in **Check & Lint**. It checks that the
+minimal engine compiles without optional features, that its normal dependency
+graph excludes rich text and GPU renderers, and that the default CLI and GUI
+graphs exclude `rsmpeg`. Rich text enters through `animatix-text/rich-text` only.
+
+The separate `default-native-build` gate links the default CLI and GUI binaries.
+Selective CI runs it for native entry points, build scripts, linker inputs and
+the export/video boundary. Manifests, lockfiles, packaging/toolchain changes,
+uncertain plans and reusable release validation still run the full matrix.
+Ordinary editor changes still run workspace checks and tests. Neither check
+claims compilation in an environment with FFmpeg uninstalled.
 
 | Change | Additional validation |
 | --- | --- |
@@ -249,14 +257,25 @@ uses workspace path dependencies conservatively, including optional, build and
 dev dependencies. Unknown inputs or unavailable base commits select every job;
 release/reusable callers always use the full matrix. Main pushes may use the
 same dependency selection only after a read-only Actions API proof establishes
-that the previous tip passed the complete matrix in this same CI workflow.
-The previous tip must be an ancestor, and CI policy files must be unchanged.
-Force pushes, missing/incomplete/failed/cancelled evidence, unknown paths and
-API failures fall back to full coverage. A selective previous run is not used
-as a full baseline: this first phase deliberately does not infer a transitive
-chain of coverage. Main always retains Web Build, producing a fresh same-run
+that a first-parent ancestor passed the complete matrix in this same CI
+workflow. The previous tip is tried first. If its run was selective, pending
+or otherwise incomplete, the planner searches a bounded recent history for a
+fully validated ancestor under the same CI policy. It then classifies the
+entire net diff from that ancestor to the current head, not just the last push.
+It does not infer coverage from a chain of selectively green runs. Force pushes,
+policy changes, missing proof, unknown paths and API failures still fall back
+to full coverage. Main always retains Web Build, producing a fresh same-run
 SDK; `publish_web` only permits the existing main-push signer, never PR or
 release/reusable runs. No cross-run SDK substitution is introduced.
+
+The extension benchmark measures VM/property lookup and timeline evaluation.
+Selective CI blocks on it for engine, shared engine input and extension package
+changes; a post-evaluation renderer-only change still runs correctness and
+render checks, not this timing threshold. Full/release validation still runs the
+benchmark. The independent **Extension Benchmarks** workflow also records the
+same health check on a schedule and by manual dispatch, without publishing a
+package or blocking the native Nightly. Workspace correctness tests remain
+part of ordinary code CI.
 
 PR selection starts in
 selective mode after the twelve representative shadow cases recorded in
