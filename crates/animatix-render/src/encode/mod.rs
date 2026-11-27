@@ -41,7 +41,8 @@ pub use gif::{
 };
 #[cfg(feature = "raster-encode")]
 pub use image::{
-    render_image_composition, render_image_timeline, render_image_timeline_with_options,
+    render_image_composition, render_image_composition_with_grayscale, render_image_timeline,
+    render_image_timeline_with_options, render_image_timeline_with_options_and_grayscale,
 };
 #[cfg(feature = "raster-encode")]
 pub use storyboard::{

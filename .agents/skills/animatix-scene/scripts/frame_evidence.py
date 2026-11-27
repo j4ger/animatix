@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 MAX_FRAMES = 600
+PNG_END_CHUNK = b"\x00\x00\x00\x00IEND\xae\x42\x60\x82"
 
 
 def read(path):
@@ -26,6 +27,31 @@ def sha(path):
         for block in iter(lambda: f.read(1048576), b""):
             h.update(block)
     return h.hexdigest()
+
+
+def check_png(path):
+    try:
+        from PIL import Image
+    except ImportError as error:
+        raise ValueError("PNG checks require Pillow (python3 -m pip install Pillow)") from error
+
+    try:
+        with path.open("rb") as stream:
+            # Pillow verifies chunks up to IEND but skips its length and CRC.
+            end = stream.seek(0, 2)
+            stream.seek(max(0, end - len(PNG_END_CHUNK)))
+            if stream.read() != PNG_END_CHUNK:
+                raise ValueError("missing or damaged PNG end chunk")
+            stream.seek(0)
+            with Image.open(stream, formats=["PNG"]) as png:
+                png.verify()
+        # verify() checks the container. Reopen to decode the pixel data.
+        with Image.open(path, formats=["PNG"]) as png:
+            for index in range(png.n_frames):
+                png.seek(index)
+                png.load()
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as error:
+        raise ValueError(f"Invalid PNG {path.name}: {error}") from error
 
 
 def samples(plan):
@@ -90,9 +116,7 @@ def capture(a):
         raise ValueError("Inputs or expectations changed during capture; discard this run")
     for i, row in enumerate(rows):
         raw = a.output / f"f{i:03}.png"
-        with raw.open("rb") as f:
-            if f.read(8) != b"\x89PNG\r\n\x1a\n":
-                raise ValueError(f"Runner output is not PNG: {raw.name}")
+        check_png(raw)
         img = raw.rename(a.output / row["file"])
         row["sha256"] = sha(img)
     write(a.output / "receipt.json", dict(
@@ -118,8 +142,10 @@ def verify(a):
     for requested, observed in zip(rows, saved):
         if any(observed.get(k) != v for k, v in requested.items()):
             raise ValueError("Receipt doesn't map to the locked frame numbers")
-        if sha(a.output / requested["file"]) != observed["sha256"]:
+        image = a.output / requested["file"]
+        if sha(image) != observed["sha256"]:
             raise ValueError(f"Image changed: {requested['file']}")
+        check_png(image)
     print(f"Verified {len(rows)} current samples and their receipt; no visual verdict inferred.")
 
 
