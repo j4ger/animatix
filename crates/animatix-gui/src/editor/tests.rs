@@ -533,3 +533,126 @@ fn local_timeline_headers_and_multiline_keyframe_segments_do_not_split_cells() {
     );
     assert_eq!(layout.cells.iter().map(|c| c.start + 1).collect::<Vec<_>>(), [1, 5, 8]);
 }
+
+#[test]
+fn soft_wrap_resize_preserves_the_visible_source_character_not_the_caret() {
+    use egui::Shape;
+    use egui::epaint::TextShape;
+    use egui::text::CCursor;
+
+    fn paint_at(
+        editor: &mut EditorBuffer,
+        ctx: &Context,
+        width: f32,
+        time: &mut f64,
+    ) -> (TextShape, f32) {
+        *time += 0.1;
+        let rendered = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 420.0))),
+                time: Some(*time),
+                ..Default::default()
+            },
+            |ui| {
+                editor.show(ui);
+            },
+        );
+        rendered
+            .shapes
+            .into_iter()
+            .find_map(|clipped| match clipped.shape {
+                Shape::Text(text) if text.galley.job.text == editor.text() => {
+                    Some((text, clipped.clip_rect.top()))
+                },
+                _ => None,
+            })
+            .expect("painted source buffer")
+    }
+
+    let ctx = Context::default();
+    let mut time = 0.0;
+    let source: String = (0..160)
+        .map(|i| {
+            format!(
+                "// {i:03} {}\n",
+                if i == 80 {
+                    "测试 😀 wrapped words ".repeat(24)
+                } else {
+                    "short".to_owned()
+                },
+            )
+        })
+        .collect();
+    let mut editor = EditorBuffer::new(Path::new("reflow.amx"), source.clone());
+    let _ = show(&mut editor, &ctx, vec![], true);
+    set_cursor(&ctx, editor.text_edit_id, 2);
+    let (narrow, viewport) = paint_at(&mut editor, &ctx, 470.0, &mut time);
+    // Scroll enough to start at a soft-wrapped continuation row, not a new
+    // logical line. Use the real galley for the fixture's target.
+    let long_line_start =
+        source.split_inclusive('\n').take(80).map(|s| s.chars().count()).sum::<usize>();
+    let continuation = long_line_start + 110;
+    let target = narrow.galley.pos_from_cursor(CCursor::new(continuation)).top();
+    let scroll_delta = target - (viewport - narrow.pos.y) + 2.0;
+    ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(470.0, 420.0))),
+            time: Some(time + 0.1),
+            events: vec![
+                Event::PointerMoved(Pos2::new(160.0, 100.0)),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: Vec2::new(0.0, -scroll_delta),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Wheel,
+                    modifiers: Modifiers::NONE,
+                },
+            ],
+            ..Default::default()
+        },
+        |ui| {
+            editor.show(ui);
+        },
+    )
+    .drop_without_applying_deltas();
+    time += 0.1;
+    let mut narrow = None;
+    for _ in 0..30 {
+        narrow = Some(paint_at(&mut editor, &ctx, 470.0, &mut time));
+    }
+    let (narrow, _) = narrow.unwrap();
+    let anchor = editor.viewport_position.as_ref().unwrap().anchor;
+    let anchor_char = anchor.char_index();
+    assert!(
+        anchor_char > long_line_start && anchor_char < long_line_start + 400,
+        "test must start inside the continuation, got {anchor_char} (start {long_line_start})"
+    );
+    assert!(narrow.galley.pos_from_cursor(CCursor::new(anchor_char)).top() > 500.0);
+
+    for width in [350.0, 610.0, 420.0, 470.0] {
+        // Check the first presented frame, not just the settled state: a
+        // splitter drag must not flash a different region of the document.
+        let (text, viewport) = paint_at(&mut editor, &ctx, width, &mut time);
+        let expected = text.pos.y + anchor.top(&text.galley);
+        assert!(
+            (viewport - expected).abs() < 2.0,
+            "width {width}: viewport top {viewport}, expected {expected}, char {anchor_char}"
+        );
+        assert_eq!(editor.viewport_position.as_ref().unwrap().anchor.char_index(), anchor_char);
+    }
+    let state = egui::text_edit::TextEditState::load(&ctx, editor.text_edit_id).unwrap();
+    assert_eq!(state.cursor.char_range().unwrap().primary.index.0, 2);
+    assert_eq!(editor.text(), source);
+
+    editor.scroll_to_line(120);
+    for _ in 0..12 {
+        let _ = paint_at(&mut editor, &ctx, 350.0, &mut time);
+    }
+    let explicit = editor.viewport_position.as_ref().unwrap().anchor.char_index();
+    assert!(explicit > long_line_start + 400, "explicit jump must beat resize anchoring");
+
+    editor.set_document(Path::new("new.amx"), source);
+    assert!(editor.viewport_position.is_none());
+    let _ = paint_at(&mut editor, &ctx, 610.0, &mut time);
+    assert!(editor.viewport_position.as_ref().unwrap().scroll_y.abs() < 1.0);
+}

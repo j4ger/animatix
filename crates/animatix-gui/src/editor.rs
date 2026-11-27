@@ -24,6 +24,7 @@ pub(crate) mod narration;
 pub(crate) mod source_patch;
 #[cfg(test)]
 mod tests;
+mod viewport;
 
 pub(crate) use cell_view::CellPlayback;
 
@@ -57,6 +58,7 @@ pub struct EditorBuffer {
     text_edit_id: Id,
     retired_state_ids: Vec<(Id, Option<Id>)>,
     current_scroll_area_id: Option<Id>,
+    viewport_position: Option<viewport::Position>,
 }
 
 impl EditorBuffer {
@@ -88,6 +90,7 @@ impl EditorBuffer {
             text_edit_id,
             retired_state_ids: Vec::new(),
             current_scroll_area_id: None,
+            viewport_position: None,
         }
     }
 
@@ -246,6 +249,7 @@ impl EditorBuffer {
                 cell_view::navigate_headers(ui, &mut edit_state, &self.text, &cached_layout.cells)
                     .or(pending_line);
         }
+        let prior_cursor = edit_state.cursor.char_range();
         edit_state.store(ui.ctx(), edit_id);
 
         let available = ui.available_size_before_wrap();
@@ -258,9 +262,14 @@ impl EditorBuffer {
         } else {
             (max_line_chars as f32 * char_width + 12.0).max(viewport_width)
         };
-        let scroll = ScrollArea::both().id_salt(scroll_salt).auto_shrink([false, false]).show(
-            ui,
-            |scroll_ui| {
+        let mut reflow =
+            viewport::Reflow::new(self.viewport_position.take(), ui, available.x, wrap);
+        let navigating = pending_line.is_some() || pending_cursor.is_some();
+        let scroll = ScrollArea::both()
+            .id_salt(scroll_salt)
+            .auto_shrink([false, false])
+            .animated(!reflow.resizing || navigating)
+            .show_viewport(ui, |scroll_ui, viewport| {
                 let background = scroll_ui.painter().add(egui::Shape::Noop);
                 let left = scroll_ui.next_widget_position().x;
                 let frame = egui::Frame::NONE.inner_margin(egui::Margin {
@@ -339,14 +348,25 @@ impl EditorBuffer {
                                 ),
                                 Some(Align::Center),
                             );
+                        } else if !navigating
+                            && self.text == cache_source
+                            && (!output.response.response.has_focus()
+                                || prior_cursor == output.cursor_range)
+                        {
+                            reflow.restore(edit_ui, &output, viewport.min.y);
                         }
-                        output
+                        (output, viewport.min.y)
                     })
                     .inner
-            },
-        );
+            });
         self.current_scroll_area_id = Some(scroll.id);
-        let mut output = scroll.inner;
+        let (mut output, drawn_scroll_y) = scroll.inner;
+        self.viewport_position = Some(reflow.finish(
+            &output,
+            drawn_scroll_y,
+            scroll.state.unclamped_offset().y,
+            navigating,
+        ));
         let mut response = output.response.response.clone();
         let source_changed = response.changed() || self.text != cache_source;
         if source_changed && (cache_source.contains("///") || self.text.contains("///")) {
@@ -399,6 +419,7 @@ impl EditorBuffer {
 
     pub(super) fn after_source_replaced(&mut self) {
         self.source_revision = self.source_revision.wrapping_add(1);
+        self.viewport_position = None;
         self.defer_analysis();
         self.completion_anchor = None;
         self.completion_auto_armed = None;
@@ -517,6 +538,7 @@ impl EditorBuffer {
     }
 
     fn reset_ephemeral_state(&mut self) {
+        self.viewport_position = None;
         self.narration.reset_widgets();
         self.completion.hide();
         self.completion_anchor = None;

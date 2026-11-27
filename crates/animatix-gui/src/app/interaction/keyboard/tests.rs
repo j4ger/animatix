@@ -236,6 +236,38 @@ fn saved_shortcut_roundtrips_through_egui_shortcut() {
 }
 
 #[test]
+fn every_default_shortcut_roundtrips_and_has_a_platform_hint() {
+    let registry = ShortcutRegistry::new();
+    let ctx = egui::Context::default();
+    for name in registry.names() {
+        for shortcut in registry.shortcuts_for_name(&name) {
+            let saved = SavedShortcut::from_shortcut(shortcut);
+            assert_eq!(saved.to_shortcut().as_ref(), Some(shortcut), "{name}");
+            assert!(!saved.display_with(&ctx).is_empty(), "{name}");
+        }
+    }
+}
+
+#[test]
+fn presentation_keys_can_be_captured_and_rebound() {
+    let registry = ShortcutRegistry::new();
+    for (name, key, stable_key) in [
+        ("Step Next", Key::PageDown, "PageDown"),
+        ("Step Previous", Key::PageUp, "PageUp"),
+        ("Toggle Presentation Mode", Key::F5, "F5"),
+    ] {
+        assert_eq!(registry.current_saved(name).unwrap().key, stable_key);
+        let saved = saved_shortcut_from_key(key, Modifiers::ALT).expect("capture");
+        assert_eq!(saved.key, stable_key);
+        let overrides = std::collections::BTreeMap::from([(name.to_owned(), saved.clone())]);
+        assert_eq!(
+            ShortcutRegistry::with_overrides(&overrides).unwrap().current_saved(name),
+            Some(saved)
+        );
+    }
+}
+
+#[test]
 fn overrides_replace_binding_and_are_reported_as_current() {
     let mut overrides = std::collections::BTreeMap::new();
     overrides.insert(

@@ -182,38 +182,59 @@ impl GuiShell {
 
     fn settings_groups(&mut self, ui: &mut Ui, jump: Option<Section>) -> Option<Section> {
         let mut active = Section::Appearance;
-        egui::ScrollArea::vertical()
-            .id_salt("settings_page_rows")
-            .auto_shrink([false, false])
-            .animated(false)
-            .show_viewport(ui, |ui, viewport| {
-                let visible_top = ui.min_rect().top() + viewport.top();
-                ui.spacing_mut().item_spacing.y = 0.0;
-                for choice in Section::ALL {
-                    if choice != Section::Appearance {
-                        ui.add_space(31.0);
-                    }
-                    let heading =
-                        ui.label(RichText::new(choice.title(ui)).font(TextRole::Heading.font_id()));
-                    if jump == Some(choice) {
-                        heading.scroll_to_me(Some(Align::Min));
-                    }
-                    if heading.rect.top() <= visible_top + 24.0 {
-                        active = choice;
-                    }
-                    ui.add_space(10.0);
-                    match choice {
-                        Section::Appearance => self.settings_appearance_section(ui),
-                        Section::Editor => self.settings_editor_section(ui),
-                        Section::Timeline => self.settings_preview_section(ui),
-                        Section::Recovery => self.settings_autosave_section(ui),
-                        Section::Shortcuts => self.settings_shortcuts_section(ui),
-                    }
+        settings_scroll(ui, |ui, viewport| {
+            let visible_top = ui.min_rect().top() + viewport.top();
+            ui.spacing_mut().item_spacing.y = 0.0;
+            for choice in Section::ALL {
+                if choice != Section::Appearance {
+                    ui.add_space(31.0);
                 }
-                ui.add_space(18.0);
-            });
+                let heading =
+                    ui.label(RichText::new(choice.title(ui)).font(TextRole::Heading.font_id()));
+                if jump == Some(choice) {
+                    heading.scroll_to_me(Some(Align::Min));
+                }
+                if heading.rect.top() <= visible_top + 24.0 {
+                    active = choice;
+                }
+                ui.add_space(10.0);
+                match choice {
+                    Section::Appearance => self.settings_appearance_section(ui),
+                    Section::Editor => self.settings_editor_section(ui),
+                    Section::Timeline => self.settings_preview_section(ui),
+                    Section::Recovery => self.settings_autosave_section(ui),
+                    Section::Shortcuts => self.settings_shortcuts_section(ui),
+                }
+            }
+            ui.add_space(18.0);
+        });
         jump.or(Some(active))
     }
+}
+
+const SETTINGS_SCROLL_GAP: f32 = 8.0;
+const SETTINGS_SCROLL_BAR_WIDTH: f32 = 6.0;
+
+fn settings_scroll<R>(
+    ui: &mut Ui,
+    content: impl FnOnce(&mut Ui, Rect) -> R,
+) -> egui::scroll_area::ScrollAreaOutput<R> {
+    ui.scope(|ui| {
+        // The form aligns controls to its right edge, so its scrollbar must
+        // have its own column at every width. Leave other panes' style alone.
+        let scroll = &mut ui.style_mut().spacing.scroll;
+        scroll.floating = false;
+        scroll.foreground_color = false;
+        scroll.bar_width = SETTINGS_SCROLL_BAR_WIDTH;
+        scroll.bar_inner_margin = SETTINGS_SCROLL_GAP;
+        egui::ScrollArea::vertical()
+            .id_salt("settings_page_rows")
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+            .auto_shrink([false, false])
+            .animated(false)
+            .show_viewport(ui, content)
+    })
+    .inner
 }
 
 pub(super) fn row(
@@ -297,6 +318,37 @@ mod tests {
             let mut output = ctx.run_ui(Default::default(), |ui| {
                 assert_eq!(Section::ALL[2], Section::Timeline);
                 assert_eq!(Section::Timeline.title(ui), expected);
+            });
+            output.textures_delta.clear();
+        }
+    }
+
+    #[test]
+    fn settings_scroll_reserves_a_trailing_gutter_without_restyling_other_panes() {
+        for width in [360.0, 760.0] {
+            let ctx = egui::Context::default();
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(width, 250.0))),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                let outer_right = ui.available_rect_before_wrap().right();
+                let original = ui.spacing().scroll;
+                let result = settings_scroll(ui, |ui, _| {
+                    assert!(!ui.spacing().scroll.floating);
+                    let mut control = Rect::NOTHING;
+                    row_labels(ui, "switch", "Reduce motion", None, |ui| {
+                        control = ui.allocate_exact_size(vec2(36.0, 20.0), Sense::hover()).0;
+                    });
+                    ui.add_space(500.0);
+                    control
+                });
+                let reserved = outer_right - result.inner.right();
+                assert!(
+                    reserved >= SETTINGS_SCROLL_BAR_WIDTH + SETTINGS_SCROLL_GAP - 0.5,
+                    "{reserved}"
+                );
+                assert_eq!(ui.spacing().scroll, original);
             });
             output.textures_delta.clear();
         }
