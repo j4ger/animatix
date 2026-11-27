@@ -326,6 +326,11 @@ for MIME types, compression and CORS.
 
 ## Embedding scenes in any page (`<amx-player>`)
 
+For a copy-and-run introduction, see the Web SDK guide in
+[English](https://amx.j4ger.dev/docs/web-sdk/) or
+[简体中文](https://amx.j4ger.dev/zh/docs/web-sdk/). It covers a basic embed,
+named cues, and presentation mode.
+
 Replace the host and illustrative `figures/` paths below with your deployed SDK
 entry and scene files.
 

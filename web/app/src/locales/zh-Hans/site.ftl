@@ -107,3 +107,5 @@ web-not-found-examples = 浏览示例
 web-client-error-capability = 此浏览器无法启动播放器所需的功能。
 web-client-error-resource = 播放器无法加载所需资源。
 web-client-error-version = 播放器运行时与此页面不兼容。
+web-sdk-guide-title = Web SDK
+web-sdk-guide-summary = 把 AMX 动画嵌进网页，用文章按钮跳到指定画面，或按讲解节奏分步播放。

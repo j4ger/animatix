@@ -6,6 +6,7 @@ import {ui} from '../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
 const {t, docs, quickstart, tutorials, techniques, reference} = ui(language);
 const sections = [
+  {path: 'docs/web-sdk/', title: t('web-sdk-guide-title'), description: t('web-sdk-guide-summary')},
   {path: 'learn/', title: tutorials, description: t('web-learn-layout-timing-and-motion-in-six-lessons')},
   {path: 'learn/techniques/', title: techniques, description: t('web-reuse-patterns-for-reveals-emphasis-and-labels')},
   {path: 'docs/reference/', title: reference, description: t('web-look-up-amx-syntax-primitives-and-properties')},

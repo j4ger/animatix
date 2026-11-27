@@ -1,0 +1,20 @@
+config { canvas_size: (640, 360), duration: 3.5 }
+
+#0s
+#cue:start
+rail: Line, from: (120, 180), to: (520, 180), stroke: hex_color("63758a"), stroke_width: 4
+tile: Rect, at: (120, 180), size: (64, 64), color: hex_color("65d9e8")
+
+#0.25s
+tile.at = (320, 180) [1s, ease: ease_in_out]
+
+#1.5s
+#cue:middle
+#step
+tile.color = hex_color("ffc36b")
+
+#1.75s
+tile.at = (520, 180) [0.75s, ease: ease_in_out]
+
+#2.75s
+#pause

@@ -107,3 +107,5 @@ web-not-found-examples = Explore the works
 web-client-error-capability = This browser could not start a required player capability.
 web-client-error-resource = The player could not load a required resource.
 web-client-error-version = The player runtime is incompatible with this page.
+web-sdk-guide-title = Web SDK
+web-sdk-guide-summary = Embed an AMX scene, link an article to cues, or step through a live presentation.

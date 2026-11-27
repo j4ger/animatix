@@ -1,7 +1,7 @@
 ---
 import Page from '../../layouts/Page.astro';
 import DocsBackLink from '../../components/DocsBackLink.astro';
-import {github} from '../../lib/content';
+import {github, pageUrl} from '../../lib/content';
 import {pageLanguage} from '../../lib/language';
 import {ui} from '../../lib/ui';
 const language = pageLanguage(Astro.currentLocale);
@@ -16,5 +16,6 @@ const topics = [
 ];
 ---
 <Page title={reference}><div class="docs-layout guide"><DocsBackLink/><h1>{reference}</h1><div class="link-list">
+  <a href={pageUrl(language, 'docs/web-sdk/')}>{t('web-sdk-guide-title')}</a>
   {topics.map(([title, path]) => <a href={github+'/blob/main/docs/'+path}>{title}<span>{t('web-github')}</span></a>)}
 </div></div></Page>

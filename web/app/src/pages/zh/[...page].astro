@@ -3,6 +3,7 @@ import Home from '../index.astro';
 import Docs from '../docs/index.astro';
 import Quickstart from '../docs/quickstart.astro';
 import Reference from '../docs/reference.astro';
+import WebSdk from '../docs/web-sdk.astro';
 import Playground from '../playground.astro';
 import Tutorials from '../learn/index.astro';
 import Techniques from '../learn/techniques/index.astro';
@@ -15,7 +16,7 @@ import {techniques} from '../../lib/techniques';
 export function getStaticPaths() {
   const pages = [
     [undefined, 'home'], ['docs', 'docs'], ['docs/quickstart', 'quickstart'],
-    ['docs/reference', 'reference'], ['playground', 'playground'],
+    ['docs/reference', 'reference'], ['docs/web-sdk', 'sdkGuide'], ['playground', 'playground'],
     ['learn', 'tutorials'], ['learn/techniques', 'techniques'],
   ] as const;
   return [
@@ -31,6 +32,7 @@ const entry = Astro.props;
 {entry.kind === 'docs' && <Docs/>}
 {entry.kind === 'quickstart' && <Quickstart/>}
 {entry.kind === 'reference' && <Reference/>}
+{entry.kind === 'sdkGuide' && <WebSdk/>}
 {entry.kind === 'playground' && <Playground/>}
 {entry.kind === 'tutorials' && <Tutorials/>}
 {entry.kind === 'techniques' && <Techniques/>}

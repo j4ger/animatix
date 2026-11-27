@@ -1,0 +1,80 @@
+---
+import Page from '../../layouts/Page.astro';
+import DocsBackLink from '../../components/DocsBackLink.astro';
+import {github, url} from '../../lib/content';
+import {pageLanguage} from '../../lib/language';
+import {cueExample, embedExample, presentationExample} from '../../lib/sdk-guide';
+import {ui} from '../../lib/ui';
+import scene from '../../../public/sdk-examples/scrub.amx?raw';
+
+const language = pageLanguage(Astro.currentLocale);
+const en = language === 'en';
+const {t} = ui(language);
+const title = t('web-sdk-guide-title');
+const description = t('web-sdk-guide-summary');
+const readme = github + '/blob/main/web/README.md';
+---
+<Page {title} {description}>
+  <article class="docs-layout quickstart">
+    <DocsBackLink/>
+    <h1>{title}</h1>
+    <p>{description}</p>
+
+    <section id="embed" aria-labelledby="embed-title">
+      <h2 id="embed-title">{en ? '1. Embed a scene' : '1. 在网页里嵌入场景'}</h2>
+      <p>{en
+        ? <>The example loads the Web SDK hosted by Animatix. No install, framework, or bundler is needed.</>
+        : <>示例直接加载 Animatix 官网托管的 SDK，普通 HTML 就能运行。</>}</p>
+      <p>{en
+        ? <>Save <a href={url('sdk-examples/scrub.amx')} download>scrub.amx</a> next to your <code>index.html</code> and paste this HTML.</>
+        : <>把 <a href={url('sdk-examples/scrub.amx')} download>scrub.amx</a> 放到 <code>index.html</code> 旁边，再贴入下面的 HTML。</>}</p>
+      <pre><code>{embedExample}</code></pre>
+      <p>{en
+        ? <>Serve the folder over HTTP rather than opening it as <code>file://</code>. For a local preview, run <code>python3 -m http.server --bind 127.0.0.1 8000</code> in that folder and open <code>http://127.0.0.1:8000/</code>. The player tries WebGPU first and falls back to WebGL2 if initialization fails.</>
+        : <>用 HTTP 服务打开页面，避免直接双击 HTML。比如在该目录运行 <code>python3 -m http.server --bind 127.0.0.1 8000</code>，然后打开 <code>http://127.0.0.1:8000/</code>。播放器优先使用 WebGPU，初始化失败时回退到 WebGL2。</>}</p>
+    </section>
+
+    <section id="cues" aria-labelledby="cues-title">
+      <h2 id="cues-title">{en ? '2. Jump to a named cue' : '2. 让网页按钮跳到指定画面'}</h2>
+      <p>{en
+        ? <>In an article, link a paragraph or button to a moment in the scene with <code>#cue:name</code>. This example already names the start and the middle. The page looks up the time when the reader clicks, so moving the cue in AMX needs no change in HTML.</>
+        : <>文章里的段落或按钮可以通过 <code>#cue:名字</code> 对应动画中的一个时刻。示例已经标了开头和中段。按钮在点击时读取时间，因此在 AMX 里挪动标记，HTML 可以原样保留。</>}</p>
+      <details>
+        <summary>{en ? 'Show the AMX source' : '展开 AMX 源码'}</summary>
+        <pre><code>{scene.trim()}</code></pre>
+      </details>
+      <p>{en
+        ? <>Replace <code>index.html</code> with this version to give the page control. <code>sealed</code> hides the built-in play affordance; the buttons wait for <code>amxready</code>.</>
+        : <>将 <code>index.html</code> 换成这一版，由网页接管交互。<code>sealed</code> 隐藏播放器内置的播放入口，按钮等到 <code>amxready</code> 才启用。</>}</p>
+      <pre><code>{cueExample}</code></pre>
+      <p>{en
+        ? <>Cue times are in seconds. In a multi-scene composition a cue ID includes the scene name, for example <code>Intro::middle</code>.</>
+        : <>cue 的时间单位是秒。多场景作品中的 cue ID 会带上场景名，例如 <code>Intro::middle</code>。</>}</p>
+    </section>
+
+    <section id="presentation" aria-labelledby="presentation-title">
+      <h2 id="presentation-title">{en ? '3. Pause during a presentation' : '3. 让动画等讲解者继续'}</h2>
+      <p>{en
+        ? <>Use <code>#step</code> or <code>#pause</code> under a time marker when you want playback to wait for the presenter. This example stops at 1.5 and 2.75 seconds, with the same AMX file as above.</>
+        : <>想在讲到一半时留点解释的时间，可以在时间标记下写 <code>#step</code> 或 <code>#pause</code>。沿用上面的 AMX，打开演示模式后会停在 1.5 秒和 2.75 秒。</>}</p>
+      <pre><code>{presentationExample}</code></pre>
+      <p>{en
+        ? <>Click the canvas or press <kbd>Page Down</kbd> while the canvas has focus to play to the next stop. Press again while it is playing to jump there. <kbd>Page Up</kbd> returns to the previous stop. The <code>controls</code> attribute enables the built-in canvas gestures and keys. For custom controls, call <code>stepNext()</code> and <code>stepPrev()</code> after <code>amxready</code>.</>
+        : <>点击画布，或在画布聚焦时按 <kbd>Page Down</kbd>，就会播到下一个停点。播放中再按一次，会直接跳过去。<kbd>Page Up</kbd> 回到上一个停点。内置的画布点击和按键需要 <code>controls</code>；自定义按钮可在 <code>amxready</code> 后调用 <code>stepNext()</code> 和 <code>stepPrev()</code>。</>}</p>
+      <p>{en
+        ? <><code>#cue</code> gives the page an address to jump to. <code>#step</code> and <code>#pause</code> add stops in presentation mode. They do not extend the timeline or the exported video. Both kinds of marker can share a timestamp.</>
+        : <><code>#cue</code> 给网页一个可跳转的位置，<code>#step</code> 和 <code>#pause</code> 让演示播放停下来等人。暂停标记不会延长时间轴或导出视频。两种标记也可以放在同一时刻。</>}</p>
+    </section>
+
+    <section id="reference" aria-labelledby="reference-title">
+      <h2 id="reference-title">{en ? 'Keep building' : '继续接入'}</h2>
+      <p>{en
+        ? <><code>setVars()</code> rebuilds a scene with new parameters. <code>setInputs()</code> updates declared numeric inputs at frame time without rebuilding. For live editors, <code>applySource()</code> rebuilds from AMX text and keeps the last good scene if the build fails.</>
+        : <><code>setVars()</code> 用新参数重编场景；<code>setInputs()</code> 更新场景声明的数字输入，直接用于当前帧，无需重编。在线编辑器可以用 <code>applySource()</code> 从 AMX 文本重编，失败时保留上一次成功的场景。</>}</p>
+      <p>{en
+        ? <>For production, <a href={readme + '#single-sdk-and-runtime-manifest'}>build and host a fixed SDK version</a>. Keep the manifest, Wasm files, and fonts together with <code>amx-player.js</code>, then point the script tag at that copy.</>
+        : <>生产环境可以<a href={readme + '#single-sdk-and-runtime-manifest'}>构建并托管固定版本的 SDK</a>。将清单、Wasm 文件和字体与 <code>amx-player.js</code> 一起部署，再把脚本地址改成你的版本。</>}</p>
+      <p><a href={readme + '#live-figure-editors'}>{en ? 'Live editing and input APIs' : '实时编辑与传参 API'}</a>{' · '}<a href={readme}>{en ? 'Build, self-host, and debug the SDK' : '构建、自托管与诊断'}</a></p>
+    </section>
+  </article>
+</Page>
