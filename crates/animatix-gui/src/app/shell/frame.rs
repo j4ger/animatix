@@ -14,6 +14,8 @@ impl GuiShell {
         let delta = now.saturating_duration_since(self.preview_store.last_frame_at);
         self.preview_store.last_frame_at = now;
 
+        self.workspace_store.poll_file_tree();
+
         // Check for hot reload
         self.check_hot_reload(now);
 

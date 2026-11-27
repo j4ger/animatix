@@ -82,7 +82,6 @@ pub(crate) fn workspace_store() -> WorkspaceStore {
     WorkspaceStore::new(
         PathBuf::from("/tmp/test"),
         HashSet::new(),
-        vec![],
         PathBuf::from(".test_persistence.ron"),
         None,
         None,

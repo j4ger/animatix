@@ -12,6 +12,64 @@ use super::{
 use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR;
 
 #[test]
+fn opening_a_relative_scene_reveals_its_deep_workspace_path() {
+    let cwd = std::env::current_dir().unwrap();
+    let workspace = tempfile::tempdir_in(&cwd).unwrap();
+    std::fs::create_dir(workspace.path().join(".git")).unwrap();
+    let dir = workspace.path().join("scenes/one/two/three/four/five");
+    std::fs::create_dir_all(&dir).unwrap();
+    let scene = dir.join("main.amx");
+    std::fs::write(&scene, "#0s\nbox: Rect\n").unwrap();
+
+    let mut shell = GuiShell::load(scene.strip_prefix(cwd).unwrap().to_path_buf(), false);
+    assert_eq!(shell.workspace_store.workspace_root, workspace.path());
+    shell.workspace_store.file_tree = shell.workspace_store.file_tree_loader.wait();
+    assert!(
+        shell
+            .workspace_store
+            .file_tree
+            .iter()
+            .any(|entry| { entry.path == scene && !entry.is_dir && entry.depth == 6 })
+    );
+
+    shell.handle_command(super::Command::ToggleExpandDir(dir));
+    shell.workspace_store.file_tree = shell.workspace_store.file_tree_loader.wait();
+    assert!(shell.workspace_store.file_tree.iter().all(|entry| entry.path != scene));
+}
+
+#[test]
+fn switching_workspaces_updates_the_project_tree_on_a_frame() {
+    let original = tempfile::tempdir().unwrap();
+    let destination = tempfile::tempdir().unwrap();
+    std::fs::create_dir(original.path().join(".git")).unwrap();
+    let scene = original.path().join("main.amx");
+    let other = destination.path().join("other.amx");
+    for path in [&scene, &other] {
+        std::fs::write(path, "#0s\nbox: Rect\n").unwrap();
+    }
+
+    let mut shell = GuiShell::load(scene.clone(), false);
+    shell.workspace_store.file_tree = shell.workspace_store.file_tree_loader.wait();
+    assert!(shell.workspace_store.file_tree.iter().any(|entry| entry.path == scene));
+
+    let (notify, ready) = crossbeam_channel::bounded(1);
+    shell.workspace_store.file_tree_loader.set_repaint(move || {
+        let _ = notify.try_send(());
+    });
+    shell.handle_command(super::Command::SwitchWorkspace(destination.path().to_path_buf()));
+    assert!(shell.workspace_store.file_tree.is_empty());
+    assert!(shell.workspace_store.file_tree_loader.pending());
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while shell.workspace_store.file_tree_loader.pending() {
+        ready.recv_deadline(deadline).unwrap();
+        shell.prepare_frame();
+    }
+    assert_eq!(shell.workspace_store.file_tree.len(), 1);
+    assert_eq!(shell.workspace_store.file_tree[0].path, other);
+}
+
+#[test]
 fn review_uses_three_visible_panes_and_write_adds_the_shared_editor() {
     use super::persistence::{apply_layout_preset, pane_visible, show_inspector};
     let mut tree = default_tree();

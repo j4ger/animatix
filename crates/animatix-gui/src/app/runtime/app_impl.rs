@@ -26,6 +26,11 @@ impl AnimatixApp {
         let preview_surface = PreviewSurface::new(device, queue)
             .map_err(|e| format!("Preview surface init failed: {e}"))?;
         let shell = GuiShell::load(initial_path, show_welcome);
+        let ctx = cc.egui_ctx.clone();
+        shell
+            .workspace_store
+            .file_tree_loader
+            .set_repaint(move || ctx.request_repaint());
 
         let choice = shell.ui_store.view.app_theme;
         let theme = crate::app::design_tokens::workbench::theme(choice, system_is_dark);

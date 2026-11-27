@@ -177,6 +177,7 @@ gui-editor-first-warning = 点击跳到第一个警告
 gui-editor-format-source = 格式化源码
 gui-editor-show-phrase = 显示短句
 gui-explorer-filter = 筛选文件…
+gui-explorer-loading = 正在读取目录…
 gui-export-auto = 自动
 gui-export-codec = 编码器
 gui-export-draft = 导出草稿

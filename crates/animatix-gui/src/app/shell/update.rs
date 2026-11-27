@@ -116,8 +116,8 @@ impl GuiShell {
 
         document.set_plugin_epoch(plugin_manager.epoch());
 
-        let expanded_dirs = HashSet::from([workspace_root.clone()]);
-        let file_tree = build_file_tree(&workspace_root, &document.file_path, &expanded_dirs);
+        let mut expanded_dirs = HashSet::from([workspace_root.clone()]);
+        expand_file_ancestors(&workspace_root, &document.file_path, &mut expanded_dirs);
         let tree = persistence.as_ref().map(|p| p.tree.clone()).unwrap_or_else(default_tree);
         let window_size =
             persistence.as_ref().and_then(|p| p.window_size).unwrap_or([1440.0, 960.0]);
@@ -190,7 +190,6 @@ impl GuiShell {
             workspace_store: WorkspaceStore::new(
                 workspace_root,
                 expanded_dirs,
-                file_tree,
                 persistence_path,
                 hot_reloader,
                 hot_reload_error,
@@ -208,6 +207,9 @@ impl GuiShell {
             window_size,
             window_maximized,
         };
+        shell
+            .workspace_store
+            .request_file_tree(shell.document_store.source.file_path(), false);
         if let Some(s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
             shell.document_store.history.undo_limit = s.undo_limit;
         }

@@ -10,6 +10,7 @@ struct Navigator {
     egui: Context,
     tab: SidebarTab,
     files: Vec<FileTreeEntry>,
+    file_tree_revision: u64,
     expanded_dirs: HashSet<PathBuf>,
     commands: ActionQueue,
     selected: HashSet<String>,
@@ -24,6 +25,7 @@ impl Navigator {
             egui,
             tab,
             files: vec![],
+            file_tree_revision: 0,
             expanded_dirs: HashSet::new(),
             commands: ActionQueue::new(),
             selected: HashSet::new(),
@@ -46,8 +48,10 @@ impl Navigator {
                 sidebar_ui(
                     &mut SidebarContext {
                         document,
-                        expanded_dirs: &mut self.expanded_dirs,
+                        expanded_dirs: &self.expanded_dirs,
                         file_tree: &self.files,
+                        file_tree_revision: self.file_tree_revision,
+                        file_tree_loading: false,
                         commands: &mut self.commands,
                         selected_actors: &mut self.selected,
                         collapsed_actors: &mut self.collapsed,
@@ -131,6 +135,35 @@ fn project_keeps_files_clickable_when_resources_are_disclosed() {
     assert!(
         matches!(nav.commands.pop_front(), Some(ShellAction::Command(Command::OpenFile(path))) if path == Path::new("demo.amx"))
     );
+}
+
+#[test]
+fn explorer_refreshes_cached_filtered_rows_after_a_snapshot_change() {
+    let document = composition_document();
+    let mut nav = Navigator::new(SidebarTab::Project);
+    nav.egui.data_mut(|data| {
+        data.insert_temp(egui::Id::unique(EXPLORER_FILTER_ID), "match".to_owned());
+    });
+
+    for (revision, name) in [(1, "match-old.amx"), (2, "match-new.amx")] {
+        nav.files = vec![
+            FileTreeEntry {
+                name: "scenes".to_owned(),
+                path: "scenes".into(),
+                depth: 0,
+                is_dir: true,
+            },
+            FileTreeEntry {
+                name: name.to_owned(),
+                path: Path::new("scenes").join(name),
+                depth: 1,
+                is_dir: false,
+            },
+        ];
+        nav.file_tree_revision = revision;
+        let labels = nav.frame(&document, vec![]);
+        assert!(label_center(&labels, "scenes").y < label_center(&labels, name).y);
+    }
 }
 
 #[test]

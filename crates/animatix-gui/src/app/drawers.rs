@@ -83,8 +83,10 @@ impl GuiShell {
 
                         let mut ctx = panels::sidebar::SidebarContext {
                             document: &self.document_store.source.document,
-                            expanded_dirs: &mut self.workspace_store.expanded_dirs,
+                            expanded_dirs: &self.workspace_store.expanded_dirs,
                             file_tree: &self.workspace_store.file_tree,
+                            file_tree_revision: self.workspace_store.file_tree_revision,
+                            file_tree_loading: self.workspace_store.file_tree_loader.pending(),
                             commands,
                             selected_actors: &mut self.ui_store.selection.selected_actors,
                             collapsed_actors: &mut self.ui_store.view.collapsed_actors,

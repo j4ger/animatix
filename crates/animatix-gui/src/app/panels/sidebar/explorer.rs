@@ -1,5 +1,7 @@
 //! Explorer tab.
 
+use std::sync::Arc;
+
 use super::*;
 
 pub(super) fn explorer_filter_ui(ui: &mut egui::Ui) -> String {
@@ -30,69 +32,27 @@ pub(super) fn explorer_filter_ui(ui: &mut egui::Ui) -> String {
     filter
 }
 
-pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui, filter: &str) {
+pub(super) fn explorer_content_ui(
+    ctx: &mut ExplorerContext<'_>,
+    ui: &mut egui::Ui,
+    filter: &str,
+    viewport: egui::Rect,
+) {
     let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
-    let filter_lower = filter.to_lowercase();
-    let has_filter = !filter_lower.is_empty();
-
-    // ── Pre-compute visibility ──────────────────────────────────────────────
-    // When a filter is active we build a `show` mask.  The rules are:
-    //   1. An entry is visible if its name contains the filter (case-insensitive).
-    //   2. If a directory is visible (by name), all its descendants are visible.
-    //   3. If any descendant is visible, the ancestor directory is also visible.
-    // When no filter is active every entry passes.
-    let show = if has_filter {
-        let len = ctx.file_tree.len();
-        let mut show = vec![false; len];
-
-        // --- Pass 1: direct name match ---
-        for (i, entry) in ctx.file_tree.iter().enumerate() {
-            show[i] = entry.name.to_lowercase().contains(&filter_lower);
-        }
-
-        // --- Pass 2 (forward): expand matching directories to all children ---
-        for i in 0..len {
-            if show[i] && ctx.file_tree[i].is_dir {
-                let parent_depth = ctx.file_tree[i].depth;
-                for s in show[(i + 1)..].iter_mut().zip(ctx.file_tree[(i + 1)..].iter()) {
-                    if s.1.depth <= parent_depth {
-                        break;
-                    }
-                    *s.0 = true;
-                }
-            }
-        }
-
-        // --- Pass 3 (backward): show ancestors of any visible entry ---
-        for i in (0..len).rev() {
-            if ctx.file_tree[i].is_dir {
-                let parent_depth = ctx.file_tree[i].depth;
-                for s in show[(i + 1)..].iter().zip(ctx.file_tree[(i + 1)..].iter()) {
-                    if s.1.depth <= parent_depth {
-                        break;
-                    }
-                    if *s.0 {
-                        show[i] = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        show
-    } else {
-        vec![true; ctx.file_tree.len()]
-    };
-
-    // ── Render visible tree entries ─────────────────────────────────────────
+    let filtered = filtered_rows(ui, ctx, filter);
+    let length = filtered.as_ref().map_or(ctx.file_tree.len(), |indices| indices.len());
+    // Keep offscreen rows in the scroll layout without building their widgets.
     ui.scope(|ui| {
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
-        for (i, entry) in ctx.file_tree.iter().enumerate() {
-            if !show[i] {
-                continue;
-            }
-
+        let row_height = sp.base.row_m;
+        let first = ((viewport.top() / row_height).floor() as usize).min(length);
+        let end = ((viewport.bottom() / row_height).ceil() as usize).clamp(first, length);
+        ui.add_space(first as f32 * row_height);
+        ui.skip_ahead_auto_ids(first);
+        for row in first..end {
+            let index = filtered.as_ref().map_or(row, |indices| indices[row]);
+            let entry = &ctx.file_tree[index];
             let is_selected = !entry.is_dir && entry.path == ctx.current_file;
             let is_expanded = entry.is_dir && ctx.expanded_dirs.contains(&entry.path);
             let has_children = entry.is_dir;
@@ -119,11 +79,12 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
                 (Some(file_icon), color)
             };
 
-            let row_id = ui.scope_id().with(entry.path.display().to_string());
+            let row_id = ui.scope_id().with(&entry.path);
             let path = entry.path.clone();
             let is_dir = entry.is_dir;
+            let indent = entry.depth as f32 * sp.base.component.icon_slot_width;
             let response = row::Row::new(&entry.name)
-                .indent(entry.depth as f32 * sp.base.component.icon_slot_width)
+                .indent(indent.min(ui.available_width() / 2.0))
                 .selected(is_selected)
                 .icon(icon)
                 .label_color(label_color.unwrap_or(t.palette.text.secondary))
@@ -162,11 +123,7 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
                 }
             });
 
-            if response.chevron_clicked {
-                ctx.commands
-                    .push_back(ShellAction::Command(Command::ToggleExpandDir(path.clone())));
-            }
-            if response.row_clicked {
+            if response.row_clicked || response.chevron_clicked {
                 if is_dir {
                     ctx.commands.push_back(ShellAction::Command(Command::ToggleExpandDir(path)));
                 } else {
@@ -174,5 +131,70 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
                 }
             }
         }
+        ui.add_space((length - end) as f32 * row_height);
     });
+}
+
+#[derive(Clone)]
+struct CachedFilter {
+    query: String,
+    revision: u64,
+    indices: Arc<[usize]>,
+}
+
+fn filtered_rows(ui: &egui::Ui, ctx: &ExplorerContext<'_>, filter: &str) -> Option<Arc<[usize]>> {
+    if filter.is_empty() {
+        return None;
+    }
+    let key = ui.scope_id().with("explorer_filter_result");
+    if let Some(cached) = ui.data(|data| data.get_temp::<CachedFilter>(key))
+        && cached.query == filter
+        && cached.revision == ctx.file_tree_revision
+    {
+        return Some(cached.indices);
+    }
+    let indices = Arc::from(filtered_entries(ctx.file_tree, &filter.to_lowercase()));
+    ui.data_mut(|data| {
+        data.insert_temp(
+            key,
+            CachedFilter {
+                query: filter.to_owned(),
+                revision: ctx.file_tree_revision,
+                indices: Arc::clone(&indices),
+            },
+        )
+    });
+    Some(indices)
+}
+
+fn filtered_entries(entries: &[FileTreeEntry], filter: &str) -> Vec<usize> {
+    let mut matching_dir_depth = None;
+    let mut visible = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if matching_dir_depth.is_some_and(|depth| entry.depth <= depth) {
+            matching_dir_depth = None;
+        }
+        let matches = matching_dir_depth.is_some() || entry.name.to_lowercase().contains(filter);
+        if matches && entry.is_dir && matching_dir_depth.is_none() {
+            matching_dir_depth = Some(entry.depth);
+        }
+        visible.push(matches);
+    }
+
+    // When a matching descendant makes a directory visible, its depth also
+    // marks the boundary between this subtree and its preceding siblings.
+    let mut next_visible_depth = None;
+    for (entry, show) in entries.iter().zip(&mut visible).rev() {
+        if entry.is_dir && next_visible_depth.is_some_and(|depth| depth > entry.depth) {
+            *show = true;
+        }
+        if *show {
+            next_visible_depth = Some(entry.depth);
+        }
+    }
+    visible
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, show)| show.then_some(index))
+        .collect()
 }

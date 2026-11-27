@@ -35,7 +35,7 @@ use animatix::timeline::SceneDimensions;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use directories::ProjectDirs;
 use egui::{Color32, Vec2};
-use file_tree::{build_file_tree, workspace_root_for};
+use file_tree::{expand_file_ancestors, workspace_root_for};
 use persistence::{
     SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence,
     persistence_path,
@@ -66,8 +66,6 @@ const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
     width: 1920,
     height: 1080,
 };
-const MAX_TREE_DEPTH: usize = 4;
-const MAX_TREE_ENTRIES: usize = 200;
 
 pub use runtime::run_gui;
 

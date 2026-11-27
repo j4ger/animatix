@@ -115,19 +115,24 @@ pub(crate) fn sidebar_tab_content_ui(
 fn project_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     let filter = super::explorer::explorer_filter_ui(ui);
+    if ctx.file_tree_loading {
+        ui.label(crate::app::i18n::text(ui, "gui-explorer-loading"));
+    }
     egui::ScrollArea::vertical()
         .id_salt("navigator_project")
         .auto_shrink([false; 2])
-        .show(ui, |ui| {
+        .show_viewport(ui, |ui, viewport| {
             explorer_content_ui(
                 &mut ExplorerContext {
                     current_file: &ctx.document.file_path,
                     expanded_dirs: ctx.expanded_dirs,
                     file_tree: ctx.file_tree,
+                    file_tree_revision: ctx.file_tree_revision,
                     commands: ctx.commands,
                 },
                 ui,
                 &filter,
+                viewport,
             );
             ui.add_space(sp.base.space_2);
             ui.separator();

@@ -30,8 +30,10 @@ const LAYERS_FILTER_ID: &str = "layers_filter";
 /// so their signatures don't depend on the full surface.
 pub(crate) struct SidebarContext<'a> {
     pub document: &'a crate::app::document::DocumentSession,
-    pub expanded_dirs: &'a mut HashSet<PathBuf>,
+    pub expanded_dirs: &'a HashSet<PathBuf>,
     pub file_tree: &'a [FileTreeEntry],
+    pub file_tree_revision: u64,
+    pub file_tree_loading: bool,
     pub commands: &'a mut ActionQueue,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
@@ -47,8 +49,9 @@ pub(crate) struct SidebarContext<'a> {
 
 pub(crate) struct ExplorerContext<'a> {
     pub current_file: &'a Path,
-    pub expanded_dirs: &'a mut HashSet<PathBuf>,
+    pub expanded_dirs: &'a HashSet<PathBuf>,
     pub file_tree: &'a [FileTreeEntry],
+    pub file_tree_revision: u64,
     pub commands: &'a mut ActionQueue,
 }
 

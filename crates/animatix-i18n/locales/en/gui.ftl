@@ -177,6 +177,7 @@ gui-editor-first-warning = Click to jump to first warning
 gui-editor-format-source = Format source code
 gui-editor-show-phrase = Show phrase
 gui-explorer-filter = Filter files…
+gui-explorer-loading = Reading folders…
 gui-export-auto = Auto
 gui-export-codec = Codec
 gui-export-draft = Export Draft

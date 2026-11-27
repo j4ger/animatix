@@ -9,8 +9,10 @@ and its referenced files define scene playback and export. The companion
 1. Open an `.amx` file from the filename menu. **Write** gives the editor most of
    the upper workbench and keeps the preview alongside it. **Review** gives the
    preview and timeline more room. In narrow windows, use the layout menu to
-   switch modes. **Project** shows files and resources. **Outline** shows scenes
-   and objects. Both open from the icon rail when space is tight.
+   switch modes. **Project** shows workspace folders, files, and resources. Opening a
+   scene expands its parent folders in the file tree. Expanded folders load in the
+   background. Use **Reload** in the filename menu to refresh the directory cache.
+   **Outline** shows scenes and objects. Both open from the icon rail when space is tight.
 2. Use the controls below the preview to play, seek, step frames, or loop. The
    timeline fits its visible lanes when their content changes. Drag the divider to set a custom height.
    Drag the ruler to scrub freely or hold Shift to land on a nearby keyframe. The

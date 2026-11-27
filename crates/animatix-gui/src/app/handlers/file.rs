@@ -11,7 +11,7 @@ use crate::app::document::timeline_diff::{
     KeyframeId, TimelineDiff, TimelineFingerprint, preserved_time_s,
 };
 use crate::app::document::version::SourceEpoch;
-use crate::app::file_tree::build_file_tree;
+use crate::app::file_tree::expand_file_ancestors;
 use crate::app::i18n::StatusText;
 use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
@@ -114,7 +114,6 @@ pub fn handle_open_file_response(
             ui_store,
             plugin_manager,
             response.plugin_epoch,
-            response.path,
             document,
         ),
         Err(error) => report_open_error(preview_store, &response.path, &error),
@@ -158,7 +157,6 @@ pub fn handle_open_file(
             ui_store,
             plugin_manager,
             plugin_manager.epoch(),
-            path,
             document,
         ),
         Err(error) => report_open_error(preview_store, &path, &error),
@@ -186,21 +184,18 @@ fn apply_loaded_document(
     ui_store: &mut UiStore,
     plugin_manager: &mut DocumentPluginManager,
     plugin_epoch: u64,
-    path: PathBuf,
     mut document: DocumentSession,
 ) -> Vec<Effect> {
+    let path = document.file_path.clone();
     document.set_plugin_epoch(plugin_epoch);
     // Only recompute workspace root if the file is outside the current workspace
     if !path.starts_with(&workspace_store.workspace_root) {
         let new_workspace_root = crate::app::file_tree::workspace_root_for(&path);
         if new_workspace_root != workspace_store.workspace_root {
-            workspace_store.workspace_root = new_workspace_root;
-            workspace_store.expanded_dirs =
-                std::collections::HashSet::from([workspace_store.workspace_root.clone()]);
+            workspace_store.set_root(new_workspace_root);
         }
     }
-    workspace_store.file_tree =
-        build_file_tree(&workspace_store.workspace_root, &path, &workspace_store.expanded_dirs);
+    reveal_workspace_file(workspace_store, &path, false);
     document_store.source.source_epoch = SourceEpoch::initial();
     document_store.source.document = document;
     document_store.source.invalidate_cache();
@@ -258,14 +253,9 @@ pub fn handle_switch_workspace(
     document_store: &DocumentStore,
     path: PathBuf,
 ) -> Vec<Effect> {
-    if path.exists() && path.is_dir() {
-        workspace_store.workspace_root = path.clone();
-        workspace_store.expanded_dirs = std::collections::HashSet::from([path.clone()]);
-        workspace_store.file_tree = build_file_tree(
-            &workspace_store.workspace_root,
-            &document_store.source.document.file_path,
-            &workspace_store.expanded_dirs,
-        );
+    if path.is_dir() {
+        workspace_store.set_root(path.clone());
+        reveal_workspace_file(workspace_store, document_store.source.file_path(), true);
         vec![Effect::Status(StatusText::message(
             "gui-file-workspace",
             [("path", path.display().to_string())],
@@ -288,11 +278,7 @@ pub fn handle_toggle_expand_dir(
     } else {
         workspace_store.expanded_dirs.insert(path.clone());
     }
-    workspace_store.file_tree = build_file_tree(
-        &workspace_store.workspace_root,
-        &document_store.source.document.file_path,
-        &workspace_store.expanded_dirs,
-    );
+    workspace_store.request_file_tree(document_store.source.file_path(), false);
     vec![]
 }
 
@@ -410,13 +396,11 @@ fn rebind_workspace_to_saved_document(
     if !path.starts_with(&workspace_store.workspace_root) {
         let new_workspace_root = crate::app::file_tree::workspace_root_for(path);
         if new_workspace_root != workspace_store.workspace_root {
-            workspace_store.workspace_root = new_workspace_root;
-            workspace_store.expanded_dirs = HashSet::from([workspace_store.workspace_root.clone()]);
+            workspace_store.set_root(new_workspace_root);
         }
     }
 
-    workspace_store.file_tree =
-        build_file_tree(&workspace_store.workspace_root, path, &workspace_store.expanded_dirs);
+    reveal_workspace_file(workspace_store, path, true);
 
     match workspace_store.hot_reloader.as_mut() {
         Some(reloader) => {
@@ -447,6 +431,19 @@ fn rebind_workspace_to_saved_document(
     );
 }
 
+fn reveal_workspace_file(
+    workspace_store: &mut WorkspaceStore,
+    path: &std::path::Path,
+    refresh: bool,
+) {
+    expand_file_ancestors(
+        &workspace_store.workspace_root,
+        path,
+        &mut workspace_store.expanded_dirs,
+    );
+    workspace_store.request_file_tree(path, refresh);
+}
+
 pub fn handle_reload(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -464,11 +461,7 @@ pub fn handle_reload(
                 std::time::Instant::now()
                     + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
             );
-            workspace_store.file_tree = build_file_tree(
-                &workspace_store.workspace_root,
-                &document_store.source.document.file_path,
-                &workspace_store.expanded_dirs,
-            );
+            workspace_store.request_file_tree(document_store.source.file_path(), true);
             vec![Effect::Status(StatusText::message(
                 "gui-file-reloaded",
                 [("path", path.display().to_string())],
@@ -822,7 +815,6 @@ mod tests {
         let mut workspace_store = WorkspaceStore::new(
             dir_path.to_path_buf(),
             HashSet::from([dir_path.to_path_buf()]),
-            Vec::new(),
             dir_path.join("workspace.ron"),
             None,
             None,
