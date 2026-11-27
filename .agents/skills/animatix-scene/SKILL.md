@@ -2,12 +2,23 @@
 name: animatix-scene
 description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for scene composition, cue timing, component integration and visual QA of a scene.
 metadata:
-  version: "0.9.0-draft.47"
+  version: "0.9.0-draft.48"
 ---
 
 # Animatix scene
 
 Preserve the approved claim, timing, format, and unrelated behavior. Match the target engine's spec and audit tools; start unfamiliar syntax from a compiling sample on that revision. Unsettled narration or full explanations belong to animatix-explainer.
+
+## Preflight visual output
+
+In a fresh cloud or headless environment, render one frame from the checkout's
+[small playback fixture](../../../web/app/public/sdk-examples/scrub.amx) before
+authoring if this task needs rendered evidence. Use the normal
+`animatix image FILE --time 0 -o PREVIEW.png` command and confirm the PNG exists.
+If no adapter is available, check the rendering row of `animatix doctor` and see
+[headless Linux setup](../../../docs/contributing.md#headless-linux-rendering).
+Keep working on source when useful, but report visual verification as blocked;
+a passing `check` or structure-only audit does not prove rendered output.
 
 ## Choose what to reuse
 

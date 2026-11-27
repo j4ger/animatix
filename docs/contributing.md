@@ -198,6 +198,28 @@ Put temporary reports and render experiments under `target/` or in harness-manag
 Local agent plans, environment files and generated SDK/site output are ignored.
 Adding an ignore rule does not remove an already tracked file from Git.
 
+## Headless Linux rendering
+
+Use the same `animatix image`, `animatix storyboard` and `animatix video`
+commands in a terminal or a container. Linux rendering prefers an available
+hardware GPU and can use Mesa lavapipe on the CPU when there is no usable GPU.
+The Nix development shell adds its lavapipe manifest to driver discovery,
+rather than replacing explicitly configured or system drivers.
+
+If you already have a compatible CLI, the small Nix runtime shell avoids
+pulling in Rust or desktop tooling:
+
+```sh
+nix develop .#headless --command ./target/debug/animatix image scene.amx -o preview.png
+```
+
+For a portable Linux package, use the host driver and see the
+[Linux distribution guide](../tools/release/native/linux/README.md).
+`animatix check` validates the project without drawing it; for a cloud
+rendering preflight, use `animatix doctor` or export a real frame.
+Use the `GPU preview and rendering` row to diagnose still and preview
+rendering; the encoder rows apply separately to video-enabled builds.
+
 ## Validate a change
 
 `tools/ci/ci.sh` defines the project gates and generates CI's job matrix. Add new

@@ -23,10 +23,11 @@ rm -rf /var/lib/apt/lists/*
 mkdir -p /tmp/xdg-runtime
 chmod 0700 /tmp/xdg-runtime
 export XDG_RUNTIME_DIR=/tmp/xdg-runtime
-export WGPU_BACKEND=vulkan
 icd="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -quit)"
 [ -n "$icd" ] || { echo "error: host test image has no lavapipe ICD" >&2; exit 1; }
-export VK_ICD_FILENAMES="$icd"
+# Exercise ordinary loader discovery for the packaged CLI, with no display
+# or inherited driver overrides. The GUI probe below owns its Xvfb session.
+unset DISPLAY WAYLAND_DISPLAY VK_DRIVER_FILES VK_ICD_FILENAMES VK_ADD_DRIVER_FILES WGPU_BACKEND
 
 # Confirm the application links the bundled FFmpeg libraries and uses no Nix path.
 [ ! -x /usr/bin/ffmpeg ] || { echo 'error: clean runtime image unexpectedly has FFmpeg' >&2; exit 1; }
@@ -212,7 +213,7 @@ PY
 
 # A version flag does not start eframe or create a preview. Verify a real GUI
 # window under the clean host's virtual display, then close the test process.
-xvfb-run -a sh -eu -c '
+WGPU_BACKEND=vulkan xvfb-run -a sh -eu -c '
   /package/bin/animatix-gui "first-run/Narrated Project/main.amx" >gui.log 2>&1 &
   gui_pid=$!
   trap "kill $gui_pid 2>/dev/null || true" EXIT INT TERM

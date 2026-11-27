@@ -58,6 +58,22 @@
             meta.description = "CLI for generating the animatix-web wasm JS glue (pinned)";
           });
 
+        # Add a software driver without replacing system or user ICDs.
+        # Discover its filename in the shell, not while evaluating the flake.
+        linuxVulkanHook = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+          if [ -z "''${VK_DRIVER_FILES:-}''${VK_ICD_FILENAMES:-}" ]; then
+            for amx_icd in /run/opengl-driver/share/vulkan/icd.d "${pkgs.mesa}/share/vulkan/icd.d"/lvp_icd*.json; do
+              if [ -d "$amx_icd" ] || [ -r "$amx_icd" ]; then
+                case ":''${VK_ADD_DRIVER_FILES:-}:" in
+                  *":$amx_icd:"*) ;;
+                  *) export VK_ADD_DRIVER_FILES="''${VK_ADD_DRIVER_FILES:+$VK_ADD_DRIVER_FILES:}$amx_icd" ;;
+                esac
+              fi
+            done
+            unset amx_icd
+          fi
+        '';
+
         # The wasm build's toolchain, shared by `.#web-build` and `.#web-ci`.
         webBuildPackages = [
           (pkgs.rust-bin.stable.latest.default.override {
@@ -71,7 +87,7 @@
           pkgs.python3  # Gate timing and matrix orchestration use the same runner everywhere.
         ] ++ wasm-bindgen-cli;
       in
-      {
+      pkgs.lib.recursiveUpdate {
         # Only orchestration lives in Nix: portable binaries and acceptance
         # still run in the Ubuntu ABI-baseline containers, never against /nix/store.
         devShells.dist-driver = pkgs.mkShell {
@@ -120,15 +136,10 @@
           ];
 
           VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
-          VK_ICD_FILENAMES = let
-            icdDir = "${pkgs.mesa}/share/vulkan/icd.d";
-          in
-            builtins.concatStringsSep ":" (map (name: "${icdDir}/${name}") (builtins.attrNames (builtins.readDir icdDir)));
-
           shellHook = ''
 		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
 		export ALSA_PLUGIN_DIR="${pkgs.pipewire}/lib/alsa-lib";
-          '';
+          '' + linuxVulkanHook;
         };
 
         # Chromium + the agent-browser CLI for driving the web/ demo pages
@@ -234,6 +245,11 @@
             '';
           in
           { type = "app"; program = toString script; };
-      }
+      } (pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+        devShells.headless = pkgs.mkShellNoCC {
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.vulkan-loader pkgs.mesa ];
+          shellHook = linuxVulkanHook;
+        };
+      })
     );
 }

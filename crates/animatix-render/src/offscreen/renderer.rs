@@ -6,6 +6,26 @@ enum ReadbackAlpha {
     MayBePremultiplied,
 }
 
+#[cfg(target_os = "linux")]
+fn linux_adapter_order(device_type: wgpu::DeviceType) -> u8 {
+    match device_type {
+        wgpu::DeviceType::DiscreteGpu => 0,
+        wgpu::DeviceType::IntegratedGpu => 1,
+        wgpu::DeviceType::VirtualGpu => 2,
+        wgpu::DeviceType::Other => 3,
+        wgpu::DeviceType::Cpu => 4,
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+#[test]
+fn linux_offscreen_prefers_gpus_regardless_of_discovery_order() {
+    use wgpu::DeviceType::{Cpu, DiscreteGpu, IntegratedGpu, Other, VirtualGpu};
+    let mut adapters = [Cpu, Other, IntegratedGpu, VirtualGpu, DiscreteGpu];
+    adapters.sort_by_key(|&kind| linux_adapter_order(kind));
+    assert_eq!(adapters, [DiscreteGpu, IntegratedGpu, VirtualGpu, Other, Cpu]);
+}
+
 impl OffscreenRenderer {
     /// Create a new offscreen renderer with an automatically-selected GPU adapter.
     pub fn new() -> Result<Self, String> {
@@ -15,31 +35,7 @@ impl OffscreenRenderer {
     async fn new_async() -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
 
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: None,
-                force_fallback_adapter: false,
-                apply_limit_buckets: false,
-            })
-            .await
-            .map_err(|err| format!("Failed to find an appropriate adapter: {err}"))?;
-
-        let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
-
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("Animatix Offscreen Device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: needed_limits,
-                memory_hints: Default::default(),
-                ..Default::default()
-            })
-            .await
-            .map_err(|err| format!("Failed to create device: {err}"))?;
-
-        let core =
-            RendererCore::new(&device, &queue).map_err(|e| format!("Renderer init failed: {e}"))?;
+        let (device, queue, core) = Self::initialize_renderer(&instance).await?;
 
         Ok(Self {
             device,
@@ -64,6 +60,62 @@ impl OffscreenRenderer {
             readback_buffer: None,
             readback_slot: 0,
         })
+    }
+
+    async fn initialize_renderer(
+        instance: &wgpu::Instance,
+    ) -> Result<(wgpu::Device, wgpu::Queue, RendererCore), String> {
+        #[cfg(target_os = "linux")]
+        {
+            // Driver discovery order is not a hardware/CPU preference. Try
+            // each usable GPU before software, including when the first GPU
+            // cannot open its device inside a container.
+            let mut adapters = instance.enumerate_adapters(wgpu::Backends::all()).await;
+            adapters.sort_by_key(|adapter| linux_adapter_order(adapter.get_info().device_type));
+            if !adapters.is_empty() {
+                let mut errors = Vec::new();
+                for adapter in &adapters {
+                    match Self::initialize_adapter(adapter).await {
+                        Ok(initialized) => return Ok(initialized),
+                        Err(error) => errors.push(error),
+                    }
+                }
+                return Err(errors.join("; "));
+            }
+        }
+
+        // Preserve wgpu's detailed no-adapter report on Linux, and the
+        // existing adapter-selection policy on other platforms.
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                compatible_surface: None,
+                force_fallback_adapter: false,
+                apply_limit_buckets: false,
+            })
+            .await
+            .map_err(|err| format!("Failed to find an appropriate adapter: {err}"))?;
+        Self::initialize_adapter(&adapter).await
+    }
+
+    async fn initialize_adapter(
+        adapter: &wgpu::Adapter,
+    ) -> Result<(wgpu::Device, wgpu::Queue, RendererCore), String> {
+        let info = adapter.get_info();
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("Animatix Offscreen Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default().using_resolution(adapter.limits()),
+                memory_hints: Default::default(),
+                ..Default::default()
+            })
+            .await
+            .map_err(|err| format!("Failed to create device on {}: {err}", info.name))?;
+        let core = RendererCore::new(&device, &queue)
+            .map_err(|err| format!("Renderer init failed on {}: {err}", info.name))?;
+        tracing::debug!(name = %info.name, backend = ?info.backend, device_type = ?info.device_type, "selected offscreen adapter");
+        Ok((device, queue, core))
     }
 
     /// Reference to the underlying WGPU device.

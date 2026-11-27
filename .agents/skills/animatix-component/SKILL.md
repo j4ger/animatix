@@ -2,12 +2,14 @@
 name: animatix-component
 description: Build or revise an importable AMX object for scene authors, including its public controls, a working caller and visual checks. Use for a reusable object brief or an object handed off by a scene author.
 metadata:
-  version: "0.1.1-review-candidate"
+  version: "0.1.2-review-candidate"
 ---
 
 # Animatix component
 
 Start from the requested object and its planned uses. A direct object brief is enough to begin. For a scene handoff, take the relevant approved beat, target sizes, required interactions and any existing art direction or reference frame from the caller.
+
+In a fresh cloud environment, run the [scene skill's render preflight](../animatix-scene/SKILL.md#preflight-visual-output) before testing visual states.
 
 Look up the object by role in project modules, [shared templates](../../../web/content/templates/layout.amx) (including MetricCard, CaptionPlate and SignalLane) and [native primitives](../../../docs/primitives.md). Try the closest existing export in a minimal caller with the requested inputs. An export in a shared project module is a valid handoff. Keep its dependencies unless the brief calls for standalone distribution. If a supported setting covers the remaining difference, show it in the caller. Deliver the working import, invocation and render. Extend or create a module when a required use is still missing.
 

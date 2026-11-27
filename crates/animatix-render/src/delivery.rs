@@ -123,7 +123,11 @@ fn doctor() -> [(&'static str, Result<(), String>); 4] {
     use animatix::renderer::text::{FontContext, compile_text_fast};
 
     let gpu = crate::offscreen::OffscreenRenderer::new().map(|_| ()).map_err(|err| {
-        format!("{err}. Install or update a compatible graphics driver and run in a graphics-capable session.")
+        if cfg!(target_os = "linux") {
+            format!("{err}. Install a compatible graphics driver, or Mesa lavapipe for headless rendering (Debian/Ubuntu: libvulkan1 and mesa-vulkan-drivers).")
+        } else {
+            format!("{err}. Install or update a compatible graphics driver and run in a graphics-capable session.")
+        }
     });
     let fonts = compile_text_fast(
         "Animatix",

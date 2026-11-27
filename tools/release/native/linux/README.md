@@ -123,3 +123,20 @@ package in place and rerun the installer after moving it. To remove the entry,
 remove `applications/io.github.j4ger.animatix.desktop` and the matching
 `icons/hicolor/{scalable,256x256,512x512}/apps/io.github.j4ger.animatix.*` files
 from that same user data directory. The package itself remains untouched.
+
+
+## Render without a display
+
+Use the regular CLI. On machines without a working hardware Vulkan driver,
+install the host Vulkan loader and Mesa's software Vulkan driver
+(`libvulkan1` and `mesa-vulkan-drivers` on Debian/Ubuntu). The loader discovers
+the system's Mesa lavapipe manifest; neither Xvfb nor a manual ICD override
+is needed for rendering from the CLI. The tarball contains codecs, not a
+replacement graphics driver. Hardware rendering remains preferred when
+available.
+
+```sh
+bin/animatix doctor
+bin/animatix image scene.amx --time 0 -o preview.png
+bin/animatix video scene.amx -o output.mp4
+```
