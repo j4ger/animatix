@@ -592,7 +592,7 @@ export class AmxPlayerView extends AmxPlayerBase {
         this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
       }
     }
-    this._markers = Array.isArray(result.markers) ? result.markers : [];
+    this._setTimelineMarkers(result.markers);
     this._pausePoints = Array.isArray(result.pause_points)
       ? result.pause_points.slice().sort((a, b) => a - b)
       : [];

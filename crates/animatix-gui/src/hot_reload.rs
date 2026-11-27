@@ -82,7 +82,7 @@ impl HotReloader {
     }
 
     pub fn update_watched_file(&mut self, new_path: &Path) -> Result<(), String> {
-        if new_path != &self.watched_path {
+        if new_path != self.watched_path {
             // Unwatch old file
             if let Err(e) = self._watcher.unwatch(&self.watched_path) {
                 tracing::warn!("Failed to unwatch file {:?}: {:?}", self.watched_path, e);

@@ -596,6 +596,17 @@ reader scrolls.
 </script>
 ```
 
+Use `amxcuechange` for the reverse link: highlight the current section as
+the reader plays or scrubs. Its bubbling event has
+`detail: { cue: { id, t } | null, time }`; all times are in seconds.
+The active cue is the last compiled cue at or before the most recently
+submitted frame, or `null` before the first cue. With cues at the same time,
+the last cue in `timelineMarkers` wins. Read `player.activeCue` to initialize
+a subscriber that attaches after the first frame. The event queues after the
+render stack; only a change to the active cue's name or authored time notifies,
+and changes within one turn may be combined. Failed or superseded renders do
+not move the active cue. A submission is not a browser paint timestamp.
+
 Recompute any cached cue map after a successful `applySource()` or `setVars()`.
 A failed rebuild leaves the installed scene and its cue snapshot available.
 

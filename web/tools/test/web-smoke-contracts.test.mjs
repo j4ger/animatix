@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import {contracts} from './web-smoke-contracts.mjs';
 import {readFileSync} from 'node:fs';
 test('SDK fixtures have explicit fonts, count and motion contracts',()=>{
- const cases=contracts('sdk');assert.equal(cases.length,5);
+ const cases=contracts('sdk');assert.equal(cases.length,6);
  assert.ok(cases.every(c=>c.path.startsWith('/dev/smoke/')));
  assert.equal(cases.find(c=>c.name==='shared').players,2);
+ assert.equal(cases.find(c=>c.name==='cues').players,1);
  assert.equal(cases.find(c=>c.name==='text').fonts,true);
  assert.deepEqual(cases.find(c=>c.name==='imports').modules,['palette.amx','tokens.amx']);
 });

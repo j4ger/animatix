@@ -29,11 +29,11 @@ pub(super) fn raster_dims(dims: SceneDimensions, scale: f32) -> (u32, u32) {
 impl AmxPlayer {
     /// Render the document at `time_s` into the canvas.
     ///
-    /// No-ops when nothing is loaded, so the shell can keep rAF running
-    /// through edits.
-    pub fn render_frame(&mut self, time_s: f64) -> Result<(), JsError> {
+    /// Returns true if the frame was submitted or matches the last submitted
+    /// frame; false if there is no document or the surface skipped this draw.
+    pub fn render_frame(&mut self, time_s: f64) -> Result<bool, JsError> {
         if !self.has_document() {
-            return Ok(());
+            return Ok(false);
         }
         if !self.has_video_samples(time_s) {
             return Err(JsError::new("prepare video samples before rendering this frame"));
@@ -86,7 +86,7 @@ impl AmxPlayer {
         queue: &wgpu::Queue,
         renderer: &mut FrameRenderer,
         time_s: f64,
-    ) -> Result<(), JsError> {
+    ) -> Result<bool, JsError> {
         let width = self.canvas.width().max(1);
         let height = self.canvas.height().max(1);
         if self.config.width != width || self.config.height != height {
@@ -102,7 +102,7 @@ impl AmxPlayer {
         // Video sampling can distinguish times within a millisecond.
         if self.videos.is_empty() && self.dedup.is_presented(&signature) {
             self.frames_deduped += 1;
-            return Ok(());
+            return Ok(true);
         }
 
         // Vello's final pass needs STORAGE_BINDING on its target, which a default
@@ -130,11 +130,11 @@ impl AmxPlayer {
             CurrentSurfaceTexture::Outdated => {
                 self.surface.configure(device, &self.config);
                 self.dedup.invalidate();
-                return Ok(());
+                return Ok(false);
             },
             // Timeout/Occluded/Lost/Validation: skip this frame; the shell's
             // render loop simply tries again next tick.
-            _ => return Ok(()),
+            _ => return Ok(false),
         };
         let surface_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -170,7 +170,7 @@ impl AmxPlayer {
                 // Only now: this is the frame the canvas is showing, and the
                 // signature is the claim that redrawing it would change nothing.
                 self.dedup.record(signature);
-                Ok(())
+                Ok(true)
             },
             Err(error) => {
                 // Never present an acquired image that was not rendered.

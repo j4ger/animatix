@@ -137,7 +137,7 @@ impl AmxPlayer {
         &mut self,
         time_s: f64,
         payloads: Vec<JsValue>,
-    ) -> Result<(), JsError> {
+    ) -> Result<bool, JsError> {
         let requests = self.video_requests(time_s);
         if requests.len() != payloads.len() {
             return Err(JsError::new("video frame payload count differs from the request count"));

@@ -78,6 +78,13 @@ export class AmxPlayerLoad extends AmxPlayerView {
         this._restTime = this._duration;
         this._time = this._duration;
       }
+      // Timeline landmarks for the scrubber (keyframes, scene starts,
+      // transition windows) — the engine knows them, so the bar can show them.
+      this._setTimelineMarkers(result.markers);
+      this._pausePoints = Array.isArray(result.pause_points)
+        ? result.pause_points.slice().sort((a, b) => a - b)
+        : [];
+
       const firstFrame = this._renderScene();
       if (firstFrame instanceof Promise) {
         const presented = await firstFrame;
@@ -91,13 +98,6 @@ export class AmxPlayerLoad extends AmxPlayerView {
           throw playerError(new Error("Could not present the initial video frame"), "resource");
         }
       }
-
-      // Timeline landmarks for the scrubber (keyframes, scene starts,
-      // transition windows) — the engine knows them, so the bar can show them.
-      this._markers = Array.isArray(result.markers) ? result.markers : [];
-      this._pausePoints = Array.isArray(result.pause_points)
-        ? result.pause_points.slice().sort((a, b) => a - b)
-        : [];
 
       // Swap skeleton for canvas with a smooth crossfade
       this._canvas.hidden = false;
@@ -172,6 +172,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
       } else if (!this.hasAttribute("controls") && !this._isSealed()) {
         this._playbtn.classList.add("show");
       }
+      this._queueCueChange();
       this.dispatchEvent(new CustomEvent("amxready", { bubbles: true }));
     } catch (err) {
       if (!this._isCurrentOperation(generation) || err?.name === "AbortError") return;

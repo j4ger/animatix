@@ -44,12 +44,12 @@ const readme = github + '/blob/main/web/README.md';
         <pre><code>{scene.trim()}</code></pre>
       </details>
       <p>{en
-        ? <>Replace <code>index.html</code> with this version to give the page control. <code>sealed</code> hides the built-in play affordance; the buttons wait for <code>amxready</code>.</>
-        : <>将 <code>index.html</code> 换成这一版，由网页接管交互。<code>sealed</code> 隐藏播放器内置的播放入口，按钮等到 <code>amxready</code> 才启用。</>}</p>
+        ? <>Replace <code>index.html</code> with this version. The buttons wait for <code>amxready</code>. Play or drag the timeline and <code>amxcuechange</code> updates which button is current.</>
+        : <>将 <code>index.html</code> 换成这一版。按钮等到 <code>amxready</code> 才启用。播放或拖动时间轴时，网页通过 <code>amxcuechange</code> 更新当前按钮。</>}</p>
       <pre><code>{cueExample}</code></pre>
       <p>{en
-        ? <>Cue times are in seconds. In a multi-scene composition a cue ID includes the scene name, for example <code>Intro::middle</code>.</>
-        : <>cue 的时间单位是秒。多场景作品中的 cue ID 会带上场景名，例如 <code>Intro::middle</code>。</>}</p>
+        ? <>The event’s <code>detail.cue</code> is the most recent cue at or before the frame the player submitted, or <code>null</code> before the first cue. <code>player.activeCue</code> exposes the same state for late subscribers. Cue times are in seconds. In a multi-scene composition a cue ID includes the scene name, for example <code>Intro::middle</code>.</>
+        : <>事件的 <code>detail.cue</code> 是播放器最近提交的画面所处的 cue，也就是该时刻或之前的最后一个 cue。首个 cue 之前的值为 <code>null</code>，也可以直接读 <code>player.activeCue</code>。时间单位是秒；多场景作品中的 cue ID 会带上场景名，例如 <code>Intro::middle</code>。</>}</p>
     </section>
 
     <section id="presentation" aria-labelledby="presentation-title">

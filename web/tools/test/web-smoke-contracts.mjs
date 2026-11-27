@@ -1,7 +1,7 @@
 // Contracts name the artifact and user action, not legacy directories.
 export function contracts(suite, depth = 'critical') {
   if (!['critical', 'deep'].includes(depth)) throw new Error(`Unknown smoke depth: ${depth}`);
-  if (suite === 'sdk') return ['shapes', 'text', 'svg', 'shared', 'imports'].map(name => ({
+  if (suite === 'sdk') return ['shapes', 'text', 'svg', 'shared', 'imports', 'cues'].map(name => ({
     path: `/dev/smoke/?case=${name}`, action: 'fixture', name,
     players: name === 'shared' ? 2 : 1, fonts: name === 'text',
     motion: name === 'shapes' || name === 'shared' || name === 'imports',

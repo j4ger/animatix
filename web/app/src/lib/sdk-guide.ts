@@ -9,7 +9,8 @@ export const embedExample = `${begin}
 
 export const cueExample = `${begin}
 
-<amx-player id="tile" src="./scrub.amx" title="Moving tile" sealed eager>
+<style>button[aria-current="true"] { outline: 2px solid currentColor; }</style>
+<amx-player id="tile" src="./scrub.amx" title="Moving tile" controls eager>
 </amx-player>
 <button type="button" data-cue="start" disabled>Show start</button>
 <button type="button" data-cue="middle" disabled>Show middle</button>
@@ -19,7 +20,15 @@ export const cueExample = `${begin}
   const player = document.querySelector('#tile');
   const buttons = document.querySelectorAll('[data-cue]');
   const status = document.querySelector('#status');
+  function highlight(cue) {
+    for (const button of buttons) {
+      if (button.dataset.cue === cue?.id) button.setAttribute('aria-current', 'true');
+      else button.removeAttribute('aria-current');
+    }
+  }
+  player.addEventListener('amxcuechange', ({ detail }) => highlight(detail.cue));
   player.addEventListener('amxready', () => {
+    highlight(player.activeCue);
     status.textContent = '';
     for (const button of buttons) button.disabled = false;
   });

@@ -228,6 +228,55 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     return this._markers.map(marker => ({ ...marker }));
   }
 
+  /// Last named cue at or before the most recently submitted frame, or null.
+  get activeCue() {
+    return this._state === "ready" ? this._activeCue : null;
+  }
+
+  _setTimelineMarkers(markers) {
+    this._markers = Array.isArray(markers) ? markers : [];
+    // Keep the engine's stable order for cues at the same time. Build once
+    // per document, rather than scanning every landmark on each frame.
+    this._namedCues = this._markers
+      .filter(marker => marker.kind === "cue")
+      .map(({ id, t }) => Object.freeze({ id, t }));
+  }
+
+  _acceptCueFrame(time) {
+    if (!this._namedCues?.length && !this._activeCue) return;
+    let lo = 0;
+    let hi = this._namedCues.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (this._namedCues[mid].t <= time) lo = mid + 1;
+      else hi = mid;
+    }
+    const cue = this._namedCues[lo - 1] ?? null;
+    if (cue?.id === this._activeCue?.id && cue?.t === this._activeCue?.t) return;
+    this._activeCue = cue;
+    this._cueChangeTime = time;
+    this._queueCueChange();
+  }
+
+  _queueCueChange() {
+    if (this._state !== "ready" || this._cueChangeQueued ||
+        (this._activeCue?.id === this._reportedCue?.id && this._activeCue?.t === this._reportedCue?.t)) return;
+    this._cueChangeQueued = true;
+    // A page listener may seek or start another rebuild. Do not run it
+    // inside the render, load or resource-transaction stack.
+    queueMicrotask(() => {
+      this._cueChangeQueued = false;
+      if (this._state !== "ready") return;
+      const cue = this._activeCue;
+      if (cue?.id === this._reportedCue?.id && cue?.t === this._reportedCue?.t) return;
+      this._reportedCue = cue;
+      this.dispatchEvent(new CustomEvent("amxcuechange", {
+        bubbles: true,
+        detail: Object.freeze({ cue, time: this._cueChangeTime }),
+      }));
+    });
+  }
+
   /// Current position within the playback cycle (may exceed `duration` during
   /// a loop's hold rest; clamp for timeline math).
   get time() {
@@ -643,7 +692,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     if (key === this._lastRenderKey && !stale) return true;
     const videos = this._loadedBundle?.videos;
     if (videos?.size) return this._queueVideoFrame(t, key, videos);
-    return this._presentFrame(key, () => this._player.render_frame(t), nowMs);
+    return this._presentFrame(t, key, () => this._player.render_frame(t), nowMs);
   }
 
   _queueVideoFrame(time, key, videos) {
@@ -677,13 +726,13 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
         const frames = await Promise.all(requests.map(([id, sourceTime, beforeTrimEnd]) =>
           videos.get(id).sample(sourceTime, beforeTrimEnd)));
         if (current()) {
-          presented = this._presentFrame(key, () => player.render_video_frame(time, frames));
+          presented = this._presentFrame(time, key, () => player.render_video_frame(time, frames));
         }
       }
     } catch (error) {
       if (current()) {
         const firstFailure = !this._renderFailures;
-        this._presentFrame(key, () => { throw error; });
+        this._presentFrame(time, key, () => { throw error; });
         if (firstFailure && this._state === "ready") {
           dispatchPlayerError(this, this.getAttribute("src"), error, "resource");
         }
@@ -697,12 +746,18 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     }
   }
 
-  _presentFrame(key, draw, nowMs = performance.now()) {
+  _presentFrame(time, key, draw, nowMs = performance.now()) {
     try {
-      draw();
+      if (!draw()) {
+        // The surface skipped this frame; do not advance the page or cache it.
+        this._lastRenderKey = null;
+        this._lastRenderWall = undefined;
+        return false;
+      }
       this._lastRenderKey = key;
       this._lastRenderWall = nowMs;
       this._renderFailures = 0;
+      this._acceptCueFrame(time);
       return true;
     } catch (err) {
       // Never cache a failed render: the identical tick after it must retry.

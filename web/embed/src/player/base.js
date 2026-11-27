@@ -66,6 +66,10 @@ export class AmxPlayerBase extends HTMLElement {
     this._scrubbing = false;
     this._rate = 1;
     this._markers = [];
+    this._namedCues = [];
+    this._activeCue = null;
+    this._reportedCue = null;
+    this._cueChangeQueued = false;
     this._pausePoints = [];
     this._pausedAtStep = false;
     this._blackout = false;

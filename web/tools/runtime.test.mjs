@@ -85,7 +85,7 @@ function runtimeInputPlayer(Playback, { playing = false } = {}) {
       for (const key of Object.keys(inputs)) delete inputs[key];
       calls.push({ method: "clear" });
     },
-    render_frame(time) { draws.push(time); },
+    render_frame(time) { draws.push(time); return true; },
   };
   const player = Object.create(Playback.prototype);
   Object.assign(player, {
@@ -184,10 +184,95 @@ test("rejected runtime inputs do not invalidate or redraw the last good frame", 
   assert.equal(player._renderRevision, revision);
 });
 
+test("active cue is driven by submitted frames, not by the requested seek", async () => {
+  const Playback = await loadPlaybackClass();
+  const { player } = runtimeInputPlayer(Playback);
+  const events = [];
+  player.dispatchEvent = event => events.push(event);
+  player._syncControls = () => {};
+  player._setTimelineMarkers([
+    { kind: "cue", id: "memory", t: 0.5 },
+    { kind: "step", t: 1.25 },
+    { kind: "cue", id: "writeback", t: 1.5 },
+  ]);
+
+  player._state = "loading";
+  player._renderScene();
+  assert.equal(player.activeCue, null);
+  await Promise.resolve();
+  assert.equal(events.length, 0);
+  player._state = "ready";
+  player._queueCueChange();
+  await Promise.resolve();
+  assert.equal(events[0].type, "amxcuechange");
+  assert.equal(events[0].bubbles, true);
+  assert.deepEqual(events[0].detail, { cue: { id: "memory", t: 0.5 }, time: 0.75 });
+  assert.equal(Object.isFrozen(player.activeCue), true);
+
+  player._player.render_frame = () => false;
+  player.seek(1.5);
+  await Promise.resolve();
+  assert.equal(player.time, 1.5);
+  assert.equal(player.activeCue.id, "memory");
+  assert.equal(events.length, 1);
+  assert.equal(player._lastRenderKey, null);
+
+  player._player.render_frame = () => true;
+  player._renderScene();
+  await Promise.resolve();
+  assert.deepEqual(events.at(-1).detail, { cue: { id: "writeback", t: 1.5 }, time: 1.5 });
+
+  player.seek(1.6);
+  await Promise.resolve();
+  assert.equal(events.length, 2);
+  player.seek(1.25);
+  await Promise.resolve();
+  assert.deepEqual(events.at(-1).detail, { cue: { id: "memory", t: 0.5 }, time: 1.25 });
+  player.seek(0.25);
+  await Promise.resolve();
+  assert.deepEqual(events.at(-1).detail, { cue: null, time: 0.25 });
+});
+
+test("only accepted draws update a retimed or removed cue", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const Playback = await loadPlaybackClass();
+  const { player } = runtimeInputPlayer(Playback);
+  const events = [];
+  player.dispatchEvent = event => events.push(event.detail);
+  player._syncControls = () => {};
+  player._setTimelineMarkers([{ kind: "cue", id: "middle", t: 0.5 }]);
+  player.seek(1);
+  await Promise.resolve();
+
+  player._setTimelineMarkers([{ kind: "cue", id: "middle", t: 0.75 }]);
+  player._player.render_frame = () => { throw new Error("draw failed"); };
+  player.seek(1);
+  await Promise.resolve();
+  assert.equal(player.activeCue.t, 0.5);
+  assert.equal(events.length, 1);
+
+  player._player.render_frame = () => true;
+  player.seek(1);
+  await Promise.resolve();
+  assert.deepEqual(events.at(-1), { cue: { id: "middle", t: 0.75 }, time: 1 });
+
+  player._setTimelineMarkers([]);
+  player.seek(1);
+  await Promise.resolve();
+  assert.deepEqual(events.at(-1), { cue: null, time: 1 });
+});
+
 test("a rapid video scrub presents only the newest pending seek", async () => {
   const Playback = await loadPlaybackClass();
   const { player } = runtimeInputPlayer(Playback);
   player._syncControls = () => {};
+  const events = [];
+  player.dispatchEvent = event => events.push(event.detail);
+  player._setTimelineMarkers([
+    { kind: "cue", id: "first", t: 0.1 },
+    { kind: "cue", id: "missed", t: 0.2 },
+    { kind: "cue", id: "latest", t: 0.3 },
+  ]);
   const sampled = [];
   const draws = [];
   const pixels = new Uint8ClampedArray(4);
@@ -203,6 +288,7 @@ test("a rapid video scrub presents only the newest pending seek", async () => {
   player._player.render_video_frame = (time, frames) => {
     assert.equal(frames[0], pixels);
     draws.push(time);
+    return true;
   };
 
   const first = player.seek(0.1);
@@ -214,6 +300,7 @@ test("a rapid video scrub presents only the newest pending seek", async () => {
   assert.equal(await latest, true);
   assert.deepEqual(sampled, [0.1, 0.3]);
   assert.deepEqual(draws, [0.3]);
+  assert.deepEqual(events, [{ cue: { id: "latest", t: 0.3 }, time: 0.3 }]);
 });
 
 test("video sampling waits past seeked when the previous frame is still presented", async () => {

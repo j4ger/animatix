@@ -9,6 +9,50 @@ const fallbackCopy = {
   'zh-Hans': '实时播放暂不可用。',
 };
 const players = `document.querySelectorAll('amx-player')`;
+async function cueJourney(cdp, record) {
+  const player = `${players}[0]`;
+  const value = () => cdp.evaluate(`JSON.stringify(${player}.activeCue)`);
+  const expect = async (cue, name) => {
+    await until(name, async () => await value() === JSON.stringify(cue));
+  };
+  await expect({id:'middle',t:1.5}, 'initial paused frame installs cue');
+  await cdp.evaluate(`(() => {
+    window.cueChanges = [];
+    document.addEventListener('amxcuechange', event => {
+      if (event.target === ${player}) cueChanges.push(event.detail);
+    });
+    ${player}.seek(0);
+  })()`);
+  await expect({id:'start',t:0}, 'backward seek reports start');
+  await cdp.evaluate(`${player}.play()`);
+  await expect({id:'middle',t:1.5}, 'playback crosses middle cue');
+  await cdp.evaluate(`${player}.pause()`);
+  const previous = await cdp.evaluate('cueChanges');
+  if (previous.length !== 2 || previous[0].time !== 0 ||
+      previous[0].cue.id !== 'start' || previous[1].time < 1.5 ||
+      previous[1].cue.id !== 'middle') throw Error('Incorrect cue event payloads');
+
+  await cdp.evaluate(`(async () => {
+    const source = await (await fetch(${player}.getAttribute('src'))).text();
+    window.cueSource = source.replace('#1.5s\\n#cue:middle', '#1.6s\\n#cue:middle');
+    await ${player}.applySource(cueSource);
+  })()`);
+  await expect({id:'middle',t:1.6}, 'retimed cue at the paused frame');
+  await cdp.evaluate(`(async () => {
+    try { await ${player}.applySource('invalid {'); }
+    catch { return; }
+    throw Error('Invalid source should not build');
+  })()`);
+  await expect({id:'middle',t:1.6}, 'failed rebuild retains active cue');
+  await cdp.evaluate(`${player}.applySource(cueSource.replaceAll(/^#cue:.*$/gm, ''))`);
+  await expect(null, 'removing named cues clears active cue');
+  const changes = await cdp.evaluate('cueChanges');
+  if (changes.length !== 4 || changes[2].cue?.t !== 1.6 || changes[3].cue !== null) {
+    throw Error('Rebuild cue notifications diverged from activeCue');
+  }
+  record({kind:'cue-changes',changes});
+}
+
 export async function journey(cdp, contract, capture, record, checkErrors) {
   const diagnose = async label => {
     if(process.env.SMOKE_DIAGNOSTICS==='1') await cdp.evaluate(`window.__smokeDiagnostics?.sample(${JSON.stringify(label)})`);
@@ -55,6 +99,7 @@ export async function journey(cdp, contract, capture, record, checkErrors) {
       return cdp.evaluate(`__smoke.ready.has(${players}[${index}])`);
     });
     if (contract.action === 'load') await playReadyScene(cdp, contract);
+    if (contract.name === 'cues') await cueJourney(cdp, record);
     if (contract.action === 'edit') {
       await cdp.evaluate(`(() => {
         const code = document.querySelector('#source-code');
