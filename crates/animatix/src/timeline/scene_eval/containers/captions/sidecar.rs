@@ -117,6 +117,7 @@ impl Timeline {
                 let start = time_ms as f64 / 1000.0;
                 let end = changes.get(index + 1).map_or(limit_s, |next| *next as f64 / 1000.0);
                 let frame = crate::primitives::RenderFrame {
+                    paint_omissions: &[],
                     time_ms,
                     scene_dimensions,
                     debug_options: Default::default(),

@@ -16,6 +16,9 @@ mod frame_gpu_contract;
 #[path = "offscreen_render/filter_region_contract.rs"]
 mod filter_region_contract;
 
+#[path = "offscreen_render/audit_paint_contract.rs"]
+mod audit_paint_contract;
+
 use common::{build, build_checked, parse, solid_rect_timeline};
 
 /// `None` means "no GPU here, skip" — unless `ANIMATIX_REQUIRE_GPU` is set,

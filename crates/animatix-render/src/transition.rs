@@ -447,6 +447,12 @@ pub struct FlipItem {
     fade_through: bool,
 }
 
+impl FlipItem {
+    pub(crate) fn is_omitted(&self, from: &[&str], to: &[&str]) -> bool {
+        from.contains(&self.from.label.as_str()) || to.contains(&self.to.label.as_str())
+    }
+}
+
 /// Match actors carrying the same non-empty `shared_id` at the two local
 /// transition times.
 ///

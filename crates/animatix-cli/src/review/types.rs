@@ -201,6 +201,7 @@ pub(crate) struct RenderSampleFacts {
     /// Active transition, when this sample landed inside a blend.
     pub transition: Option<crate::frame_source::TransitionFact>,
     pub occlusions: Vec<crate::review::probe::OcclusionFact>,
+    pub missed_reveals: Vec<crate::review::probe::RevealCandidate>,
 }
 
 /// Site-policy resting-frame measurement, mirroring

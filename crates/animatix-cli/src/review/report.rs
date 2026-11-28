@@ -544,6 +544,7 @@ pub(crate) fn run_review(
         options.render,
         evidence_dir.or(options.frames_dir.as_deref()),
         &facts,
+        kind != "measure",
     )?;
 
     apply_render_facts(&mut facts, &render);

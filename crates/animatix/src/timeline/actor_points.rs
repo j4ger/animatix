@@ -360,6 +360,7 @@ impl Timeline {
         overrides: &'a std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> RenderFrame<'a> {
         RenderFrame {
+            paint_omissions: &[],
             time_ms,
             scene_dimensions,
             overrides,

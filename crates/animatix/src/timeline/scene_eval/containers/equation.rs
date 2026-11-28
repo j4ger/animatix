@@ -45,6 +45,7 @@ impl Timeline {
             }
             for time_ms in times {
                 let frame = crate::primitives::RenderFrame {
+                    paint_omissions: &[],
                     time_ms,
                     scene_dimensions,
                     debug_options: Default::default(),

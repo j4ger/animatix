@@ -41,6 +41,7 @@ impl Timeline {
             let before = self.collect_equation_fragments(
                 id,
                 &RenderFrame {
+                    paint_omissions: &[],
                     time_ms: change - 1,
                     ..*frame
                 },

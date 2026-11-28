@@ -146,6 +146,8 @@ pub(crate) struct RenderFrame<'a> {
         &'a std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     /// The frame environment, when modifiers or procedural plots needed one.
     pub(crate) frame_env: Option<&'a Environment>,
+    /// Scene-local primitive draws excluded by a paint-only audit pass.
+    pub(crate) paint_omissions: &'a [&'a str],
 }
 
 /// Mutable outputs of one render call. The table outputs and backend handle are
@@ -231,6 +233,7 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
     pub hit_regions: &'b mut Vec<(crate::timeline::EntityId, kurbo::Rect)>,
     /// Output observable scene items, when item collection was requested.
     pub program_items: &'b mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+    pub(crate) paint_omissions: &'a [&'a str],
     /// The active filter backend, when one is available.
     pub filter_backend: &'b mut Option<&'c mut dyn crate::timeline::effects::FilterBackend>,
 }
@@ -245,6 +248,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
             debug_options: self.debug_options,
             overrides: self.overrides,
             frame_env: self.frame_env,
+            paint_omissions: self.paint_omissions,
         }
     }
 

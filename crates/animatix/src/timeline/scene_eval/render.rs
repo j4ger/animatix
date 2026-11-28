@@ -640,6 +640,7 @@ impl Timeline {
                 debug_options,
                 local_transform,
                 opacity,
+                frame.paint_omissions.contains(&node_label),
                 half_size,
                 &vector_paths,
                 commands,
@@ -795,6 +796,7 @@ impl Timeline {
             scene: &mut *out.scene,
             hit_regions: &mut *out.hit_regions,
             program_items: &mut *out.program_items,
+            paint_omissions: frame.paint_omissions,
             filter_backend: &mut *out.filter_backend,
         };
 

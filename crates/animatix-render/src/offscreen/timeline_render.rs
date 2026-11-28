@@ -15,21 +15,19 @@ pub(crate) fn render_timeline_into_frame_gpu(
     view: &wgpu::TextureView,
     raster: kurbo::Affine,
     suppressed_actors: &[String],
+    omit: &[&str],
 ) -> Result<(), String> {
     let mut recorder = crate::frame_gpu::SceneRecorder;
     let mut backend: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
         Some(&mut recorder);
-    let program = if suppressed_actors.is_empty() {
-        timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut backend)
-    } else {
-        timeline.evaluate_program_with_suppressed(
-            time_s,
-            dimensions,
-            debug_options,
-            &mut backend,
-            suppressed_actors,
-        )
-    };
+    let program = timeline.evaluate_program_with_paint_omissions(
+        time_s,
+        dimensions,
+        debug_options,
+        &mut backend,
+        suppressed_actors,
+        omit,
+    );
     check_video_diagnostics(&program)?;
     frame_gpu.render_frame_into(&program.scene, view, raster)
 }

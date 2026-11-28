@@ -276,78 +276,31 @@ pub(crate) fn rule_actor_reveal_missing(facts: &ReviewFacts, out: &mut Vec<RuleI
     let Some(render) = &facts.render else {
         return;
     };
-    let mut reported: BTreeMap<(String, String), (f64, f64)> = BTreeMap::new();
-    for actor in &facts.actors {
-        if !actor.visual
-            || actor.is_group_like
-            || actor.is_effect_scope
-            || actor.is_non_content
-            || actor.is_background
-            || actor.label.contains("__")
-        {
-            continue;
-        }
-        let mut hidden: Option<(f64, f32)> = None;
-        let mut visible: Option<(f64, f32)> = None;
-        for frame in facts.all_frames() {
-            let Some(actor_frame) = facts.actor_frame(frame, &actor.scene, &actor.label) else {
-                continue;
-            };
-            if actor_frame.padded_on_frame_fraction <= 0.0 {
-                continue;
-            }
-            let ink = render
-                .samples
-                .iter()
-                .find(|sample| sample.time_s == frame.time_s)
-                .and_then(|sample| {
-                    sample.actor_ink.get(&(actor.scene.clone(), actor.label.clone())).copied()
-                })
-                .unwrap_or(0.0);
-            if actor_frame.opacity.unwrap_or(0.0) <= 0.01 {
-                hidden.get_or_insert((frame.time_s, ink));
-            } else if actor_frame.opacity.unwrap_or(0.0) > 0.01 {
-                visible.get_or_insert((frame.time_s, ink));
-            }
-        }
-        let (Some((hidden_time, hidden_ink)), Some((visible_time, visible_ink))) =
-            (hidden, visible)
-        else {
-            continue;
-        };
-        // Both ends unmeasured: the ink probe could not resolve this actor
-        // (thin strokes, tiny glyphs), so this is not evidence of a defect.
-        if hidden_ink.max(visible_ink) <= 0.01 {
-            continue;
-        }
-        if visible_ink - hidden_ink > 0.01 {
-            continue;
-        }
-        reported
-            .entry((actor.scene.clone(), actor.label.clone()))
-            .or_insert((visible_time, hidden_time));
-    }
-    for ((scene, label), (visible_time, hidden_time)) in reported {
+    for missed in render.samples.iter().flat_map(|sample| &sample.missed_reveals) {
+        let scene = &missed.scene;
+        let label = &missed.label;
+        let hidden_time = missed.hidden_s;
+        let visible_time = missed.visible_s;
         out.push(RuleIssue {
             rule_id: "actor.reveal-missing",
             severity: Severity::Warning,
             persistence: Persistence::Held,
             fix_hint: None,
             waived_by: None,
-            scene: Some(scene.clone()),
+            scene: Some(scene.to_string()),
             time_s: Some(visible_time),
-            actor: Some(label.clone()),
-            source_line: source_line(facts, &scene, &label),
+            actor: Some(label.to_string()),
+            source_line: source_line(facts, scene, label),
             message: format!(
                 "`{label}` is hidden at {hidden_time:.2}s and visible at {visible_time:.2}s, \
-                 but its region barely changes."
+                 but it contributes no detectable pixels to the composed frame."
             ),
             evidence: serde_json::json!({
                 "hidden_time_s": hidden_time,
                 "visible_time_s": visible_time,
+                "same_time_paint_comparison": true,
             }),
-            suggestion: "Check that the reveal action changes the actor's own pixels, not only \
-                         its parent opacity."
+            suggestion: "Check its paint, clipping and whether another layer covers it."
                 .to_string(),
             baseline_state: None,
         });

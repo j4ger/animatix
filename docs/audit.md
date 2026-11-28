@@ -102,6 +102,15 @@ animatix audit scene.amx --delta target/review/before.json --evidence target/rev
 
 *注意：`actor.opacity-never-positive` / `actor.reveal-missing` / `actor.never-on-frame` 会跳过背景层与 `for` 循环生成的子 actor（label 含 `__`）；`actor.clipped` 仅对文本/Plot 保持 Warning，其余降为 Info 观察。*
 
+显隐和文字遮挡只有在渲染档才会做像素复核。审查保持同一采样时刻与
+场景属性不变，只省略指定对象的绘制，再走原有的合成路径。带 `shared_id`
+的共享绘制在复核时仍是一份。文字覆盖率以移开候选遮挡层后实际找回的字形
+像素为准，和遮挡层的颜色无关；如果只验证了多个候选层的整体影响，就不指定
+单个遮挡者。显隐复核选用隐去之后独立场景里不透明度最高的采样点，避免拿淡入
+刚开始的微弱画面下结论。每次审查最多额外渲染 96 帧，达到上限或复核渲染
+失败时，报告的 `render.reason` 会注明未得出结论的复核次数。
+`measure` 和 `--render never` 不做这些额外渲染。
+
 ## 源码豁免标记
 
 ```animatix

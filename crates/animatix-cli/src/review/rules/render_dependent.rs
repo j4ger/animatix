@@ -250,8 +250,7 @@ pub(crate) fn rule_text_occluded(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) 
         }
     }
     for ((scene, label, occluder), (coverage, time_s, probed, covered)) in worst {
-        // A single probe point touching another glyph is not "occluded"; the
-        // grid is 27 points, so require at least a quarter of them.
+        // Require at least a quarter of the recoverable glyph pixels.
         if coverage < 0.25 {
             continue;
         }
@@ -271,7 +270,8 @@ pub(crate) fn rule_text_occluded(facts: &ReviewFacts, out: &mut Vec<RuleIssue>) 
             actor: Some(label.clone()),
             source_line: source_line(facts, &scene, &label),
             message: format!(
-                "`{label}` is occluded by {occluder:?} (coverage {:.1}%).",
+                "`{label}` is occluded by {} (coverage {:.1}%).",
+                occluder.as_deref().unwrap_or("overlapping layers"),
                 coverage * 100.0
             ),
             evidence: serde_json::json!({

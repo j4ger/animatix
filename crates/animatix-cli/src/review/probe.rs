@@ -1,513 +1,413 @@
-//! Probe grid occlusion detection for review.
-//!
-//! Evaluates whether text actors are occluded by subsequent actors in the draw
-//! order using a uniform probe grid. Valid probe points are those with ink
-//! relative to the frame's reference/modal color; empty regions are excluded
-//! from the denominator.
+//! Pixel attribution for the rendered audit tier. Bounds only select candidates;
+//! the real compositor decides which pixels each actor contributes.
 
-use crate::frame_source::{Box2, FrameView};
+use animatix::composition::BuildTarget;
+use animatix::timeline::SceneDimensions;
+use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 
-/// 一个参与遮挡判定的 actor，按绘制顺序传入（Vec 顺序 = 绘制顺序，后者在上）。
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ProbeActor {
-    pub scene: String,
-    pub label: String,
+use crate::frame_source::{
+    BOUNDS_PAD, Box2, DEFAULT_TOLERANCE, FrameTarget, FrameView, resolve_frame_target,
+};
+use crate::review::facts::ReviewFacts;
+
+/// A primitive in the structural draw order, not necessarily visible after compositing.
+pub(crate) struct ProbeActor<'a> {
+    pub scene: &'a str,
+    pub label: &'a str,
     pub bounds: Box2,
-    /// 继承后的有效不透明度 0.0..=1.0
     pub opacity: f32,
     pub is_text: bool,
+    pub can_omit: bool,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl<'a> ProbeActor<'a> {
+    fn key(&self) -> (&'a str, &'a str) {
+        (self.scene, self.label)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct OcclusionFact {
     pub scene: String,
     pub label: String,
-    /// 覆盖该 actor 探针点最多的那个遮挡者 label
+    /// None when the candidate stack, rather than one isolated layer, was tested.
     pub occluder: Option<String>,
-    /// covered_points / probed_points，0.0..=1.0
     pub probe_coverage: f64,
     pub probed_points: usize,
     pub covered_points: usize,
 }
 
-/// 默认 3 行 x 9 列。
-pub(crate) const PROBE_ROWS: usize = 3;
-pub(crate) const PROBE_COLS: usize = 9;
-
-pub(crate) fn probe_points(bounds: Box2, rows: usize, cols: usize) -> Vec<(f64, f64)> {
-    if rows == 0 || cols == 0 || bounds.x1 <= bounds.x0 || bounds.y1 <= bounds.y0 {
-        return Vec::new();
-    }
-    let dx = (bounds.x1 - bounds.x0) / cols as f64;
-    let dy = (bounds.y1 - bounds.y0) / rows as f64;
-    let mut points = Vec::with_capacity(rows * cols);
-    for r in 0..rows {
-        let y = bounds.y0 + (r as f64 + 0.5) * dy;
-        for c in 0..cols {
-            let x = bounds.x0 + (c as f64 + 0.5) * dx;
-            points.push((x, y));
-        }
-    }
-    points
+#[derive(Clone, Debug)]
+pub(crate) struct RevealCandidate {
+    pub scene: String,
+    pub label: String,
+    pub hidden_s: f64,
+    pub visible_s: f64,
+    pub bounds: Box2,
 }
 
-fn box_contains_point(bounds: Box2, px: f64, py: f64) -> bool {
-    let (min_x, max_x) = if bounds.x0 <= bounds.x1 {
-        (bounds.x0, bounds.x1)
-    } else {
-        (bounds.x1, bounds.x0)
-    };
-    let (min_y, max_y) = if bounds.y0 <= bounds.y1 {
-        (bounds.y0, bounds.y1)
-    } else {
-        (bounds.y1, bounds.y0)
-    };
-    px >= min_x && px <= max_x && py >= min_y && py <= max_y
-}
-
-fn pixel_has_ink(pixel: [u8; 4], reference: [u8; 4], tolerance: f64) -> bool {
-    (0..3).any(|c| (pixel[c] as f64 - reference[c] as f64).abs() / 255.0 > tolerance)
-}
-
-/// 对 draw_order 中每个 is_text actor 计算遮挡事实。
-/// reference 是该帧的 modal_color；tolerance 用 DEFAULT_TOLERANCE。
-pub(crate) fn probe_occlusion(
-    frame: &FrameView<'_>,
-    draw_order: &[ProbeActor],
-    reference: [u8; 4],
-    tolerance: f64,
-) -> Vec<OcclusionFact> {
-    let mut facts = Vec::new();
-
-    for (idx, actor) in draw_order.iter().enumerate() {
-        if !actor.is_text || actor.opacity <= 0.05 {
+/// Select a strongly visible sample after an authored hidden state. The very
+/// first nonzero sample of a fade is not evidence of a failed reveal.
+pub(crate) fn reveal_candidates(facts: &ReviewFacts) -> Vec<RevealCandidate> {
+    let mut out = Vec::new();
+    for actor in &facts.actors {
+        if !actor.visual
+            || actor.is_group_like
+            || actor.is_effect_scope
+            || actor.is_non_content
+            || actor.is_background
+            || actor.label.contains("__")
+        {
             continue;
         }
-
-        let Some((cx0, cy0, cx1, cy1)) = actor.bounds.clamped(frame.width(), frame.height()) else {
-            facts.push(OcclusionFact {
-                scene: actor.scene.clone(),
-                label: actor.label.clone(),
-                occluder: None,
-                probe_coverage: 0.0,
-                probed_points: 0,
-                covered_points: 0,
-            });
-            continue;
-        };
-
-        let clamped_bounds = Box2::new(
-            actor.bounds.x0.max(cx0 as f64),
-            actor.bounds.y0.max(cy0 as f64),
-            actor.bounds.x1.min(cx1 as f64),
-            actor.bounds.y1.min(cy1 as f64),
-        );
-
-        let points = probe_points(clamped_bounds, PROBE_ROWS, PROBE_COLS);
-
-        // Background-coloured probes do not count toward the coverage denominator.
-        let valid_points: Vec<(f64, f64)> = points
-            .into_iter()
-            .filter(|&(px, py)| {
-                let x = (px.floor() as u32).min(frame.width().saturating_sub(1));
-                let y = (py.floor() as u32).min(frame.height().saturating_sub(1));
-                let pixel = frame.pixel(x, y);
-                pixel_has_ink(pixel, reference, tolerance)
-            })
-            .collect();
-
-        let probed_points = valid_points.len();
-        if probed_points == 0 {
-            facts.push(OcclusionFact {
-                scene: actor.scene.clone(),
-                label: actor.label.clone(),
-                occluder: None,
-                probe_coverage: 0.0,
-                probed_points: 0,
-                covered_points: 0,
-            });
-            continue;
-        }
-
-        // Attribute coverage to the largest occluder; ties favor later draw order.
-        let subsequent_actors = &draw_order[(idx + 1)..];
-
-        let covered_points = valid_points
-            .iter()
-            .filter(|&&(px, py)| {
-                subsequent_actors
-                    .iter()
-                    .any(|occ| occ.opacity > 0.5 && box_contains_point(occ.bounds, px, py))
-            })
-            .count();
-
-        let mut best_occluder: Option<String> = None;
-        let mut best_count = 0;
-
-        for occluder in subsequent_actors {
-            if occluder.opacity <= 0.5 {
+        let mut hidden = None;
+        let mut shown: Option<(f64, f32, Box2)> = None;
+        // Extra structural rule probes are not necessarily rendered.
+        for frame in &facts.frames {
+            if frame.scene != actor.scene {
                 continue;
             }
-            let count = valid_points
-                .iter()
-                .filter(|&&(px, py)| box_contains_point(occluder.bounds, px, py))
-                .count();
-            if count > 0 && count >= best_count {
-                best_count = count;
-                best_occluder = Some(occluder.label.clone());
+            let Some(m) = facts.actor_frame(frame, &actor.scene, &actor.label) else {
+                continue;
+            };
+            let (Some(opacity), Some(bounds)) = (m.opacity, m.bounds) else {
+                continue;
+            };
+            if m.padded_on_frame_fraction <= 0.0 {
+                continue;
+            }
+            if opacity <= 0.01 {
+                hidden.get_or_insert(frame.time_s);
+            } else if hidden.is_some()
+                && m.draw_commands.unwrap_or(0) > 0
+                && shown.is_none_or(|(_, best, _)| opacity > best)
+            {
+                shown = Some((frame.time_s, opacity, bounds));
             }
         }
+        if let (Some(hidden_s), Some((visible_s, _, bounds))) = (hidden, shown) {
+            out.push(RevealCandidate {
+                scene: actor.scene.clone(),
+                label: actor.label.clone(),
+                hidden_s,
+                visible_s,
+                bounds,
+            });
+        }
+    }
+    out
+}
 
-        let probe_coverage = covered_points as f64 / probed_points as f64;
+/// Cap extra readbacks for large documents. A skipped probe is not evidence.
+const MAX_VARIANTS: usize = 96;
 
-        facts.push(OcclusionFact {
-            scene: actor.scene.clone(),
-            label: actor.label.clone(),
-            occluder: best_occluder,
-            probe_coverage,
-            probed_points,
-            covered_points,
-        });
+pub(crate) struct AuditPaintProbes {
+    remaining: usize,
+    pub inconclusive: usize,
+}
+
+impl Default for AuditPaintProbes {
+    fn default() -> Self {
+        Self {
+            remaining: MAX_VARIANTS,
+            inconclusive: 0,
+        }
+    }
+}
+
+impl AuditPaintProbes {
+    fn reserve(&mut self, n: usize) -> bool {
+        if n > self.remaining {
+            self.inconclusive += 1;
+            return false;
+        }
+        self.remaining -= n;
+        true
+    }
+}
+
+/// Keep the production compositor, dimensions, time, and scene inputs.
+struct ProbeFrame<'a> {
+    target: FrameTarget<'a>,
+    time_s: f64,
+    dimensions: SceneDimensions,
+}
+
+impl ProbeFrame<'_> {
+    fn render(
+        &self,
+        renderer: &mut OffscreenRenderer,
+        omit: &[(&str, &str)],
+    ) -> Result<RenderedFrame, String> {
+        match &self.target {
+            FrameTarget::Single { timeline } => {
+                let labels: Vec<_> = omit.iter().map(|(_, label)| *label).collect();
+                renderer.render_canvas_omitting_paint(
+                    timeline,
+                    self.time_s,
+                    self.dimensions,
+                    &labels,
+                )
+            },
+            FrameTarget::Scene {
+                scene,
+                local_time_s,
+            } => {
+                let labels: Vec<_> = omit.iter().map(|(_, label)| *label).collect();
+                renderer.render_canvas_omitting_paint(
+                    &scene.timeline,
+                    *local_time_s,
+                    self.dimensions,
+                    &labels,
+                )
+            },
+            FrameTarget::Transition { from, to, blend } => {
+                let labels = |name: &str| {
+                    omit.iter()
+                        .filter_map(|(scene, label)| (*scene == name).then_some(*label))
+                        .collect::<Vec<_>>()
+                };
+                renderer.render_canvas_transition_omitting_paint(
+                    &from.timeline,
+                    blend.from_local,
+                    &to.timeline,
+                    blend.to_local,
+                    blend.progress as f32,
+                    blend.id.clone(),
+                    blend.easing,
+                    self.dimensions,
+                    (&labels(&from.name), &labels(&to.name)),
+                )
+            },
+        }
     }
 
-    facts
+    fn shared_plan(&self) -> Option<(&str, &str, animatix_render::transition::SharedActorPlan)> {
+        let FrameTarget::Transition { from, to, blend } = &self.target else {
+            return None;
+        };
+        Some((
+            &from.name,
+            &to.name,
+            animatix_render::transition::plan_shared_actors(
+                &from.timeline,
+                blend.from_local,
+                &to.timeline,
+                blend.to_local,
+            ),
+        ))
+    }
+
+    fn region(&self, bounds: Box2) -> Box2 {
+        if matches!(&self.target, FrameTarget::Transition { .. }) {
+            // The compositor may translate/wipe the layers or interpolate an
+            // overlay. The original actor's box is not a safe pixel crop.
+            Box2::new(0.0, 0.0, self.dimensions.width as f64, self.dimensions.height as f64)
+        } else {
+            bounds.padded(BOUNDS_PAD)
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct PaintFindings {
+    pub occlusions: Vec<OcclusionFact>,
+    pub missed_reveals: Vec<RevealCandidate>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn inspect_paint(
+    budget: &mut AuditPaintProbes,
+    renderer: &mut OffscreenRenderer,
+    target: &BuildTarget,
+    time_s: f64,
+    dimensions: SceneDimensions,
+    frame: &FrameView<'_>,
+    order: &[ProbeActor<'_>],
+    reveals: &[RevealCandidate],
+) -> Result<PaintFindings, String> {
+    let context = ProbeFrame {
+        target: resolve_frame_target(target, time_s)?,
+        time_s,
+        dimensions,
+    };
+    let mut missed_reveals = Vec::new();
+    for candidate in reveals.iter().filter(|c| c.visible_s == time_s) {
+        if !budget.reserve(1) {
+            continue;
+        }
+        let key = (candidate.scene.as_str(), candidate.label.as_str());
+        let omitted = match context.render(renderer, &[key]) {
+            Ok(frame) => frame,
+            Err(error) => {
+                tracing::debug!(%error, "inconclusive audit reveal paint comparison");
+                budget.inconclusive += 1;
+                continue;
+            },
+        };
+        if crate::frame_source::region_differing_fraction(
+            frame,
+            &view(&omitted)?,
+            context.region(candidate.bounds),
+            DEFAULT_TOLERANCE,
+        ) == 0.0
+        {
+            missed_reveals.push(candidate.clone());
+        }
+    }
+    let occlusions = inspect_occlusions(budget, renderer, &context, frame, order)?;
+    Ok(PaintFindings {
+        occlusions,
+        missed_reveals,
+    })
+}
+
+fn intersects(a: Box2, b: Box2) -> bool {
+    a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+}
+
+fn inspect_occlusions(
+    budget: &mut AuditPaintProbes,
+    renderer: &mut OffscreenRenderer,
+    context: &ProbeFrame<'_>,
+    frame: &FrameView<'_>,
+    order: &[ProbeActor<'_>],
+) -> Result<Vec<OcclusionFact>, String> {
+    let shared = context.shared_plan();
+    let mut out = Vec::new();
+    for (index, text) in order
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| a.can_omit && a.is_text && a.opacity > 0.05)
+    {
+        // Frame parts can contain both names for a single shared overlay.
+        // Omitting either name removes that whole overlay, never treat the
+        // second name as a potential blocker of the first.
+        let alias = shared.as_ref().and_then(|(from, to, plan)| {
+            plan.pairs.iter().find_map(|(a, b)| {
+                if text.key() == (*from, a.as_str()) {
+                    Some((*to, b.as_str()))
+                } else if text.key() == (*to, b.as_str()) {
+                    Some((*from, a.as_str()))
+                } else {
+                    None
+                }
+            })
+        });
+        let mut blockers: Vec<_> = order[index + 1..]
+            .iter()
+            .filter(|candidate| {
+                candidate.can_omit
+                    && candidate.opacity > 0.5
+                    && Some(candidate.key()) != alias
+                    && intersects(text.bounds, candidate.bounds)
+            })
+            .map(ProbeActor::key)
+            .collect();
+        if blockers.is_empty() || !budget.reserve(3) {
+            continue;
+        }
+        let variant = (|| {
+            let without_text = context.render(renderer, &[text.key()])?;
+            let without_blockers = context.render(renderer, &blockers)?;
+            blockers.push(text.key());
+            let without_both = context.render(renderer, &blockers)?;
+            blockers.pop();
+            Ok::<_, String>((without_text, without_blockers, without_both))
+        })();
+        let (without_text, without_blockers, without_both) = match variant {
+            Ok(frames) => frames,
+            Err(error) => {
+                tracing::debug!(%error, "inconclusive audit occlusion paint comparison");
+                budget.inconclusive += 1;
+                continue;
+            },
+        };
+        let (probed, covered) = measure_hidden_glyphs(
+            frame,
+            &view(&without_text)?,
+            &view(&without_blockers)?,
+            &view(&without_both)?,
+            context.region(text.bounds),
+        );
+        if covered > 0 {
+            out.push(OcclusionFact {
+                scene: text.scene.into(),
+                label: text.label.into(),
+                occluder: (blockers.len() == 1).then(|| blockers[0].1.into()),
+                probe_coverage: covered as f64 / probed as f64,
+                probed_points: probed,
+                covered_points: covered,
+            });
+        }
+    }
+    Ok(out)
+}
+
+fn view(frame: &RenderedFrame) -> Result<FrameView<'_>, String> {
+    FrameView::new(frame.width, frame.height, &frame.rgba)
+        .ok_or_else(|| "paint probe frame buffer has an unexpected size".to_string())
+}
+
+fn delta(a: [u8; 4], b: [u8; 4]) -> f64 {
+    let max_channel = a.into_iter().zip(b).take(3).map(|(x, y)| x.abs_diff(y)).max().unwrap_or(0);
+    f64::from(max_channel) / 255.0
+}
+
+fn measure_hidden_glyphs(
+    full: &FrameView<'_>,
+    no_text: &FrameView<'_>,
+    no_blockers: &FrameView<'_>,
+    neither: &FrameView<'_>,
+    region: Box2,
+) -> (usize, usize) {
+    let Some((x0, y0, x1, y1)) = region.clamped(full.width(), full.height()) else {
+        return (0, 0);
+    };
+    let mut probed = 0;
+    let mut covered = 0;
+    for y in y0..y1 {
+        for x in x0..x1 {
+            // Subtract the text's own signal with AND without the candidates.
+            // Comparing the two full colors directly credits a rectangle's
+            // fill as if it were text, and misses same-color blockers.
+            let restored = delta(no_blockers.pixel(x, y), neither.pixel(x, y));
+            if restored > DEFAULT_TOLERANCE {
+                probed += 1;
+                if delta(full.pixel(x, y), no_text.pixel(x, y)) <= DEFAULT_TOLERANCE {
+                    covered += 1;
+                }
+            }
+        }
+    }
+    (probed, covered)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame_source::DEFAULT_TOLERANCE;
-
-    fn create_test_frame(width: u32, height: u32, bg: [u8; 4]) -> Vec<u8> {
-        let mut buf = Vec::with_capacity((width * height * 4) as usize);
-        for _ in 0..(width * height) {
-            buf.extend_from_slice(&bg);
-        }
-        buf
-    }
-
-    fn fill_rect(buf: &mut [u8], width: u32, x0: u32, y0: u32, x1: u32, y1: u32, color: [u8; 4]) {
-        for y in y0..y1 {
-            for x in x0..x1 {
-                let idx = ((y * width + x) * 4) as usize;
-                buf[idx..idx + 4].copy_from_slice(&color);
-            }
-        }
-    }
 
     #[test]
-    fn test_probe_points_inside_bounds() {
-        let bounds = Box2::new(10.0, 20.0, 100.0, 50.0);
-        let pts = probe_points(bounds, PROBE_ROWS, PROBE_COLS);
-        assert_eq!(pts.len(), 27);
-        let dx = (100.0 - 10.0) / 9.0;
-        let dy = (50.0 - 20.0) / 3.0;
-        for (idx, &(x, y)) in pts.iter().enumerate() {
-            let r = idx / 9;
-            let c = idx % 9;
-            let expected_x = 10.0 + (c as f64 + 0.5) * dx;
-            let expected_y = 20.0 + (r as f64 + 0.5) * dy;
-            assert!((x - expected_x).abs() < 1e-9);
-            assert!((y - expected_y).abs() < 1e-9);
-            assert!(x > bounds.x0 && x < bounds.x1);
-            assert!(y > bounds.y0 && y < bounds.y1);
-        }
-    }
-
-    #[test]
-    fn test_full_occlusion() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let ink = [0, 0, 0, 255];
-        let mut buf = create_test_frame(width, height, bg);
-        fill_rect(&mut buf, width, 0, 0, 90, 30, ink);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "title".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: true,
+    fn measures_recovered_glyphs_not_the_blockers_color() {
+        let dark = [24, 24, 24, 255];
+        let light = [250, 250, 250, 255];
+        let red = [200, 0, 0, 255];
+        let visible = [light, dark].concat();
+        let under = [dark, dark].concat();
+        let rect = [red, red].concat();
+        let frame = |rgba| FrameView::new(2, 1, rgba).unwrap();
+        let bounds = Box2::new(0., 0., 2., 1.);
+        let check = |full, no_text| {
+            measure_hidden_glyphs(
+                &frame(full),
+                &frame(no_text),
+                &frame(&visible),
+                &frame(&under),
+                bounds,
+            )
         };
-        let rect = ProbeActor {
-            scene: "main".into(),
-            label: "blocker".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: false,
-        };
-
-        let facts = probe_occlusion(&frame, &[text, rect], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].scene, "main");
-        assert_eq!(facts[0].label, "title");
-        assert_eq!(facts[0].probed_points, 27);
-        assert_eq!(facts[0].covered_points, 27);
-        assert!((facts[0].probe_coverage - 1.0).abs() < 1e-6);
-        assert_eq!(facts[0].occluder.as_deref(), Some("blocker"));
-    }
-
-    #[test]
-    fn test_partial_occlusion_two_points() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let ink = [0, 0, 0, 255];
-        let mut buf = create_test_frame(width, height, bg);
-        fill_rect(&mut buf, width, 0, 0, 90, 30, ink);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "title".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: true,
-        };
-        // In 3x9 grid for [0..90] x [0..30], grid cell centers are:
-        // row 0: y=5; row 1: y=15; row 2: y=25.
-        // cols: x=5, 15, 25, 35, 45, 55, 65, 75, 85.
-        // Box [0, 0, 20, 10] covers exactly (5, 5) and (15, 5).
-        let occ = ProbeActor {
-            scene: "main".into(),
-            label: "partial_box".into(),
-            bounds: Box2::new(0.0, 0.0, 20.0, 10.0),
-            opacity: 1.0,
-            is_text: false,
-        };
-
-        let facts = probe_occlusion(&frame, &[text, occ], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].probed_points, 27);
-        assert_eq!(facts[0].covered_points, 2);
-        assert!((facts[0].probe_coverage - 2.0 / 27.0).abs() < 1e-6);
-        assert_eq!(facts[0].occluder.as_deref(), Some("partial_box"));
-    }
-
-    #[test]
-    fn test_no_ink_points_excluded_from_denominator() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let ink = [0, 0, 0, 255];
-        let mut buf = create_test_frame(width, height, bg);
-        // Fill only top row [0, 90] x [0, 10] with ink; rest is bg (white).
-        fill_rect(&mut buf, width, 0, 0, 90, 10, ink);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "title".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: true,
-        };
-        // Occluder covers all 9 valid ink points in row 0.
-        let occ = ProbeActor {
-            scene: "main".into(),
-            label: "box".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 10.0),
-            opacity: 1.0,
-            is_text: false,
-        };
-
-        let facts = probe_occlusion(&frame, &[text, occ], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].probed_points, 9);
-        assert_eq!(facts[0].covered_points, 9);
-        assert!((facts[0].probe_coverage - 1.0).abs() < 1e-6);
-        assert_eq!(facts[0].occluder.as_deref(), Some("box"));
-    }
-
-    #[test]
-    fn test_underneath_actor_not_occluder() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let ink = [0, 0, 0, 255];
-        let mut buf = create_test_frame(width, height, bg);
-        fill_rect(&mut buf, width, 0, 0, 90, 30, ink);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let under = ProbeActor {
-            scene: "main".into(),
-            label: "bg_rect".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: false,
-        };
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "title".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: true,
-        };
-
-        // under is drawn BEFORE text in draw_order.
-        let facts = probe_occlusion(&frame, &[under, text], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].probed_points, 27);
-        assert_eq!(facts[0].covered_points, 0);
-        assert_eq!(facts[0].probe_coverage, 0.0);
-        assert_eq!(facts[0].occluder, None);
-    }
-
-    #[test]
-    fn test_probed_points_zero_all_background() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let buf = create_test_frame(width, height, bg);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "title".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: true,
-        };
-        let blocker = ProbeActor {
-            scene: "main".into(),
-            label: "blocker".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: false,
-        };
-
-        let facts = probe_occlusion(&frame, &[text, blocker], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].probed_points, 0);
-        assert_eq!(facts[0].covered_points, 0);
-        assert_eq!(facts[0].probe_coverage, 0.0);
-        assert_eq!(facts[0].occluder, None);
-    }
-
-    #[test]
-    fn test_opacity_threshold_text() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let ink = [0, 0, 0, 255];
-        let mut buf = create_test_frame(width, height, bg);
-        fill_rect(&mut buf, width, 0, 0, 90, 30, ink);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text_hidden = ProbeActor {
-            scene: "main".into(),
-            label: "hidden".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 0.05,
-            is_text: true,
-        };
-        let facts = probe_occlusion(&frame, &[text_hidden], bg, DEFAULT_TOLERANCE);
-        assert!(facts.is_empty());
-
-        let text_visible = ProbeActor {
-            scene: "main".into(),
-            label: "visible".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 0.051,
-            is_text: true,
-        };
-        let facts2 = probe_occlusion(&frame, &[text_visible], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts2.len(), 1);
-        assert_eq!(facts2[0].label, "visible");
-    }
-
-    #[test]
-    fn test_occluder_tie_breaking_later_draw_order_wins() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let ink = [0, 0, 0, 255];
-        let mut buf = create_test_frame(width, height, bg);
-        fill_rect(&mut buf, width, 0, 0, 90, 30, ink);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "text".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: true,
-        };
-        let occ1 = ProbeActor {
-            scene: "main".into(),
-            label: "occ_early".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: false,
-        };
-        let occ2 = ProbeActor {
-            scene: "main".into(),
-            label: "occ_late".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: false,
-        };
-
-        let facts = probe_occlusion(&frame, &[text, occ1, occ2], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].occluder.as_deref(), Some("occ_late"));
-    }
-
-    #[test]
-    fn test_occluder_opacity_threshold() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let ink = [0, 0, 0, 255];
-        let mut buf = create_test_frame(width, height, bg);
-        fill_rect(&mut buf, width, 0, 0, 90, 30, ink);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "text".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 1.0,
-            is_text: true,
-        };
-        let semi_occ = ProbeActor {
-            scene: "main".into(),
-            label: "semi".into(),
-            bounds: Box2::new(0.0, 0.0, 90.0, 30.0),
-            opacity: 0.5,
-            is_text: false,
-        };
-
-        let facts = probe_occlusion(&frame, &[text, semi_occ], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].covered_points, 0);
-        assert_eq!(facts[0].probe_coverage, 0.0);
-        assert_eq!(facts[0].occluder, None);
-    }
-
-    #[test]
-    fn test_actor_outside_canvas() {
-        let width = 100;
-        let height = 100;
-        let bg = [255, 255, 255, 255];
-        let buf = create_test_frame(width, height, bg);
-        let frame = FrameView::new(width, height, &buf).unwrap();
-
-        let text = ProbeActor {
-            scene: "main".into(),
-            label: "offscreen".into(),
-            bounds: Box2::new(-100.0, -100.0, -50.0, -50.0),
-            opacity: 1.0,
-            is_text: true,
-        };
-
-        let facts = probe_occlusion(&frame, &[text], bg, DEFAULT_TOLERANCE);
-        assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].probed_points, 0);
-        assert_eq!(facts[0].covered_points, 0);
-        assert_eq!(facts[0].probe_coverage, 0.0);
-        assert_eq!(facts[0].occluder, None);
+        assert_eq!(check(&under, &under), (1, 1));
+        assert_eq!(check(&rect, &rect), (1, 1));
+        assert_eq!(check(&visible, &under), (1, 0));
     }
 }

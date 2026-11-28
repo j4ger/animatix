@@ -271,6 +271,7 @@ fn frame_blank_rule_uses_render_ink() {
             actor_ink: Default::default(),
             transition: None,
             occlusions: Vec::new(),
+            missed_reveals: Vec::new(),
         }],
         site_rest: None,
     });
@@ -431,6 +432,7 @@ fn verify_ink_missing_flags_positive_opacity_without_ink() {
             actor_ink: Default::default(),
             transition: None,
             occlusions: Vec::new(),
+            missed_reveals: Vec::new(),
         }],
         site_rest: None,
     });
@@ -474,6 +476,7 @@ fn test_render_not_rendered_zero_output() {
                 actor_ink: Default::default(),
                 transition: None,
                 occlusions: Vec::new(),
+                missed_reveals: Vec::new(),
             }],
             site_rest: None,
         });

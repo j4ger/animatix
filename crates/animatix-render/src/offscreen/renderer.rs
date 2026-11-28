@@ -178,7 +178,7 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
         let mapping = CanvasMapping::new(timeline.canvas_dimensions(), output);
-        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
+        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options, &[])?;
         self.readback_output_with_alpha(output, ReadbackAlpha::Opaque)
     }
 
@@ -191,7 +191,7 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<PendingFrame, String> {
         let mapping = CanvasMapping::new(timeline.canvas_dimensions(), output);
-        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
+        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options, &[])?;
         self.begin_readback_with_alpha(output, ReadbackAlpha::Opaque)
     }
 
@@ -231,7 +231,7 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
         let mapping = CanvasMapping::new(dimensions, dimensions);
-        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)
+        self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options, &[])
             .map(|_| ())
     }
 
@@ -254,7 +254,7 @@ impl OffscreenRenderer {
     ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
         let mapping = CanvasMapping::new(dimensions, dimensions);
         let program =
-            self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
+            self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options, &[])?;
         let frame = self.readback_output_with_alpha(dimensions, ReadbackAlpha::Opaque)?;
         Ok((frame, program))
     }
@@ -269,9 +269,29 @@ impl OffscreenRenderer {
     ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
         let mapping = CanvasMapping::new(timeline.canvas_dimensions(), output);
         let program =
-            self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options)?;
+            self.render_to_output_texture_inner(timeline, time_s, mapping, debug_options, &[])?;
         let frame = self.readback_output_with_alpha(output, ReadbackAlpha::Opaque)?;
         Ok((frame, program))
+    }
+
+    /// Render the audit counterfactual at the same time without the named primitive draws.
+    #[doc(hidden)]
+    pub fn render_canvas_omitting_paint(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        output: SceneDimensions,
+        omit: &[&str],
+    ) -> Result<RenderedFrame, String> {
+        let mapping = CanvasMapping::new(timeline.canvas_dimensions(), output);
+        self.render_to_output_texture_inner(
+            timeline,
+            time_s,
+            mapping,
+            DebugRenderOptions::default(),
+            omit,
+        )?;
+        self.readback_output_with_alpha(output, ReadbackAlpha::Opaque)
     }
 
     /// Shared tail of [`Self::render_to_output_texture`] and
@@ -283,6 +303,7 @@ impl OffscreenRenderer {
         time_s: f64,
         mapping: CanvasMapping,
         debug_options: DebugRenderOptions,
+        omit: &[&str],
     ) -> Result<animatix::timeline::scene_program::SceneProgram, String> {
         self.prepare_canvas(mapping, false)?;
 
@@ -290,11 +311,13 @@ impl OffscreenRenderer {
         let mut recorder = crate::frame_gpu::SceneRecorder;
         let mut backend: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
             Some(&mut recorder);
-        let program = timeline.evaluate_program_with_debug(
+        let program = timeline.evaluate_program_with_paint_omissions(
             time_s,
             mapping.logical,
             debug_options,
             &mut backend,
+            &[],
+            omit,
         );
         super::timeline_render::check_video_diagnostics(&program)?;
         let probe_eval_ms = crate::probe::probe_ms(t_eval);

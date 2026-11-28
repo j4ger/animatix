@@ -20,6 +20,7 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         local_transform: kurbo::Affine,
         opacity: f32,
+        omit_paint: bool,
         half_size: [f32; 2],
         vector_paths: &[VelloPath],
         commands: Vec<crate::primitives::RenderCommand>,
@@ -27,8 +28,10 @@ impl Timeline {
         hit_regions: &mut Vec<(EntityId, kurbo::Rect)>,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
-        for cmd in &commands {
-            cmd.execute(scene, &local_transform, opacity);
+        if !omit_paint {
+            for cmd in &commands {
+                cmd.execute(scene, &local_transform, opacity);
+            }
         }
         if let Some(items) = program_items.as_mut() {
             items.push(crate::timeline::scene_program::SceneItem {

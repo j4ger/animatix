@@ -393,3 +393,128 @@ large: Text, text: "Readable", at: (800, 350), font_size: 54
     assert_eq!(candidates[0]["evidence"]["min_text_height_px"], 6.0);
     assert_eq!(candidates[0]["evidence"]["bounds_height_px"], measured["bounds_height_px"]);
 }
+
+fn run_paint_audit(name: &str, source: &str, times: &str) -> serde_json::Value {
+    let (_project, input) = temp_project(name, source);
+    let output = Command::new(target_bin())
+        .arg("audit")
+        .arg(input)
+        .args([
+            "--render",
+            "always",
+            "--format",
+            "json",
+            "--fail-on",
+            "never",
+            "--times",
+            times,
+        ])
+        .output()
+        .expect("run rendered audit");
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let report = parse_stdout_json(&output);
+    assert_eq!(report["render"]["status"], "rendered");
+    report
+}
+
+fn paint_finding(report: &serde_json::Value, code: &str, actor: &str) -> bool {
+    report["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|f| f["code"] == code && f["actor"] == actor)
+}
+
+#[test]
+fn audit_reveal_on_decorated_panel_uses_the_actors_own_paint() {
+    if animatix_render::offscreen::OffscreenRenderer::new().is_err() {
+        animatix_render::testing::skip_if_no_gpu();
+        return;
+    }
+    let front = r#"
+config { canvas_size: (480,270), duration: 2 }
+#0s
+scene.background_color = hex_color("1a1e29")
+card: Rect, at: (240,135), size: (328,184), color: hex_color("35536a")
+dot: Ellipse, at: (240,135), size: (88,88), color: hex_color("f2ba30"), opacity: 0
+#1s
+dot.opacity = 1
+#2s
+"#;
+    let report = run_paint_audit("reveal-on-panel", front, "0,0.999,1,2");
+    assert!(!paint_finding(&report, "actor.reveal-missing", "dot"), "{report}");
+    let card = front.lines().find(|l| l.starts_with("card:")).unwrap();
+    let behind = front.replace(&format!("{card}\n"), "").replace("#1s", &format!("{card}\n#1s"));
+    let report = run_paint_audit("reveal-behind-panel", &behind, "0,0.999,1,2");
+    assert!(paint_finding(&report, "actor.reveal-missing", "dot"), "{report}");
+}
+
+#[test]
+fn audit_text_detects_real_occlusion_even_when_the_cover_matches_the_background() {
+    if animatix_render::offscreen::OffscreenRenderer::new().is_err() {
+        animatix_render::testing::skip_if_no_gpu();
+        return;
+    }
+    let source = r#"
+config { canvas_size: (480,270), duration: 2 }
+#0s
+scene.background_color = hex_color("151c2b")
+station: Text, at: (240,135), text: "CENTRAL", font_size: 35, color: hex_color("e9d4a8")
+binder: Rect, at: (240,135), size: (200,70), color: hex_color("d45858"), opacity: 0
+#1s
+binder.opacity = 1
+#2s
+"#;
+    for color in ["d45858", "151c2b"] {
+        let report = run_paint_audit(color, &source.replace("d45858", color), "0,0.999,1,2");
+        assert!(paint_finding(&report, "text.occluded-full", "station"), "{report}");
+        assert!(!paint_finding(&report, "actor.reveal-missing", "binder"), "{report}");
+    }
+    let no_cover = source
+        .lines()
+        .filter(|line| !line.starts_with("binder"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let report = run_paint_audit("no-cover", &no_cover, "0,0.999,1,2");
+    assert!(!paint_finding(&report, "text.occluded-full", "station"), "{report}");
+}
+
+#[test]
+fn audit_occlusion_measures_the_actual_transition_not_the_raw_scene_stack() {
+    if animatix_render::offscreen::OffscreenRenderer::new().is_err() {
+        animatix_render::testing::skip_if_no_gpu();
+        return;
+    }
+    let start = r#"
+config { canvas_size: (480,270) }
+#Overview
+config { duration: 2 }
+scene.background_color = hex_color("151c2b")
+#0s
+old_station: Text, at: (240,135), text: "CENTRAL", font_size: 35, color: hex_color("e9d4a8"), shared_id: "station"
+#1s
+play Detail [fade, 1s]
+#Detail
+config { duration: 2 }
+scene.background_color = hex_color("151c2b")
+#0s
+"#;
+    let shared = format!(
+        r#"{start}new_station: Text, at: (240,135), text: "CENTRAL", font_size: 35, color: hex_color("e9d4a8"), shared_id: "station"
+"#
+    );
+    let report = run_paint_audit("one-shared-text", &shared, "0,0.999,1,1.5,1.999,2,3");
+    assert!(!paint_finding(&report, "text.occluded-full", "old_station"), "{report}");
+    let rect = format!(
+        r#"{start}binder: Rect, at: (240,135), size: (200,70), color: hex_color("d45858")
+"#
+    );
+    let report = run_paint_audit("transparent-incoming", &rect, "0,0.999,1");
+    assert!(!paint_finding(&report, "text.occluded-full", "old_station"), "{report}");
+    let real = rect.replace(
+        "#1s\nplay",
+        "blocker: Rect, at: (240,135), size: (200,70), color: hex_color(\"151c2b\")\n#1s\nplay",
+    );
+    let report = run_paint_audit("real-outgoing-cover", &real, "1,1.3");
+    assert!(paint_finding(&report, "text.occluded-full", "old_station"), "{report}");
+}

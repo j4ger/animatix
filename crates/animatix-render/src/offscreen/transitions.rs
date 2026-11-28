@@ -39,6 +39,7 @@ impl OffscreenRenderer {
             easing,
             CanvasMapping::new(dimensions, dimensions),
             debug_options,
+            (&[], &[]),
         )?;
         self.begin_readback(dimensions)
     }
@@ -67,6 +68,7 @@ impl OffscreenRenderer {
             easing,
             CanvasMapping::new(dimensions, dimensions),
             debug_options,
+            (&[], &[]),
         )?;
         self.readback_output(dimensions)
     }
@@ -96,6 +98,7 @@ impl OffscreenRenderer {
             easing,
             mapping,
             debug_options,
+            (&[], &[]),
         )?;
         self.begin_readback(output)
     }
@@ -125,6 +128,38 @@ impl OffscreenRenderer {
             easing,
             mapping,
             debug_options,
+            (&[], &[]),
+        )?;
+        self.readback_output(output)
+    }
+
+    /// Audit variant of the production transition, including its spatial mask and FLIP overlay.
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_canvas_transition_omitting_paint(
+        &mut self,
+        from_timeline: &Timeline,
+        from_time: f64,
+        to_timeline: &Timeline,
+        to_time: f64,
+        progress: f32,
+        transition_id: String,
+        easing: animatix::easing::Easing,
+        output: SceneDimensions,
+        omit: (&[&str], &[&str]),
+    ) -> Result<RenderedFrame, String> {
+        let mapping = CanvasMapping::new(from_timeline.canvas_dimensions(), output);
+        self.render_transition_to_output(
+            from_timeline,
+            from_time,
+            to_timeline,
+            to_time,
+            progress,
+            transition_id,
+            easing,
+            mapping,
+            DebugRenderOptions::default(),
+            omit,
         )?;
         self.readback_output(output)
     }
@@ -144,6 +179,7 @@ impl OffscreenRenderer {
         easing: animatix::easing::Easing,
         mapping: CanvasMapping,
         debug_options: DebugRenderOptions,
+        omit: (&[&str], &[&str]),
     ) -> Result<(), String> {
         self.prepare_canvas(mapping, true)?;
 
@@ -156,7 +192,7 @@ impl OffscreenRenderer {
         // Shared actors are suppressed during each scene render and re-drawn
         // once in the floating FLIP overlay below.
         let shared = plan_shared_actors(from_timeline, from_time, to_timeline, to_time);
-        let flip_items = collect_flip_pairs(
+        let mut flip_items = collect_flip_pairs(
             &shared,
             from_timeline,
             from_time,
@@ -165,6 +201,10 @@ impl OffscreenRenderer {
             mapping.logical,
             debug_options,
         );
+
+        if !omit.0.is_empty() || !omit.1.is_empty() {
+            flip_items.retain(|pair| !pair.is_omitted(omit.0, omit.1));
+        }
 
         // Render each side independently so its scene is dropped before the
         // next evaluation.
@@ -175,6 +215,7 @@ impl OffscreenRenderer {
             mapping,
             debug_options,
             &shared.suppressed_from,
+            omit.0,
         )?;
         self.render_transition_scene(
             TransitionSceneSide::Incoming,
@@ -183,6 +224,7 @@ impl OffscreenRenderer {
             mapping,
             debug_options,
             &shared.suppressed_to,
+            omit.1,
         )?;
 
         // Composite to output_texture
@@ -226,6 +268,7 @@ impl OffscreenRenderer {
         mapping: CanvasMapping,
         debug_options: DebugRenderOptions,
         suppressed_actors: &[String],
+        omit: &[&str],
     ) -> Result<(), String> {
         let views = self.canvas_views(mapping)?;
         let [outgoing, incoming] = views.sides.ok_or("Missing offscreen transition inputs")?;
@@ -242,6 +285,7 @@ impl OffscreenRenderer {
             &view,
             mapping.transform,
             suppressed_actors,
+            omit,
         )
     }
 }

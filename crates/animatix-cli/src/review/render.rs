@@ -22,6 +22,7 @@ use super::types::{
 
 /// Run the requested render tier. Structural results survive an auto-mode
 /// adapter/frame failure; `--render always` turns either into a hard error.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_render_tier(
     target: &BuildTarget,
     dimensions: SceneDimensions,
@@ -30,6 +31,7 @@ pub(crate) fn run_render_tier(
     mode: RenderMode,
     frames_dir: Option<&Path>,
     facts: &ReviewFacts,
+    check_paint: bool,
 ) -> Result<RenderFacts, String> {
     if mode == RenderMode::Never {
         return Ok(RenderFacts {
@@ -73,6 +75,12 @@ pub(crate) fn run_render_tier(
         })?;
     }
 
+    let reveals = if check_paint {
+        super::probe::reveal_candidates(facts)
+    } else {
+        Vec::new()
+    };
+    let mut paint_budget = super::probe::AuditPaintProbes::default();
     let mut samples = Vec::new();
     let mut previous: Option<(f64, animatix_render::offscreen::RenderedFrame)> = None;
     for (index, &time_s) in all_times.iter().enumerate() {
@@ -92,11 +100,12 @@ pub(crate) fn run_render_tier(
                 let frame_actor = facts.actor_frame(frame, scene, label)?;
                 let bounds = frame_actor.bounds?;
                 Some(crate::review::probe::ProbeActor {
-                    scene: scene.clone(),
-                    label: label.clone(),
+                    scene,
+                    label,
                     bounds,
                     opacity: frame_actor.opacity.unwrap_or(0.0),
                     is_text: actor.is_text,
+                    can_omit: !actor.is_group_like && !actor.is_effect_scope,
                 })
             })
             .collect();
@@ -120,8 +129,20 @@ pub(crate) fn run_render_tier(
                 .ok_or_else(|| "rendered frame buffer has an unexpected size".to_string())?;
         let reference = view.modal_color();
         let ink_fraction = frame_ink_fraction(&view, DEFAULT_TOLERANCE);
-        let occlusions =
-            crate::review::probe::probe_occlusion(&view, &draw_order, reference, DEFAULT_TOLERANCE);
+        let paint = if check_paint {
+            super::probe::inspect_paint(
+                &mut paint_budget,
+                &mut renderer,
+                target,
+                time_s,
+                dimensions,
+                &view,
+                &draw_order,
+                &reveals,
+            )?
+        } else {
+            super::probe::PaintFindings::default()
+        };
 
         let mut actor_ink = BTreeMap::new();
         let mut changed_from_prev = None;
@@ -145,8 +166,7 @@ pub(crate) fn run_render_tier(
                     DEFAULT_TOLERANCE,
                     DEFAULT_MIN_INK_PIXELS,
                 );
-                actor_ink
-                    .insert((actor.scene.clone(), actor.label.clone()), visibility.ink_fraction);
+                actor_ink.insert((actor.scene.into(), actor.label.into()), visibility.ink_fraction);
             }
         }
 
@@ -161,7 +181,8 @@ pub(crate) fn run_render_tier(
             changed_from_prev,
             actor_ink,
             transition: rendered.transition,
-            occlusions, // Add occlusions field here!
+            occlusions: paint.occlusions,
+            missed_reveals: paint.missed_reveals,
         });
         previous = Some((time_s, rendered.frame));
     }
@@ -169,9 +190,14 @@ pub(crate) fn run_render_tier(
     let site_rest = site_times
         .as_ref()
         .and_then(|(held, times)| site_rest_from_samples(&samples, *held, times));
+    let mut reason = format!("rendered {} sample(s)", samples.len());
+    if paint_budget.inconclusive > 0 {
+        reason
+            .push_str(&format!("; {} paint comparison(s) inconclusive", paint_budget.inconclusive));
+    }
     Ok(RenderFacts {
         status: RenderStatus::Rendered,
-        reason: format!("rendered {} sample(s)", samples.len()),
+        reason,
         samples,
         site_rest,
     })

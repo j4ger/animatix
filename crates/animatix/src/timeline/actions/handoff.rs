@@ -169,6 +169,7 @@ fn sample(
     scene_dimensions: SceneDimensions,
 ) -> kurbo::Affine {
     let frame = RenderFrame {
+        paint_omissions: &[],
         time_ms,
         scene_dimensions,
         debug_options: DebugRenderOptions::default(),

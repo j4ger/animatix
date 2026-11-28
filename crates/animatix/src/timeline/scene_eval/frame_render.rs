@@ -46,6 +46,7 @@ impl Timeline {
             debug_options: state.debug_options,
             overrides: &state.overrides,
             frame_env: state.frame_env.as_ref(),
+            paint_omissions: state.paint_omissions,
         };
         // `sample` covers per-frame property sampling and node evaluation; the
         // vello encoding is currently interleaved inside it (see
@@ -85,6 +86,7 @@ impl Timeline {
             let backend_can_run = self.backend_can_run(out.filter_backend);
             let base_allow_static = !self.camera_used.get()
                 && state.suppressed_actors.is_empty()
+                && state.paint_omissions.is_empty()
                 && state.transient_overrides.is_empty();
             for &root_id in self.world.root_entities() {
                 if !self.world.exists(root_id) {

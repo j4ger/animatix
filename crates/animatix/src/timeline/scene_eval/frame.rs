@@ -12,6 +12,7 @@ pub(super) struct FrameEvaluation<'a> {
     pub(super) debug_options: DebugRenderOptions,
     pub(super) collect_items: bool,
     pub(super) suppressed_actors: &'a [String],
+    pub(super) paint_omissions: &'a [&'a str],
     pub(super) transient_overrides:
         &'a std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     pub(super) needs_frame_env: bool,
@@ -58,6 +59,7 @@ impl Timeline {
             filter_backend,
             false,
             &[],
+            &[],
             &std::collections::HashMap::new(),
             None,
         )
@@ -94,6 +96,7 @@ impl Timeline {
             debug_options,
             filter_backend,
             false,
+            &[],
             &[],
             transient_overrides,
             None,
@@ -159,6 +162,7 @@ impl Timeline {
                 &mut filter_backend,
                 false,
                 &[],
+                &[],
                 &std::collections::HashMap::new(),
                 Some(runtime_inputs),
             )
@@ -179,6 +183,7 @@ impl Timeline {
             DebugRenderOptions::default(),
             filter_backend,
             false,
+            &[],
             &[],
             &empty_overrides,
             true,
@@ -329,6 +334,7 @@ impl Timeline {
             filter_backend,
             true,
             &[],
+            &[],
             &std::collections::HashMap::new(),
             None,
         )
@@ -354,6 +360,7 @@ impl Timeline {
             filter_backend,
             true,
             &[],
+            &[],
             &std::collections::HashMap::new(),
             Some(runtime_inputs),
         ))
@@ -376,6 +383,7 @@ impl Timeline {
             filter_backend,
             true,
             suppressed_actors,
+            &[],
             &std::collections::HashMap::new(),
             None,
         )
@@ -400,11 +408,39 @@ impl Timeline {
             filter_backend,
             true,
             &[],
+            &[],
             transient_overrides,
             None,
         )
     }
 
+    /// Evaluate an audit variant that omits only the named primitive draws.
+    /// Layout and modifier values are evaluated normally. The existing
+    /// transition suppression inputs, if any, stay identical to the base frame.
+    #[doc(hidden)]
+    pub fn evaluate_program_with_paint_omissions(
+        &self,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        suppressed_actors: &[String],
+        paint_omissions: &[&str],
+    ) -> crate::timeline::scene_program::SceneProgram {
+        self.evaluate_program_inner(
+            time_s,
+            dimensions,
+            debug_options,
+            filter_backend,
+            true,
+            suppressed_actors,
+            paint_omissions,
+            &std::collections::HashMap::new(),
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn evaluate_program_inner(
         &self,
         time_s: f64,
@@ -413,6 +449,7 @@ impl Timeline {
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
         suppressed_actors: &[String],
+        paint_omissions: &[&str],
         transient_overrides: &std::collections::HashMap<
             String,
             std::collections::HashMap<String, Value>,
@@ -421,6 +458,7 @@ impl Timeline {
     ) -> crate::timeline::scene_program::SceneProgram {
         let runtime_input_key = runtime_inputs.map_or(0, crate::timeline::RuntimeInputs::cache_key);
         if suppressed_actors.is_empty()
+            && paint_omissions.is_empty()
             && transient_overrides.is_empty()
             && let Some(program) = self.restore_frame_cache(
                 time_s,
@@ -443,6 +481,7 @@ impl Timeline {
             filter_backend,
             collect_items,
             suppressed_actors,
+            paint_omissions,
             transient_overrides,
             false,
             runtime_inputs,
@@ -455,6 +494,7 @@ impl Timeline {
     /// Prepare the frame: reuse the encoded-scene buffers, reset per-frame
     /// state, stamp bounds slots, resolve solo/hit-region scratch, and build
     /// the frame env.
+    #[allow(clippy::too_many_arguments)]
     fn prepare_frame<'a>(
         &self,
         time_s: f64,
@@ -463,6 +503,7 @@ impl Timeline {
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
         suppressed_actors: &'a [String],
+        paint_omissions: &'a [&'a str],
         transient_overrides: &'a std::collections::HashMap<
             String,
             std::collections::HashMap<String, Value>,
@@ -494,6 +535,7 @@ impl Timeline {
             || self.backend_can_run(filter_backend)
             || debug_options != DebugRenderOptions::default()
             || !suppressed_actors.is_empty()
+            || !paint_omissions.is_empty()
             || !transient_overrides.is_empty();
         let mut scene = if bypass_frame_cache {
             self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default()
@@ -568,6 +610,7 @@ impl Timeline {
             debug_options,
             collect_items,
             suppressed_actors,
+            paint_omissions,
             transient_overrides,
             needs_frame_env,
             has_child_orders,
@@ -683,6 +726,7 @@ impl Timeline {
         if !self.backend_can_run(filter_backend)
             && state.debug_options == DebugRenderOptions::default()
             && state.suppressed_actors.is_empty()
+            && state.paint_omissions.is_empty()
             && state.transient_overrides.is_empty()
         {
             *self.eval_caches.frame_cache.borrow_mut() = Some(crate::timeline::FrameCacheEntry {
