@@ -2,7 +2,7 @@
 name: animatix-scene
 description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for scene composition, cue timing, component integration and visual QA of a scene.
 metadata:
-  version: "0.9.0-draft.47"
+  version: "0.9.0-draft.48"
 ---
 
 # Animatix scene
@@ -11,7 +11,7 @@ Preserve the approved claim, timing, format, and unrelated behavior. Match the t
 
 ## Choose what to reuse
 
-Look up the element by its job before drawing it. Check the scene's imports, then the [shared layout components](../../../web/content/templates/layout.amx) and [native primitives](../../../docs/primitives.md). The layout module includes `MetricCard`, `CaptionPlate` and `SignalLane`. For small marks such as arrows and checks, use a `Path` with a [supported icon name](../../../docs/primitives.md#icon-names). [Public scenes](../../../web/content/scenes/) show the imports and styling in context.
+Look up the element by its job before drawing it. If the project already has a materials index or README, check it for that job and try a matching export at its existing import path. Check the scene's imports, then the [shared layout components](../../../web/content/templates/layout.amx) and [native primitives](../../../docs/primitives.md). The layout module includes `MetricCard`, `CaptionPlate` and `SignalLane`. For small marks such as arrows and checks, use a `Path` with a [supported icon name](../../../docs/primitives.md#icon-names). [Public scenes](../../../web/content/scenes/) show the imports and styling in context.
 
 The [component import example](assets/attached-status.amx) runs in this checkout. Resolve its import relative to the scene when moving it.
 
