@@ -155,7 +155,7 @@ pub(crate) fn run_render_tier(
 
         for actor in &draw_order {
             let frame_actor =
-                facts.actor_frame(frame, &actor.scene, &actor.label).ok_or_else(|| {
+                facts.actor_frame(frame, actor.scene, actor.label).ok_or_else(|| {
                     format!("missing frame actor for {}/{}", actor.scene, actor.label)
                 })?;
             if let Some(bounds) = frame_actor.bounds {
