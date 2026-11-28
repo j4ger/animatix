@@ -11,7 +11,7 @@ Run from the required CI shell, for example:
     nix develop -c python3 tools/ci/compare-snapshot-gates.py \
       --baseline 204b668a --candidate <candidate-commit>
 
-The default gate list is the existing native PR plan: check, test, no-video,
+The default gate list is the existing native PR plan: check, test, feature-contracts, default-native-build,
 render-smoke, and examples. Use repeated ``--gate`` arguments to select a
 smaller or larger set of gates that are native PR gates in both snapshots.
 """
@@ -35,7 +35,7 @@ import uuid
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_GATES = ("check", "test", "no-video", "render-smoke", "examples")
+DEFAULT_GATES = ("check", "test", "feature-contracts", "default-native-build", "render-smoke", "examples")
 SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
 
 
@@ -286,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baseline", required=True, help="baseline Git commit or ref")
     parser.add_argument("--candidate", required=True, help="candidate Git commit or ref")
     parser.add_argument("--gate", action="append", dest="gates",
-                        help="native PR gate to run; repeatable; defaults to check/test/no-video/render-smoke/examples")
+                        help="native PR gate to run; repeatable; defaults to check/test/feature-contracts/default-native-build/render-smoke/examples")
     parser.add_argument("--output", type=Path, help="new output directory for report and logs")
     parser.add_argument("--prepare-only", action="store_true",
                         help="verify both archives and gate registries without running Cargo gates")

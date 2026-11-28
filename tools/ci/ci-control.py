@@ -259,6 +259,8 @@ def github_plan(policy_path):
             stream.write("## CI selection\n\n")
             stream.write(f"Mode: `{selection}`; reason: {policy.get('reason', 'unknown')}\n\n")
             stream.write(f"Baseline: `{json.dumps(policy.get('main_baseline'), sort_keys=True)}`\n\n")
+            if policy.get("comparison_base"):
+                stream.write(f"Comparison starts at: `{policy['comparison_base']}`\n\n")
             stream.write("Selected: " + ", ".join(policy["effective_job_ids"]) + "\n\n")
             stream.write("Not selected: " + ", ".join(policy["skipped_job_ids"]) + "\n\n")
             stream.write(f"Same-run web publication eligible: `{str(publish_web).lower()}`\n")

@@ -9,6 +9,17 @@ metadata:
 
 Preserve the approved claim, timing, format, and unrelated behavior. Match the target engine's spec and audit tools; start unfamiliar syntax from a compiling sample on that revision. Unsettled narration or full explanations belong to animatix-explainer.
 
+## Preflight visual output
+
+In a fresh cloud or headless environment, render one frame from the checkout's
+[small playback fixture](../../../web/app/public/sdk-examples/scrub.amx) before
+authoring if this task needs rendered evidence. Use the normal
+`animatix image FILE --time 0 -o PREVIEW.png` command and confirm the PNG exists.
+If no adapter is available, check the rendering row of `animatix doctor` and see
+[headless Linux setup](../../../docs/contributing.md#headless-linux-rendering).
+Keep working on source when useful, but report visual verification as blocked;
+a passing `check` or structure-only audit does not prove rendered output.
+
 ## Choose what to reuse
 
 Look up the element by its job before drawing it. If the project already has a materials index or README, check it for that job and try a matching export at its existing import path. Check the scene's imports, then the [shared layout components](../../../web/content/templates/layout.amx) and [native primitives](../../../docs/primitives.md). The layout module includes `MetricCard`, `CaptionPlate` and `SignalLane`. For small marks such as arrows and checks, use a `Path` with a [supported icon name](../../../docs/primitives.md#icon-names). [Public scenes](../../../web/content/scenes/) show the imports and styling in context.

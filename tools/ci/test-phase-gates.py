@@ -28,7 +28,10 @@ with open('cargo-calls.jsonl','a') as f:
     f.write(json.dumps({'args':sys.argv[1:],'rustdocflags':os.environ.get('RUSTDOCFLAGS')})+'\\n')
 if sys.argv[1] == os.environ.get('FAIL_CARGO_COMMAND'):
     sys.exit(int(os.environ['FAIL_CODE']))
-if sys.argv[1] == 'tree': print('animatix v0.1.0')
+if sys.argv[1] == 'tree':
+    print('animatix v0.1.0')
+    if '-p' in sys.argv and sys.argv[sys.argv.index('-p') + 1] == os.environ.get('LEAK_PACKAGE'):
+        print(os.environ['LEAK_TEXT'])
 ''')
         cargo.chmod(0o755)
         audit = self.root / 'target/debug/animatix'
@@ -75,20 +78,39 @@ print(json.dumps({'schema_version':4,'kind':'audit','summary':{'errors':0}}))
         self.assertEqual([x['args'] for x in self.calls()], [['build', '--bin', 'animatix']])
         self.assertEqual({r['phase'] for r in self.records()}, {'build-cli', 'audit-scenes'})
 
-    def test_no_video_retains_every_original_cargo_argument_and_order(self):
-        result = self.run_gate('no-video')
+    def test_ordinary_feature_contracts_do_not_build_default_binaries(self):
+        result = self.run_gate('feature-contracts')
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual([c['args'] for c in self.calls()], [
-            ['build','-p','animatix-cli','-p','animatix-gui'],
             ['check','-p','animatix','--no-default-features'],
             ['tree','-p','animatix','--no-default-features','-e','normal','--prefix','none','--format','{p}'],
             ['tree','-e','features','-p','animatix-cli'],
             ['tree','-e','features','-p','animatix-gui'],
         ])
-        self.assertEqual(len(self.records()),5)
+        self.assertEqual(len(self.records()), 4)
+        self.assertEqual({r['gate'] for r in self.records()}, {'feature-contracts'})
+
+    def test_feature_contracts_reject_media_and_heavy_minimal_dependencies(self):
+        for pkg, line, error in (
+            ('animatix-cli', 'rsmpeg feature "default"', 'enables rsmpeg'),
+            ('animatix-gui', 'rsmpeg feature "default"', 'enables rsmpeg'),
+            ('animatix', 'typst v0.1.0', 'rich-text stack'),
+            ('animatix', 'wgpu v0.1.0', 'GPU renderer'),
+        ):
+            with self.subTest(pkg=pkg, line=line):
+                result = self.run_gate('feature-contracts', LEAK_PACKAGE=pkg, LEAK_TEXT=line)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(error, result.stderr)
+
+    def test_default_native_gate_links_both_original_targets(self):
+        result = self.run_gate('default-native-build')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([c['args'] for c in self.calls()], [['build', '-p', 'animatix-cli', '-p', 'animatix-gui']])
+        self.assertEqual([(r['gate'], r['phase']) for r in self.records()],
+                         [('default-native-build', 'default-binaries')])
 
     def test_cargo_failure_stops_gate_with_original_code(self):
-        result = self.run_gate('no-video',FAIL_CARGO_COMMAND='build',FAIL_CODE='17')
+        result = self.run_gate('default-native-build',FAIL_CARGO_COMMAND='build',FAIL_CODE='17')
         self.assertEqual(result.returncode,17,result.stderr)
         self.assertEqual(len(self.calls()),1)
         self.assertEqual(len(self.records()),1)
@@ -121,6 +143,9 @@ print(json.dumps({'schema_version':4,'kind':'audit','summary':{'errors':0}}))
         row = next(line for line in SOURCE.splitlines() if line.startswith('Check & Lint|'))
         gates = row.split('|')[1].split()
         self.assertEqual(gates[:4], ['renderer-dependencies', 'scene-audit', 'budget-audit', 'canonical-audit'])
+        self.assertIn('feature-contracts', gates)
+        self.assertNotIn('default-native-build', gates)
+        self.assertIn('Default Native Build|default-native-build|', SOURCE)
         self.assertIn('Security Audit|audit|nix|ubuntu-latest|nix|pr|security-audit',SOURCE)
         self.assertIn('target/ci/phases/*.json',(ROOT/'.github/workflows/ci.yml').read_text())
 
