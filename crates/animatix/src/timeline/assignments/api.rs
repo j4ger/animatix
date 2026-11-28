@@ -49,6 +49,22 @@ impl Timeline {
             return;
         };
 
+        if plan.actor_type == "Emitter"
+            && crate::timeline::particles::set_rate(
+                self,
+                plan.track_id,
+                property,
+                value,
+                &plan.eval_env,
+                plan.t_start_ms,
+                plan.t_end_ms,
+                plan.easing,
+                diagnostics,
+            )
+        {
+            return;
+        }
+
         if plan.actor_type == "Video" && crate::timeline::video::is_clip_property(property) {
             diagnostics.push(
                 Diagnostic::error(

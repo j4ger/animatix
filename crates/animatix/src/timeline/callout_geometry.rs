@@ -21,6 +21,20 @@ pub trait TargetResolver {
         scene_dimensions: SceneDimensions,
     ) -> Option<([f32; 2], [f32; 2])>;
 
+    /// Scene-space point at an emission time, before camera projection.
+    fn particle_birth_point(
+        &self,
+        _id: super::EntityId,
+        _point: super::ActorPoint,
+        _ms: u64,
+    ) -> Option<kurbo::Point> {
+        None
+    }
+    /// Convert scene-space particle geometry to this actor's current local coordinates.
+    fn world_to_particle_space(&self, _id: super::EntityId) -> Option<kurbo::Affine> {
+        None
+    }
+
     /// Read a named point from the actor's current transformed layout box.
     fn actor_point(&self, _id: super::EntityId, _point: super::ActorPoint) -> Option<kurbo::Point> {
         None
@@ -40,6 +54,50 @@ impl TargetResolver for FrameTargetResolver<'_, '_> {
         scene_dimensions: SceneDimensions,
     ) -> Option<([f32; 2], [f32; 2])> {
         self.timeline.target_bounds(name, time_ms, scene_dimensions)
+    }
+
+    fn world_to_particle_space(&self, id: super::EntityId) -> Option<kurbo::Affine> {
+        let (transform, _) = self.timeline.actor_point_transform(id, self.frame, false);
+        (transform.determinant().abs() > f64::EPSILON).then(|| transform.inverse())
+    }
+
+    fn particle_birth_point(
+        &self,
+        id: super::EntityId,
+        point: super::ActorPoint,
+        ms: u64,
+    ) -> Option<kurbo::Point> {
+        let dims = self.frame.scene_dimensions;
+        let mut overrides = Default::default();
+        let mut ancestor = Some(id);
+        let needs_modifiers = !self.timeline.modifier_programs.is_empty()
+            && (self.timeline.dynamic_layout
+                || std::iter::from_fn(|| {
+                    let node = ancestor?;
+                    ancestor = self.timeline.world.hierarchy(node).parent;
+                    self.timeline.world.label(node)
+                })
+                .any(|label| self.timeline.is_targeted_by_modifier(label)));
+        if needs_modifiers {
+            let mut env = self.timeline.build_frame_env_internal(ms, dims, &overrides);
+            if let Some(current) = self.frame.frame_env {
+                env.set_runtime_inputs(current.runtime_inputs.clone());
+            }
+            for program in &self.timeline.modifier_programs {
+                if let Err(error) = self.timeline.apply_modifier_program(
+                    program,
+                    ms,
+                    dims,
+                    &mut env,
+                    &mut overrides,
+                ) {
+                    tracing::warn!("particle origin modifier at {ms}ms: {error:?}");
+                    return None;
+                }
+            }
+        }
+        let frame = Timeline::point_query_frame(ms, dims, &overrides);
+        self.timeline.actor_point(id, point, &frame, false)
     }
 
     fn actor_point(&self, id: super::EntityId, point: super::ActorPoint) -> Option<kurbo::Point> {

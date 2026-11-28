@@ -22,7 +22,8 @@ pub(crate) struct EditorContext<'a> {
     pub commands: &'a mut ActionQueue,
 }
 
-fn source_projection_menu(editor: &mut EditorBuffer, ui: &mut egui::Ui) {
+fn source_projection_menu(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
+    let editor = &mut ctx.editor;
     let current = editor.source_view();
     let name = SourceView::ALL
         .iter()
@@ -40,6 +41,14 @@ fn source_projection_menu(editor: &mut EditorBuffer, ui: &mut egui::Ui) {
         .with_tooltip(crate::app::i18n::text(ui, "gui-editor-source-view-help")),
     );
     egui::Popup::menu(&menu).show(|ui| {
+        if editor.source_view() != SourceView::Script
+            && let Some((range, insert)) = editor.particle_seed_edit()
+            && ui.button(crate::app::i18n::text(ui, "gui-reroll-particle-seed")).clicked()
+            && let Some(patch) = editor.reroll_particle_seed(ctx.source_epoch, range, insert)
+        {
+            ctx.commands.push_back(Command::ApplySourcePatch(patch).into());
+            ui.close();
+        }
         for (view, id) in SourceView::ALL {
             if ui.selectable_label(current == view, crate::app::i18n::text(ui, id)).clicked() {
                 editor.set_source_view(view);
@@ -78,7 +87,7 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                 .color(theme.palette.text.primary),
             );
 
-            source_projection_menu(ctx.editor, ui);
+            source_projection_menu(ctx, ui);
 
             // Diagnostics status pill
             let error_count = ctx

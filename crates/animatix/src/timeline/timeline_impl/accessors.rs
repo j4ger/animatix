@@ -198,6 +198,7 @@ impl Timeline {
             .video_clips
             .iter()
             .map(|(_, clip)| clip.end_s())
+            .chain(self.world.emitters.iter().map(|(_, emitter)| emitter.end_hint()))
             .fold((max_ms as f64) / 1000.0, f64::max)
     }
 

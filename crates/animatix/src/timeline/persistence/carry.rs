@@ -56,6 +56,11 @@ fn collect_persistent_entries(
         return;
     }
 
+    if timeline.world.emitters.contains(id) {
+        tracing::warn!("Emitter '{label}' ends at its scene boundary");
+        return;
+    }
+
     // Build child entries first so their references can be moved in.
     let mut child_entries = BTreeMap::new();
     let animated_captions =

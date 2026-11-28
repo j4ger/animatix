@@ -510,7 +510,7 @@ impl<'a> StmtExpander<'a> {
                 label: label.to_string(),
                 array_index: array_index.clone(),
                 ty: ty.to_string(),
-                props: props.to_vec(),
+                props: expand_particle_shape(ty, props, self.components, self.ctx),
                 modifiers: modifiers.to_vec(),
                 children: expanded_children,
                 span,

@@ -69,7 +69,7 @@ pub(super) fn parsed_declaration(
     let mut candidates = Vec::new();
     collect(statements, scene, label, actor_type, &mut candidates);
     // Explicit but mismatching provenance must not fall back to inference.
-    if candidates.as_slice() != [None] {
+    if candidates.len() != 1 || (runtime_span.is_some() && candidates[0].is_some()) {
         return None;
     }
     let parsed = animatix_syntax::parser::parse_source_complete(source);

@@ -835,3 +835,5 @@ gui-timeline-paragraph-bindings = Bindings ({ $count })
 gui-editor-seek-absolute = Absolute keyframe, seek to global time { $time }
 gui-editor-seek-relative = Relative keyframe, seek to global time { $time }
 gui-editor-seek-time = Time marker, seek to global time { $time }
+
+gui-reroll-particle-seed = Reroll particle seed

@@ -458,6 +458,17 @@ impl ModuleGraph {
         // Collect namespaces from the entry file's direct aliased imports,
         // resolving re-exports transitively.
         if let Some(entry_module) = self.files.get(&entry_id) {
+            // Component positions and particle_shape references share the
+            // entry module's qualified import names as well as its flat names.
+            if let Some(scope) = function_modules.get(&entry_module.path) {
+                components.extend(
+                    scope
+                        .components
+                        .iter()
+                        .filter(|(name, _)| name.contains("::"))
+                        .map(|(name, entry)| (name.clone(), entry.clone())),
+                );
+            }
             for imp in &entry_module.imports {
                 if let Some(alias) = &imp.1 {
                     let import_path = Self::resolve_path(&entry_module.path, &imp.0);

@@ -383,6 +383,21 @@ declare_property_descriptors! {
     "fit" => (Applicable::Actors(&["Video"]), String),
     "crop" => (Applicable::Actors(&["Video"]), Vec4, Vec4),
     "end_behavior" => (Applicable::Actors(&["Video"]), String),
+    "rate" => (Applicable::Actors(&["Emitter"]), F32),
+    "origin" => (Applicable::Actors(&["Emitter"]), Generic),
+    "seed" => (Applicable::Actors(&["Emitter"]), F32),
+    "lifetime" => (Applicable::Actors(&["Emitter"]), F32),
+    "speed" => (Applicable::Actors(&["Emitter"]), F32),
+    "jitter" => (Applicable::Actors(&["Emitter"]), F32),
+    "particle_style" => (Applicable::Actors(&["Emitter"]), String),
+    "particle_size" => (Applicable::Actors(&["Emitter"]), F32),
+    "spread" => (Applicable::Actors(&["Emitter"]), F32),
+    "heading" => (Applicable::Actors(&["Emitter"]), F32),
+    "particle_shape" => (Applicable::Actors(&["Emitter"]), Generic),
+    "motion" => (Applicable::Actors(&["Emitter"]), String),
+    "particle_scale" => (Applicable::Actors(&["Emitter"]), Vec2),
+    "particle_angle" => (Applicable::Actors(&["Emitter"]), Vec2),
+    "particle_spin" => (Applicable::Actors(&["Emitter"]), Vec2),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

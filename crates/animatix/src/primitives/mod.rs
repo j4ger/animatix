@@ -145,6 +145,7 @@ mod cue;
 pub use cue::CUE;
 mod callout;
 pub use callout::CALLOUT;
+mod emitter;
 pub(crate) mod legend;
 pub use legend::LEGEND;
 pub(crate) mod connector;
@@ -410,6 +411,12 @@ pub static BUILT_INS: &[BuiltIn] = &[
         &VIDEO,
         crate::timeline::video::evaluate_builtin,
         Some(crate::timeline::video::build_extra),
+    ),
+    BuiltIn::new(
+        &animatix_core::builtins::catalog::EMITTER,
+        &emitter::EMITTER,
+        crate::timeline::particles::evaluate,
+        Some(crate::timeline::particles::build),
     ),
 ];
 

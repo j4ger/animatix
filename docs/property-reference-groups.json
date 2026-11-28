@@ -211,6 +211,26 @@
     ]
   },
   {
+    "id": "particles",
+    "properties": [
+      "origin",
+      "rate",
+      "jitter",
+      "lifetime",
+      "seed",
+      "heading",
+      "spread",
+      "speed",
+      "motion",
+      "particle_style",
+      "particle_size",
+      "particle_shape",
+      "particle_scale",
+      "particle_angle",
+      "particle_spin"
+    ]
+  },
+  {
     "id": "plotting",
     "properties": [
       "func",

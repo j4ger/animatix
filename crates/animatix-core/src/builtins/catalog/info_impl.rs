@@ -473,6 +473,16 @@ pub static CONNECTOR: PrimitiveInfo = PrimitiveInfo::new(
 .connector_geometry()
 .with_doc("Connecting line or curve between two actor anchors.");
 
+pub static EMITTER: PrimitiveInfo = PrimitiveInfo::new(
+    "Emitter",
+    "Particle emitter",
+    icon_glyphs::CIRCLE_NOTCH,
+    ActorCategory::Shape,
+    caps!(has_visual_content, time_dependent),
+)
+.with_doc("Deterministic burst, stream and pulse particles, sampled at their birth positions.")
+.with_stub("rate: 8, lifetime: 2");
+
 /// The built-in primitive catalog.
 ///
 /// The order here is presentation-only (palette grouping and docs tables).
@@ -526,4 +536,5 @@ pub static CATALOG: &[&PrimitiveInfo] = &[
     &LEGEND,
     &CONNECTOR,
     &VIDEO,
+    &EMITTER,
 ];

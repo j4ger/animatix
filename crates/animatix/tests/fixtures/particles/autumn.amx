@@ -1,0 +1,32 @@
+import "leaf.amx"
+config { canvas_size: (880, 496), duration: 6 }
+let paper = hex_color("f1e8d4")
+let forest = hex_color("203d38")
+let muted = hex_color("9eb5a3")
+#0s
+  scene.background_color = forest
+  mount: Rect, at: (128, 248), size: (212, 452), corner_radius: 7, color: paper
+  plate: Text, at: (128,74), text_align: "center", text: "叶片标本", color: forest, font_size: 27
+  ring: Ellipse, at: (128,220), size: (168,168), color: paper, stroke: hex_color("cbbda3"), stroke_width: 1
+  lens: Group, at: (128,220), scale: 4.0 { sample: Leaf }
+  note: Text, at: (128,377), text_align: "center", text: "叶面 · 叶脉", font_size: 19, color: forest
+  title: Text, at: (359,66), text_align: "center", text: "枝头的落叶", font_size: 34, color: paper
+  subtitle: Text, at: (395,110), text_align: "center", text: "同一片叶形，在风中各自翻转。", font_size: 17, color: muted
+  floor: Line, from:(278,453), to:(846,453), stroke: hex_color("647d6b"), stroke_width: 1
+  branch: Group, at: (565,170) {
+    wood: Path, commands: {move_to(310,-26), curve_to(222,-32,153,8,83,-5), curve_to(48,-14,23,-14,0,0), curve_to(27,-19,51,-20,87,-12), curve_to(155,0,203,-46,310,-41), close()}, color: hex_color("9b9172"), stroke_width: 0
+    twig: Path, commands:{move_to(143,-11), curve_to(112,-21,110,-40,86,-40), move_to(66,-9),curve_to(51,1,49,6,34,10)}, stroke: hex_color("9b9172"), stroke_width: 3, fill_opacity: 0
+    tip: Rect, at:(0,0), size:(1,1), color: hex_color("9b9172")
+  }
+  leaves: Emitter, origin: branch.tip.origin, particle_shape: Leaf, motion: "drift",
+    heading: 110, spread: 42, speed: 72, lifetime: 3.9, rate: 3, seed: 731,
+    particle_scale: (0.50,1.05), particle_angle: (-40,55), particle_spin: (-120,145)
+#0.25s
+  branch.at = (610,163) [2s,ease:linear]
+#1.5s
+  burst(target:leaves,count:4,track:"gust")
+#2.3s
+  branch.at = (549,175) [2.4s,ease:linear]
+#4.7s
+  branch.at = (571,168) [1.3s,ease:linear]
+#6s

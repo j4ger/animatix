@@ -175,6 +175,7 @@ Rules:
 | `PlotPayload` | plot curves, surfaces, fields, domains, axis options | optional (`ComponentStore<PlotPayload>`) |
 | `SvgPayload` | parsed SVG tree and asset source metadata | optional (`ComponentStore<SvgPayload>`) |
 | `ImagePayload` | texture asset handle, dimensions, image source metadata | optional (`ComponentStore<ImagePayload>`) |
+| `Emitter` | finite-lifetime particle style or shared compiled component artwork, indexed emission schedules and birth anchor | optional (`ComponentStore<Emitter>`), scoped to the declaring scene |
 | `VideoClip` | prepared asset reference, start, source range, fit, crop and end behavior | optional (`ComponentStore<VideoClip>`), scoped to the declaring scene |
 | `LocalBoundsComponent` | declaration-time local-space bounds used by frame evaluation | optional (`ComponentStore<LocalBoundsComponent>`) |
 | `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers (`ComponentStore<ContainerMetadata>`) |

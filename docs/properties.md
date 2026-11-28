@@ -29,7 +29,7 @@ representation separately and do not narrow the type-checker contract.
 <!-- generated-property-table:legend-participation:start -->
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
-| `legend` | `Bool \| Str` | `Sum<auto: Bool, hidden: Bool, label: String>` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `legend` | `Bool \| Str` | `Sum<auto: Bool, hidden: Bool, label: String>` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 <!-- generated-property-table:legend-participation:end -->
 
 ## Legend Primitive
@@ -53,11 +53,11 @@ Text) and `gap` (under Containers).
 <!-- generated-property-table:geometry:start -->
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
-| `position` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `at` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `offset` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `anchor` | `Any` | `SceneAnchor` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `size` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `position` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `at` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `offset` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `anchor` | `Any` | `SceneAnchor` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `size` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 | `corner_radius` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Glass`, `Connector` |
 | `width` | `Num` | `F32` | ✓ | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
 | `height` | `Num` | `F32` | ✓ | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
@@ -65,12 +65,12 @@ Text) and `gap` (under Containers).
 | `min_height` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
 | `max_height` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
 | `max_item_width` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Image`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Filter`, `Glass` |
-| `rotation` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `scale` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `transform` | `Vec2 \| Vec4 \| (Num, Num, Num, Num, Num, Num)` | `Transform` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `rotate_x` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `rotate_y` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `perspective` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `rotation` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `scale` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `transform` | `Vec2 \| Vec4 \| (Num, Num, Num, Num, Num, Num)` | `Transform` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `rotate_x` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `rotate_y` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `perspective` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 <!-- generated-property-table:geometry:end -->
 
 ## Style
@@ -78,23 +78,23 @@ Text) and `gap` (under Containers).
 <!-- generated-property-table:style:start -->
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
-| `color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `opacity` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `opacity` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 | `fill_opacity` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path` |
 | `stroke` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `stroke_width` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `stroke_progress` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `dash_pattern` | `List<Num>` | `F32List` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `dash_offset` | `Num` | `F32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
-| `blend` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `blend` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 | `fill_gradient` | `Any` | `Gradient` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter` |
 | `stroke_gradient` | `Any` | `Gradient` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `gradient_extend` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `gradient_space` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Callout`, `Connector` |
 | `shadow` | `Vec4` | `Vec4` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path`, `Row`, `Col`, `Grid`, `Stack` |
 | `shadow_color` | `Color` | `Color` | ✓ | ✓ | `Rect`, `Ellipse`, `Arrow`, `Polygon`, `Path`, `Row`, `Col`, `Grid`, `Stack` |
-| `solo` | `Bool` | `Bool` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `idle` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `solo` | `Bool` | `Bool` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `idle` | `Str` | `String` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 | `role` | `Enum(title, body, note, formula, metric, eyebrow, reference, focus)` | `String` | — | — | `Text`, `Math`, `Typst`, `Counter`, `PlotCurve` |
 <!-- generated-property-table:style:end -->
 
@@ -169,7 +169,7 @@ parameter and identity tables.
 |----------|------|--------------|----------|------------|------------|
 | `radius_x` | `Num` | `F32` | ✓ | ✓ | `Ellipse` |
 | `radius_y` | `Num` | `F32` | ✓ | ✓ | `Ellipse` |
-| `shift` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `shift` | `Vec2` | `Vec2` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 | `line_cap` | `Num` | `U32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path` |
 | `line_join` | `Num` | `U32` | ✓ | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path` |
 | `from` | `Vec2` | `Vec2` | ✓ | ✓ | `Line`, `Arrow`, `Callout`, `Connector` |
@@ -344,6 +344,34 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 > of a timed assignment rather than crossfading. SVG assignments also update the
 > measured actor size at the assignment keyframe.
 
+## Particle emitters
+
+<!-- generated-property-table:particles:start -->
+| Property | Type | Runtime kind | Animated | Assignable | Applies to |
+|----------|------|--------------|----------|------------|------------|
+| `origin` | `Any` | `BuildTimeOnly` | — | — | `Emitter` |
+| `rate` | `Num` | `F32` | ✓ | ✓ | `Emitter` |
+| `jitter` | `Num` | `F32` | — | — | `Emitter` |
+| `lifetime` | `Num` | `F32` | — | — | `Emitter` |
+| `seed` | `Num` | `F32` | — | — | `Emitter` |
+| `heading` | `Num` | `F32` | — | — | `Emitter` |
+| `spread` | `Num` | `F32` | — | — | `Emitter` |
+| `speed` | `Num` | `F32` | — | — | `Emitter` |
+| `motion` | `Str` | `String` | — | — | `Emitter` |
+| `particle_style` | `Str` | `String` | — | — | `Emitter` |
+| `particle_size` | `Num` | `F32` | — | — | `Emitter` |
+| `particle_shape` | `Any` | `BuildTimeOnly` | — | — | `Emitter` |
+| `particle_scale` | `Vec2` | `Vec2` | — | — | `Emitter` |
+| `particle_angle` | `Vec2` | `Vec2` | — | — | `Emitter` |
+| `particle_spin` | `Vec2` | `Vec2` | — | — | `Emitter` |
+<!-- generated-property-table:particles:end -->
+
+Set the particle properties when declaring the emitter. Keyframes can also change `rate` in a step or a linear ramp. A rate of zero stops continuous births and lets the particles already in flight finish. Each particle samples `origin` at its birth time.
+
+For custom art, set `particle_shape` to a component with defaults for every parameter. The component supplies its own paints and nominal dimensions. Place its rotation pivot at local `(0, 0)`. Use `particle_scale` for relative size, `particle_angle` for initial rotation in degrees and `particle_spin` for degrees per second. Each takes an ordered pair. Equal endpoints give a fixed value.
+
+The language reference covers burst and pulse calls, motion choices, seeded variation and a runnable example. [Particle emitters](spec.md#particle-emitters)
+
 ## Plotting
 
 <!-- generated-property-table:plotting:start -->
@@ -414,9 +442,9 @@ width.
 | Property | Type | Runtime kind | Animated | Assignable | Applies to |
 |----------|------|--------------|----------|------------|------------|
 | `background_color` | `Color` | `Color` | ✓ | ✓ | — |
-| `camera_follow` | `Any` | `BuildTimeOnly` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `parallax` | `Num` | `F32` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
-| `shared_id` | `Str` | `String` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video` |
+| `camera_follow` | `Any` | `BuildTimeOnly` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `parallax` | `Num` | `F32` | — | — | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
+| `shared_id` | `Str` | `String` | — | ✓ | `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Code`, `Math`, `Typst`, `Counter`, `Image`, `Svg`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Mask`, `Filter`, `Glass`, `Equation`, `Fragment`, `Captions`, `Cue`, `Callout`, `Legend`, `Connector`, `Video`, `Emitter` |
 | `shared_text_transition` | `Str` | `String` | ✓ | ✓ | `Text` |
 <!-- generated-property-table:scene:end -->
 

@@ -62,11 +62,15 @@ pub enum TimelineBuiltin {
     Reorder,
     /// Transfer between two scene placements through a frontmost proxy.
     Handoff,
+    /// Emit one batch of particles.
+    Burst,
+    /// Repeated batches of particles.
+    EmitPulse,
 }
 
 impl TimelineBuiltin {
     /// Every built-in timeline operation, in catalog order.
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 28] = [
         Self::FadeIn,
         Self::WipeIn,
         Self::Move,
@@ -93,6 +97,8 @@ impl TimelineBuiltin {
         Self::Swap,
         Self::Reorder,
         Self::Handoff,
+        Self::Burst,
+        Self::EmitPulse,
     ];
 
     /// Resolve a canonical unqualified name.
@@ -372,6 +378,27 @@ fn timeline_catalog() -> Vec<CallableDescriptor> {
                 T::Timeline,
             )
         },
+        descriptor(
+            "burst",
+            vec![
+                param("target", T::Actor),
+                param("count", T::Num),
+                opt("track", T::Str),
+            ],
+            T::Timeline,
+        ),
+        descriptor(
+            "emit_pulse",
+            vec![
+                param("target", T::Actor),
+                param("count", T::Num),
+                param("period", T::Union(vec![T::Duration, T::Num])),
+                param("groups", T::Num),
+                opt("jitter", T::Union(vec![T::Duration, T::Num])),
+                opt("track", T::Str),
+            ],
+            T::Timeline,
+        ),
     ]
 }
 

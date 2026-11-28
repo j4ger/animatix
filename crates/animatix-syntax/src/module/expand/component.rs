@@ -1,6 +1,59 @@
 use super::*;
 use crate::visit::{AstFolder, walk_fold_stmt};
 
+/// Resolve a particle component in the same lexical scope as an ordinary instance.
+/// Its constructor stays private to the emitter and never enters the scene graph.
+pub(super) fn expand_particle_shape(
+    ty: &str,
+    props: &[Property],
+    components: &HashMap<String, ComponentEntry>,
+    ctx: &mut ExpansionCtx,
+) -> Vec<Property> {
+    let mut props = props.to_vec();
+    if ty == "Emitter" {
+        for prop in props.iter_mut().filter(|p| p.name == "particle_shape") {
+            let name = match &prop.value {
+                Expr::Ident(name) => name.clone(),
+                Expr::QualifiedPath(parts) => parts.join("::"),
+                _ => continue,
+            };
+            if let Some(component) = components.get(&name) {
+                if let Some(param) =
+                    component.definition.params.iter().find(|p| p.default.is_none())
+                {
+                    use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+                    ctx.diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Particle shape {name} needs a default for its parameter '{}'",
+                                param.name
+                            ),
+                        )
+                        .with_subject("particle_shape"),
+                    );
+                    continue;
+                }
+                let (statements, instance_methods) = expand_component_instance(
+                    "particle",
+                    &None,
+                    &[],
+                    &[],
+                    component,
+                    components,
+                    ctx,
+                );
+                prop.value = Expr::Timeline(crate::ast::PlanBody {
+                    statements,
+                    instance_methods,
+                });
+            }
+        }
+    }
+    props
+}
+
 pub(super) fn expand_statements_inner(
     statements: &[Stmt],
     components: &HashMap<String, ComponentEntry>,
@@ -67,7 +120,7 @@ pub(super) fn expand_inline_items(
                         label: label.clone(),
                         array_index: array_index.clone(),
                         ty: ty.clone(),
-                        props: props.clone(),
+                        props: expand_particle_shape(ty, props, components, ctx),
                         modifiers: modifiers.clone(),
                         children: expanded_children,
                     });
@@ -103,7 +156,7 @@ pub(super) fn expand_inline_items(
                     hoisted.extend(nested_hoisted);
                     result.push(InlineItem::Anonymous {
                         ty: ty.clone(),
-                        props: props.clone(),
+                        props: expand_particle_shape(ty, props, components, ctx),
                         modifiers: modifiers.clone(),
                         children: expanded_children,
                     });

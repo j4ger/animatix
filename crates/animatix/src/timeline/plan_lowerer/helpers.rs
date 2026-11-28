@@ -280,12 +280,16 @@ pub(super) fn builtin_invocation(
             },
             _ if matches!(value, Value::Null) => {},
             _ => {
+                let pulse_time =
+                    call.name == "emit_pulse" && matches!(name.as_str(), "period" | "jitter");
                 let value = match value {
+                    Value::Num(seconds) if pulse_time => Value::Num(seconds * rate),
                     Value::Duration(seconds)
-                        if matches!(
-                            name.as_str(),
-                            "duration" | "delay" | "anticipate" | "stagger"
-                        ) =>
+                        if pulse_time
+                            || matches!(
+                                name.as_str(),
+                                "duration" | "delay" | "anticipate" | "stagger"
+                            ) =>
                     {
                         Value::Duration(seconds * rate)
                     },

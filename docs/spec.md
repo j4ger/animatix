@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease_out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Video`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Video`, `Emitter`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - For a fixed custom color use `hex_color("ff2d55")`, or `hex_color("ff2d5580")` with alpha. Use `rgb(...)` or `rgba(...)` to compute a color from expressions. Prefer scheme tokens such as `accent.primary` when following a palette.
 - Timeline operations are ordinary function calls with parentheses: `fade_in(target: title, duration: 1s, ease: ease_out)`. Positional arguments come before named arguments; animation targets are explicit `target:` or `targets:` parameters. `duration`, `delay`, and `ease` are ordinary parameters. Do not add a call-site `[ ... ]` suffix.
@@ -1637,7 +1637,47 @@ Two things to know:
   them would ship visibly wrong curves.
 - An unknown name warns with the closest matches rather than drawing nothing.
 
-**Particles, without a state model.** A particle's position, size, tint and life
+#### Particle emitters
+
+Use one `Emitter` per independently scheduled effect. Its particles render together in the emitter's paint order. A frame with more than 100,000 candidate particles in one emitter's lifetime window reports a render diagnostic before allocating geometry. An emitter and its live particles end at the declaring scene’s boundary. A finite pulse train contributes its final birth and maximum lifetime to the inferred scene duration. For a working moving-origin example, see [The moving valve](../crates/animatix/tests/fixtures/particles/moving-valve.amx).
+
+```animatix
+#0s
+  nozzle: Rect, at: (140, 320), size: (32, 16)
+  air: Emitter, origin: nozzle.top, particle_style: "bubble", rate: 0,
+    lifetime: 2, particle_size: 5, speed: 80, seed: 42, opacity: 1
+#1s
+  burst(target: air, count: 12, track: "opening")
+  air.rate = 8
+#3s
+  air.rate = 0
+  emit_pulse(target: air, count: 4, groups: 5, period: 0.6, jitter: 0.08)
+```
+
+- `rate` is particles per second. A positive constant rate starts with a birth at its start boundary. Keyed steps and linear ramps integrate into one continuous count. Setting rate to zero stops the stream. Scheduled bursts, pulse trains and particles still in flight keep their own timing.
+- `burst` emits one batch. `emit_pulse` emits `groups` batches of `count` with `period` seconds between nominal starts. Its optional `jitter` shifts a whole batch by at most the specified seconds (up to half a period). Emitter-level `jitter` applies to the rate stream. An explicit `track` gives the call a repeatable random sequence even when moved on the timeline. Use distinct tracks for simultaneous calls.
+- `origin` accepts a previously declared actor point, such as `nozzle.top`, or a position. With no origin, the emitter's own position supplies the birth point. Positions include the parent's transform at birth. Remaining flight takes place in scene space. The scene camera projects the current frame.
+- `particle_style` accepts `"bubble"` (rising, gently swaying rings), `"dust"` (drifting dots), or `"spark"` (falling ballistic dots). `heading` is degrees clockwise from the right, default −90. `spread` is the full angular range, default 24°. `speed` is nominal scene units per second, `lifetime` is maximum seconds, and `particle_size` is nominal radius in scene units. Color and actor opacity use ordinary visual properties.
+- `seed` is an optional unsigned 32-bit integer. The authored emitter label supplies a stable default. Separate random channels drive batch timing, lifetime, angle, speed, radius and wobble. Direct seeks and reverse scrubs reproduce the same frame for the same inputs. In the source editor, place the caret on a standalone Emitter declaration and choose **Reroll particle seed** in the source-view menu to write an undoable seed in the source.
+
+##### Custom particle shapes
+
+A local or imported component can supply the geometry of one particle. Draw at natural size around local `(0, 0)`, the pivot for placement, scale and rotation. A component reference uses its parameter defaults. Qualified imports such as `art::Leaf` work too. The component can also be placed on stage as an ordinary actor.
+
+```animatix
+import "leaf.amx"
+#0s
+  leaves: Emitter, particle_shape: Leaf, motion: "drift", heading: 90,
+    rate: 4, lifetime: 3, speed: 68, seed: 42,
+    particle_scale: (0.5, 1.1), particle_angle: (-35, 45), particle_spin: (-90, 120)
+```
+
+- Static compositions of `Group`, `Path`, `Polygon`, `Rect`, `Ellipse`, `Line` and `Arrow` retain their paints, strokes and drawing order. An emitter builds the vector art once and reuses it for each birth. A component that runs actions or contains other actor types produces a diagnostic.
+- Each range is an inclusive minimum and maximum. `particle_scale` multiplies the authored size (default 1 for custom shapes). `particle_angle` is the initial clockwise rotation in degrees. `particle_spin` is degrees per second. Both default to zero. Equal endpoints give a fixed value. Each attribute uses a separate seeded channel.
+- `motion` accepts `"linear"` for straight flight, `"drift"` for horizontal sway and `"ballistic"` for downward acceleration. A custom shape defaults to linear flight. `heading` sets travel direction independently of the artwork's orientation. The component supplies custom particle colors and nominal size. `particle_style` and `particle_size` select and size the original presets.
+- [The falling-leaves scene](../crates/animatix/tests/fixtures/particles/autumn.amx) uses [one authored leaf](../crates/animatix/tests/fixtures/particles/leaf.amx) for both the enlarged specimen and the falling particles.
+
+**Procedural particles drawn with shapes.** A particle's position, size, tint and life
 are analytic functions of `(its seed, the elapsed time)`, so a burst needs no
 emitter, no integrator, and no per-frame accumulation — and it stays frame-exact
 under scrubbing and across platforms. The seeds come from the noise builtins,

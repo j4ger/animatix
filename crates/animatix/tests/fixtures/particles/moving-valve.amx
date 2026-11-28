@@ -1,0 +1,58 @@
+// A moving valve emits into scene space. Set particle_seed to reproduce another take.
+config { canvas_size: (960, 540), duration: 9 }
+let particle_seed = 42
+let paper = hex_color("0d2028")
+let panel = hex_color("12333d")
+let ink = hex_color("e2f2e8")
+let mint = hex_color("83e8c8")
+let rule = hex_color("385b62")
+let brass = hex_color("edba72")
+
+#0s
+  scene.background_color = paper
+  title: Text, text_align: "center", at: (480, 44), text: "移动的气阀", font_size: 38, color: ink
+  subtitle: Text, text_align: "center", at: (480, 86), text: "阀口向右移动，旧气泡沿原处上浮。", font_size: 19, color: mint
+  tank: Rect, at: (480, 271), size: (876, 290), corner_radius: 14, color: panel, stroke: rule, stroke_width: 2
+  for i in range(0, 8) {
+    grid[i]: Line, from: (119+i*104, 137), to: (119+i*104, 388), stroke: hex_color("1b4149"), stroke_width: 1
+  }
+  for i in range(0, 3) {
+    guide[i]: Line, from: (55, 176+i*71), to: (905, 176+i*71), stroke: hex_color("1b4149"), stroke_width: 1
+  }
+  rail: Rect, at: (480, 392), size: (824, 6), corner_radius: 3, color: rule
+  carriage: Group, at: (177, 369) {
+    base: Rect, at: (0, 12), size: (78, 22), corner_radius: 7, color: hex_color("56747a")
+    body: Rect, at: (0, 3), size: (55, 21), corner_radius: 3, color: brass
+    collar: Rect, at: (0, -8), size: (34, 8), corner_radius: 3, color: hex_color("8f7555")
+    nozzle: Rect, at: (0, -16), size: (21, 13), corner_radius: 3, color: brass
+    port: Rect, at: (0, -23), size: (20, 3), corner_radius: 1, color: ink
+    for i in range(0, 2) {
+      bolt[i]: Ellipse, at: (-18+36*i, 4), size: (5, 5), color: paper
+    }
+  }
+
+  air: Emitter, origin: carriage.port.top, seed: particle_seed, rate: 0, lifetime: 2.1,
+    particle_style: "bubble", particle_size: 6, speed: 77, spread: 40, color: mint, opacity: 1
+  state: Text, text_align: "center", at: (480, 460), text: "01   /   开阀", font_size: 23, color: brass
+  explanation: Text, text_align: "center", at: (480, 494), text: "12 个气泡从同一处同时冒出。", font_size: 18, color: ink
+
+#0.6s
+  burst(target: air, count: 12, track: "opening")
+
+#1.55s
+  air.rate = 12
+  state.text = "02   /   连续发射"
+  explanation.text = "阀口每秒放出 12 个气泡，身后留下一串上浮的轨迹。"
+  carriage.at = (722, 369) [3.55s, ease: linear]
+
+#5.1s
+  air.rate = 0
+  state.text = "03   /   周期发射"
+  explanation.text = "阀口停下，每隔约半秒放出一团，共四团。"
+  emit_pulse(target: air, count: 5, period: 0.50, groups: 4, jitter: 0.10, track: "closing")
+
+#7.1s
+  state.text = "04   /   关阀"
+  explanation.text = "关阀后，最后一团气泡仍会继续上浮。"
+
+#9s

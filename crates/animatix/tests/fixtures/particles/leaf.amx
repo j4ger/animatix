@@ -1,0 +1,8 @@
+// Local origin is the centre of the blade. The same ink is used at both scales.
+pub component Leaf() {
+  blade: Group {
+    face: Path, commands: {move_to(-16,7), curve_to(-11,-6,0,-12,16,-8), curve_to(14,3,1,13,-16,7), close()}, color: hex_color("e7994b"), stroke_width: 0
+    shade: Path, commands: {move_to(-16,7), curve_to(-6,3,4,-2,16,-8), curve_to(14,3,1,13,-16,7), close()}, color: hex_color("b76137"), stroke_width: 0
+    ribs: Path, commands: {move_to(-19,9), curve_to(-10,5,5,-1,15,-8), move_to(-5,2), line_to(-5,-4), move_to(2,-1), line_to(3,-7), move_to(-2,1), line_to(4,4), move_to(6,-3), line_to(10,-1)}, stroke: hex_color("ffe2a4"), stroke_width: 1.15, fill_opacity: 0
+  }
+}

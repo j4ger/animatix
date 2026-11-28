@@ -18,6 +18,13 @@ pub enum RenderCommand {
         /// The vector paths to draw.
         paths: Vec<VelloPath>,
     },
+    /// Instances of an immutable, precompiled vector component in painter order.
+    VectorInstances {
+        /// Prepared ink in the authored component's local space.
+        artwork: std::sync::Arc<crate::scene::VectorArtwork>,
+        /// Per-particle local-to-emitter transforms.
+        transforms: Vec<kurbo::Affine>,
+    },
     /// Paint a rounded surface with solid colors.
     RoundedSurface {
         /// Local-space geometry.
@@ -140,6 +147,14 @@ impl RenderCommand {
     /// Execute this command into an owned scene with the given transform and opacity.
     pub fn execute(&self, scene: &mut Scene, transform: &kurbo::Affine, opacity: f32) {
         match self {
+            RenderCommand::VectorInstances {
+                artwork,
+                transforms,
+            } => {
+                for instance in transforms {
+                    artwork.paint(scene, *transform * *instance, opacity);
+                }
+            },
             RenderCommand::Paths { paths } => execute_paths(paths, scene, transform, opacity),
             RenderCommand::RoundedSurface {
                 rect,
@@ -245,6 +260,15 @@ impl RenderCommand {
             })
         };
         match self {
+            RenderCommand::VectorInstances {
+                transforms,
+                artwork,
+            } => {
+                return transforms
+                    .iter()
+                    .map(|t| t.transform_rect_bbox(artwork.bounds))
+                    .reduce(|a, b| a.union(b));
+            },
             RenderCommand::Paths { paths } => {
                 for path in paths {
                     bounds = union(bounds, path.path.bounding_box());

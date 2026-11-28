@@ -21,6 +21,7 @@ mod completion;
 mod diagnostics;
 mod find_match;
 pub(crate) mod narration;
+mod particle_seed;
 pub(crate) mod source_patch;
 #[cfg(test)]
 mod tests;

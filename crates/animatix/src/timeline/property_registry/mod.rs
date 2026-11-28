@@ -400,6 +400,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("gradient_space", V::String, F::ASSIGNABLE_A, GradientSpace, val!(str "oklab")),
     b!("grid", V::Bool, F::empty(), PlotDomainGroup, val!(bool false)),
     b!("head_size", V::F32, F::PATH_AI, HeadSize, val!(f32 10.0)),
+    b!("heading", V::F32, F::empty(), NoStorage, val!(f32 - 90.0), ReadSource::None_),
     b!(
         "height",
         V::F32,
@@ -454,6 +455,7 @@ static BINDINGS: &[PropertyBinding] = &[
         val!(color 0.6, 0.6, 0.6, 0.8)
     ),
     b!("isolate_opacity", V::Bool, F::empty(), NoStorage, val!(bool false)),
+    b!("jitter", V::F32, F::empty(), NoStorage, val!(f32 0.0), ReadSource::None_),
     b!("kind", V::String, F::empty(), PlotDomainGroup, val!(str "cartesian")),
     b!("label", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
     b!("label_at", V::Vec2, F::ASSIGNABLE_AI, LabelAt, val!(vec2 0.0, 0.0)),
@@ -468,6 +470,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("legend", V::Sum(LEGEND_SUM_VARIANTS), F::ASSIGNABLE_A, Tagged, val!(bool true)),
     b!("letter_spacing", V::F32, F::ASSIGNABLE_A, LetterSpacing, val!(f32 0.0)),
     b!("levels", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 0.0, 1.0)),
+    b!("lifetime", V::F32, F::empty(), NoStorage, val!(f32 2.0), ReadSource::None_),
     b!("line_cap", V::U32, F::ASSIGNABLE_AI, LineCap, val!(u32 0)),
     b!("line_height", V::F32, F::ASSIGNABLE_A, LineHeight, val!(f32 1.2)),
     b!("line_join", V::U32, F::ASSIGNABLE_AI, LineJoin, val!(u32 0)),
@@ -505,6 +508,14 @@ static BINDINGS: &[PropertyBinding] = &[
         val!(f32 0.0)
     ),
     b!(
+        "motion",
+        V::String,
+        F::empty(),
+        NoStorage,
+        val!(str "linear"),
+        ReadSource::None_
+    ),
+    b!(
         "offset",
         V::Vec2,
         F::SPATIAL_AI.union(F::NO_FRAME_OVERRIDE),
@@ -513,10 +524,59 @@ static BINDINGS: &[PropertyBinding] = &[
         ReadSource::None_
     ),
     b!("opacity", V::F32, F::PRESENCE_AI, Opacity, val!(f32 1.0)),
+    b!(
+        "origin",
+        V::BuildTimeOnly,
+        F::empty(),
+        NoStorage,
+        val!(str ""),
+        ReadSource::None_
+    ),
     b!("out_point", V::F32, F::empty(), NoStorage, val!(f32 0.0), ReadSource::None_),
     b!("overflow", V::String, F::ASSIGNABLE_A, Overflow, val!(str "visible")),
     b!("padding", V::F32, F::empty(), ContainerLayoutGroup, val!(f32 0.0)),
     b!("parallax", V::F32, F::empty(), NoStorage, val!(f32 1.0)),
+    b!(
+        "particle_angle",
+        V::Vec2,
+        F::empty(),
+        NoStorage,
+        val!(vec2 0.0, 0.0),
+        ReadSource::None_
+    ),
+    b!(
+        "particle_scale",
+        V::Vec2,
+        F::empty(),
+        NoStorage,
+        val!(vec2 1.0, 1.0),
+        ReadSource::None_
+    ),
+    b!(
+        "particle_shape",
+        V::BuildTimeOnly,
+        F::empty(),
+        NoStorage,
+        val!(str ""),
+        ReadSource::None_
+    ),
+    b!("particle_size", V::F32, F::empty(), NoStorage, val!(f32 4.0), ReadSource::None_),
+    b!(
+        "particle_spin",
+        V::Vec2,
+        F::empty(),
+        NoStorage,
+        val!(vec2 0.0, 0.0),
+        ReadSource::None_
+    ),
+    b!(
+        "particle_style",
+        V::String,
+        F::empty(),
+        NoStorage,
+        val!(str "bubble"),
+        ReadSource::None_
+    ),
     b!(
         "perspective",
         V::F32,
@@ -569,6 +629,14 @@ static BINDINGS: &[PropertyBinding] = &[
         }
     ),
     b!(
+        "rate",
+        V::F32,
+        F::ASSIGNABLE_A.union(F::NO_FRAME_OVERRIDE),
+        NoStorage,
+        val!(f32 0.0),
+        ReadSource::None_
+    ),
+    b!(
         "resolution",
         V::F32,
         F::empty(),
@@ -581,6 +649,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("rotation", V::F32, F::SPATIAL_AI, Rotation, val!(f32 0.0)),
     b!("routing", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "elbow")),
     b!("scale", V::F32, F::SPATIAL_AI, Scale, val!(f32 1.0)),
+    b!("seed", V::F32, F::empty(), NoStorage, val!(f32 0.0), ReadSource::None_),
     b!("selected_span", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
     b!("shadow", V::Vec4, F::ASSIGNABLE_AI, Tagged, val!(vec4 0.0, 4.0, 12.0, 0.0)),
     b!(
@@ -613,10 +682,12 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("span_color", V::Color, F::ASSIGNABLE_AI, Tagged, val!(color 0.0, 0.0, 0.0, 0.0)),
     b!("span_opacity", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 1.0)),
     b!("span_progress", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 1.0)),
+    b!("speed", V::F32, F::empty(), NoStorage, val!(f32 75.0), ReadSource::None_),
     b!("split_by", V::String, F::ASSIGNABLE_A, Tagged, val!(str "char")),
     b!("split_mask", V::Bool, F::ASSIGNABLE_A, Tagged, val!(bool false)),
     b!("split_offset_y", V::F32, F::ASSIGNABLE_A, Tagged, val!(f32 0.0)),
     b!("split_stagger", V::F32, F::ASSIGNABLE_A, Tagged, val!(f32 0.0)),
+    b!("spread", V::F32, F::empty(), NoStorage, val!(f32 24.0), ReadSource::None_),
     b!(
         "standoff",
         V::F32,

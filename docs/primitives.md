@@ -164,6 +164,10 @@ photo: Image { url: "checker.png", at: (640, 360), size: (180, 180) }
 
 Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).
 
+## Emitter
+
+An `Emitter` can draw an authored static vector component with `particle_shape`, or use the bubble, dust and spark presets. Set `rate` for a continuous stream, call `burst` for one batch, or use `emit_pulse` for repeated batches. An origin such as `nozzle.top` follows an actor as it emits. Each particle continues from its own birth position. See the [authoring example and property meanings](spec.md#particle-emitters).
+
 ## Video
 
 A video clip placed on the scene timeline. Declare it at the keyframe

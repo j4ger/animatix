@@ -50,6 +50,9 @@ impl BuiltinAction for BuiltinActionKind {
             Self::Unhighlight => Unhighlight.execute(action, time_ms, timeline, diagnostics),
             Self::Swap => Swap.execute(action, time_ms, timeline, diagnostics),
             Self::Reorder => Reorder.execute(action, time_ms, timeline, diagnostics),
+            Self::Burst | Self::EmitPulse => {
+                crate::timeline::particles::emit(action, time_ms, timeline, diagnostics)
+            },
             Self::Handoff => handoff::queue(action, time_ms, timeline, diagnostics),
         }
     }

@@ -501,6 +501,7 @@ fn text_shorthand_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
 }
 
 fn actor_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
+    let source = ctx.source.clone();
     let label_expr = common::label_expr(ctx.expr.clone());
     let actor_type = common::ident_occ(OccurrenceKind::Type)
         .clone()
@@ -529,11 +530,11 @@ fn actor_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                 .map(|c| c.unwrap_or_default()),
         )
         .map_with(
-            |(
+            move |(
                 ((((is_pub, (label, array_index, label_span)), ty), mut props), mut modifiers),
                 children,
             ),
-             _extra| {
+                  extra| {
                 crate::occurrence::record_declaration(
                     OccurrenceKind::Label,
                     label.clone(),
@@ -556,7 +557,7 @@ fn actor_decl_parser<'src>(ctx: &StmtCtx<'src>) -> StmtParser<'src> {
                     props,
                     modifiers,
                     children,
-                    span: None,
+                    span: common::source_span(&source, extra.span()),
                 }
             },
         )

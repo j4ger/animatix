@@ -552,6 +552,8 @@ fn collect_builtin_start_fences(
         | animatix_core::builtins::callable::TimelineBuiltin::Swap
         | animatix_core::builtins::callable::TimelineBuiltin::Reorder
         // Handoff fences its visibility writes after all authored tracks exist.
+        | animatix_core::builtins::callable::TimelineBuiltin::Burst
+        | animatix_core::builtins::callable::TimelineBuiltin::EmitPulse
         | animatix_core::builtins::callable::TimelineBuiltin::Handoff => &[],
     };
     if properties.is_empty() {

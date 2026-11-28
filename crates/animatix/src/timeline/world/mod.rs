@@ -90,6 +90,7 @@ pub struct World {
     pub(crate) plot_payload: ComponentStore<PlotPayload>,
     pub(crate) svg_payload: ComponentStore<SvgPayload>,
     pub(crate) image_payload: ComponentStore<ImagePayload>,
+    pub(crate) emitters: ComponentStore<crate::timeline::particles::Emitter>,
     pub(crate) video_clips: ComponentStore<crate::timeline::video::VideoClip>,
     /// Root entities in authored/insertion order.
     pub(crate) roots: Vec<EntityId>,
@@ -110,7 +111,7 @@ macro_rules! for_each_store {
         property_plan, plan_ownership, method_table_id, meta, caps_overrides, container_layout,
         child_order, coordinate_frame,
         persistence, auto_color, transcript, local_bounds, legend, effects, plot_payload,
-        svg_payload, image_payload, video_clips, decl_span, }
+        svg_payload, image_payload, emitters, video_clips, decl_span, }
     };
 }
 

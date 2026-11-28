@@ -18,6 +18,78 @@ pub struct Scene {
     draws: Vec<Draw>,
 }
 
+/// Static vector ink shared by all instances of an authored component.
+#[derive(Clone)]
+pub struct VectorArtwork {
+    scene: Scene,
+    /// Local ink extent, including strokes.
+    pub bounds: Rect,
+}
+
+impl std::fmt::Debug for VectorArtwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VectorArtwork")
+            .field("draws", &self.scene.draws.len())
+            .field("bounds", &self.bounds)
+            .finish()
+    }
+}
+
+impl VectorArtwork {
+    pub(crate) fn from_draws(draws: impl Iterator<Item = Draw>) -> Result<Self, String> {
+        let mut scene = Scene::new();
+        let mut bounds: Option<Rect> = None;
+        for draw in draws {
+            let extent = match &draw {
+                Draw::Fill {
+                    path, transform, ..
+                } => Some(transform.transform_rect_bbox(path.bounding_box())),
+                Draw::Stroke {
+                    path,
+                    style,
+                    transform,
+                    ..
+                } => {
+                    let outline = kurbo::stroke(path, style, &Default::default(), 0.1);
+                    Some(transform.transform_rect_bbox(outline.bounding_box()))
+                },
+                Draw::BlurredRect {
+                    clip, transform, ..
+                } => Some(transform.transform_rect_bbox(clip.bounding_box())),
+                Draw::Push { .. } | Draw::Pop => None,
+                _ => return Err("particle_shape supports static vector paints and clipping".into()),
+            };
+            if let Some(ink) = extent {
+                bounds = Some(bounds.map_or(ink, |b| b.union(ink)));
+            }
+            scene.draws.push(draw);
+        }
+        Ok(Self {
+            scene,
+            bounds: bounds.ok_or("particle_shape produced no vector geometry")?,
+        })
+    }
+
+    pub(crate) fn paint(&self, scene: &mut Scene, transform: Affine, opacity: f32) {
+        if opacity <= 0.0 {
+            return;
+        }
+        if opacity < 1.0 {
+            scene.push_layer(
+                Fill::NonZero,
+                BlendMode::default(),
+                opacity,
+                transform,
+                &self.bounds.inflate(1., 1.),
+            );
+        }
+        scene.append(&self.scene, Some(transform));
+        if opacity < 1.0 {
+            scene.pop_layer();
+        }
+    }
+}
+
 /// Whether a filter result is drawn at its place in the scene or after the
 /// ordinary scene content has been rendered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

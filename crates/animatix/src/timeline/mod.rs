@@ -66,6 +66,7 @@ pub mod modifier_exec;
 pub mod modifier_runtime;
 /// Path morphing between vector shapes.
 pub mod morph;
+pub(crate) mod particles;
 pub(crate) mod path_commands;
 pub mod path_progress;
 pub mod plan;
