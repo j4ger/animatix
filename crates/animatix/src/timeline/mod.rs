@@ -282,6 +282,7 @@ pub struct Timeline {
     pub(crate) local_time_scope_end_ms: u64,
     /// Affine local-clock scale active while lowering a reusable plan.
     pub(crate) plan_clock_rate: f64,
+    pub(crate) compiling_particle_clip: bool,
     /// Resolved absolute keyframe marker times indexed by authored source span.
     pub(crate) resolved_markers: Vec<(crate::ast::Span, f64)>,
     /// Named scene times in seconds and their source locations.

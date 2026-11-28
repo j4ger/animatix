@@ -1,5 +1,7 @@
 //! Deterministic world-space particles. The emitter owns the schedule in the ECS.
 mod build;
+mod clip;
+pub(super) use clip::{local_property, validate_op};
 mod render;
 mod schedule;
 mod template;
@@ -21,7 +23,9 @@ pub(crate) struct Emitter {
     heading: f64,
     jitter: f64,
     style: Style,
-    template: Option<std::sync::Arc<crate::scene::VectorArtwork>>,
+    template: Option<template::Template>,
+    shrink: bool,
+    clock_scale: f64,
     motion: Option<Motion>,
     scale: Option<[f64; 2]>,
     angle: [f64; 2],
@@ -29,7 +33,7 @@ pub(crate) struct Emitter {
 }
 impl Emitter {
     pub(super) fn end_hint(&self) -> f64 {
-        self.schedule.end_hint(self.life)
+        self.schedule.end_hint(self.life * self.clock_scale)
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq)]

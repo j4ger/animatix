@@ -45,6 +45,7 @@ impl Timeline {
             declared_duration_s: None,
             local_time_scope_end_ms: 0,
             plan_clock_rate: 1.0,
+            compiling_particle_clip: false,
             build_plan_ownership: Vec::new(),
             pending_handoffs: Vec::new(),
             next_auto_color_index: 0,

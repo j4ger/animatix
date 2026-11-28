@@ -199,3 +199,5 @@
 196	particle_scale	Vec2
 197	particle_angle	Vec2
 198	particle_spin	Vec2
+199	particle_animation	Any
+200	particle_exit	Str

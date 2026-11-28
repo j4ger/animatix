@@ -36,7 +36,7 @@ impl std::fmt::Debug for VectorArtwork {
 }
 
 impl VectorArtwork {
-    pub(crate) fn from_draws(draws: impl Iterator<Item = Draw>) -> Result<Self, String> {
+    pub(crate) fn from_draws(draws: impl Iterator<Item = Draw>) -> Result<Option<Self>, String> {
         let mut scene = Scene::new();
         let mut bounds: Option<Rect> = None;
         for draw in draws {
@@ -64,10 +64,7 @@ impl VectorArtwork {
             }
             scene.draws.push(draw);
         }
-        Ok(Self {
-            scene,
-            bounds: bounds.ok_or("particle_shape produced no vector geometry")?,
-        })
+        Ok(bounds.map(|bounds| Self { scene, bounds }))
     }
 
     pub(crate) fn paint(&self, scene: &mut Scene, transform: Affine, opacity: f32) {

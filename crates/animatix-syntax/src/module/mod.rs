@@ -8,6 +8,9 @@ mod rewrite;
 pub mod source_map;
 mod types;
 
+/// Private receiver for a particle component, outside the authored identifier namespace.
+pub const PARTICLE_TEMPLATE_ROOT: &str = "@particle";
+
 pub use indexed::specialize_instance_property_reads;
 pub use types::{
     ComponentEntry, ExpandedProgram, ExpansionError, FileId, FnTemplate, FunctionContext,

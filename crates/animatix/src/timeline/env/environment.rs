@@ -564,6 +564,9 @@ impl Environment {
     /// Copy callable bindings and signatures into a function's isolated local
     /// environment without copying caller variables or actor property values.
     pub(crate) fn inherit_callables_from(&mut self, source: &Environment) {
+        if !source.is_frame_phase() {
+            self.component_methods = Arc::clone(&source.component_methods);
+        }
         self.callable_descriptors = Arc::clone(&source.callable_descriptors);
         self.evaluation_phase = source.evaluation_phase;
         self.component_method_tables = Arc::clone(&source.component_method_tables);

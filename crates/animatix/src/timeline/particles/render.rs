@@ -1,5 +1,5 @@
 //! Sample the active births and paint their shared artwork in birth order.
-use super::{Motion, Style, schedule::unit};
+use super::{Motion, Style, schedule::unit, template::Template};
 use crate::primitives::{EvaluateCtx, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
 use crate::timeline::{ActorPoint, VelloPath};
@@ -37,7 +37,7 @@ pub(crate) fn evaluate(
     let bubble = e.style == Style::Bubble;
     let mut batches = e
         .schedule
-        .batches(ctx.time_s, e.life, e.seed, e.jitter)
+        .batches(ctx.time_s, e.life * e.clock_scale, e.seed, e.jitter * e.clock_scale)
         .map_err(|msg| RenderError::FrameRender(msg.into()))?;
     batches.sort_unstable_by(|a, b| {
         a.time
@@ -46,6 +46,11 @@ pub(crate) fn evaluate(
             .then(a.group.cmp(&b.group))
     });
     let mut paths = Vec::new();
+    let mut clip_frame = match &e.template {
+        Some(Template::Animated(clip)) => Some(clip.frame().map_err(RenderError::FrameRender)?),
+        _ => None,
+    };
+    let mut animated = Vec::new();
     let mut transforms = Vec::new();
     let motion = e.motion.unwrap_or(match (&e.template, e.style) {
         (Some(_), _) => Motion::Linear,
@@ -59,7 +64,7 @@ pub(crate) fn evaluate(
     let mut last_birth = None;
     let mut last_origin = None;
     for batch in batches {
-        let age = ctx.time_s - batch.time;
+        let age = (ctx.time_s - batch.time) / e.clock_scale;
         let ms = (batch.time * 1000.0).round() as u64;
         if last_birth != Some(ms) {
             last_origin = resolver.particle_birth_point(anchor.0, anchor.1, ms);
@@ -90,7 +95,11 @@ pub(crate) fn evaluate(
                 Motion::Ballistic => y += 0.42 * e.speed * age * age,
                 Motion::Dust => y -= 0.1 * e.speed * age * age,
             }
-            let fade = ((life - age) / (0.22 * life)).min(1.0);
+            let fade = if e.shrink {
+                ((life - age) / (0.22 * life)).min(1.0)
+            } else {
+                1.
+            };
             let scale = e.scale.map(|range| sample(range, random(5))).unwrap_or_else(|| {
                 if e.template.is_some() {
                     1.
@@ -101,12 +110,31 @@ pub(crate) fn evaluate(
             let rotation =
                 (sample(e.angle, random(6)) + age * sample(e.spin, random(7))).to_radians();
             if e.template.is_some() {
-                transforms.push(
-                    to_local
-                        * kurbo::Affine::translate((x, y))
-                        * kurbo::Affine::rotate(rotation)
-                        * kurbo::Affine::scale(scale),
-                );
+                let transform = to_local
+                    * kurbo::Affine::translate((x, y))
+                    * kurbo::Affine::rotate(rotation)
+                    * kurbo::Affine::scale(scale);
+                if let Some(frame) = &mut clip_frame {
+                    if let Some(artwork) =
+                        frame.sample(age / life).map_err(RenderError::FrameRender)?
+                    {
+                        if let Some(RenderCommand::VectorInstances {
+                            artwork: previous,
+                            transforms,
+                        }) = animated.last_mut()
+                            && std::sync::Arc::ptr_eq(previous, &artwork)
+                        {
+                            transforms.push(transform);
+                        } else {
+                            animated.push(RenderCommand::VectorInstances {
+                                artwork,
+                                transforms: vec![transform],
+                            });
+                        }
+                    }
+                } else {
+                    transforms.push(transform);
+                }
                 continue;
             }
             let r = e.radius * scale;
@@ -129,7 +157,10 @@ pub(crate) fn evaluate(
             }
         }
     }
-    if let Some(template) = &e.template {
+    if matches!(e.template, Some(Template::Animated(_))) {
+        return Ok(Some(animated));
+    }
+    if let Some(Template::Static(template)) = &e.template {
         return Ok(Some(vec![RenderCommand::VectorInstances {
             artwork: template.clone(),
             transforms,

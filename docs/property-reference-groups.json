@@ -227,7 +227,9 @@
       "particle_shape",
       "particle_scale",
       "particle_angle",
-      "particle_spin"
+      "particle_spin",
+      "particle_animation",
+      "particle_exit"
     ]
   },
   {

@@ -1,0 +1,38 @@
+// Local origin is the centre of the blade. The same ink is used at both scales.
+pub component Leaf() {
+  pub fn autumn(end_color: Color) {
+    return #{
+      self.blade.face.color = end_color [1s, ease:linear]
+      self.blade.shade.opacity = 0.23 [1s, ease:linear]
+      self.blade.rotation = 1.18 [1s, ease:linear]
+    }
+  }
+  blade: Group {
+    face: Path, commands: {move_to(-16,7), curve_to(-11,-6,0,-12,16,-8), curve_to(14,3,1,13,-16,7), close()}, color: hex_color("e7994b"), stroke_width: 0
+    shade: Path, commands: {move_to(-16,7), curve_to(-6,3,4,-2,16,-8), curve_to(14,3,1,13,-16,7), close()}, color: hex_color("b76137"), stroke_width: 0
+    ribs: Path, commands: {move_to(-19,9), curve_to(-10,5,5,-1,15,-8), move_to(-5,2), line_to(-5,-4), move_to(2,-1), line_to(3,-7), move_to(-2,1), line_to(4,4), move_to(6,-3), line_to(10,-1)}, stroke: hex_color("ffe2a4"), stroke_width: 1.15, fill_opacity: 0
+  }
+}
+
+config {canvas_size:(880,496), duration:4}
+let paper = hex_color("f1e8d4")
+let forest = hex_color("203d38")
+let russet = hex_color("a33832")
+#0s
+  scene.background_color = forest
+  title: Text, at:(440,49), text_align:"center", text:"一片叶子的四秒", color:paper, font_size:32
+  left: Rect, at:(244,217), size:(330,234), corner_radius:12, color:paper
+  right: Rect, at:(636,217), size:(330,234), corner_radius:12, color:paper
+  a: Text, at:(244,138), text_align:"center", text:"普通组件", font_size:21, color:forest
+  b: Text, at:(636,138), text_align:"center", text:"单颗粒子", font_size:21, color:forest
+  specimen: Leaf, at:(244,237)
+  specimen.scale = 4
+  fit_duration(specimen.autumn(end_color:russet), 4s)
+  // For seed 9480 and this named burst the first leaf lives four seconds to millisecond precision.
+  twin: Emitter, at:(636,237), particle_shape:Leaf, seed:9480, speed:0, lifetime:4,
+    particle_scale:(4,4), particle_exit:"none", particle_animation:(leaf) => leaf.autumn(end_color:russet)
+  burst(target:twin, count:1, track:"comparison")
+  caption: Text, at:(440,373), text_align:"center", text:"同一段变色和转动，由每片叶子的年龄决定。", font_size:19, color:paper
+  breeze: Emitter, at:(28,440), particle_shape:Leaf, lifetime:3.8, speed:215, heading:0, spread:3, rate:6, seed:11,
+    motion:"linear", particle_scale:(0.45,0.85), particle_angle:(-25,25), particle_animation:(leaf) => leaf.autumn(end_color:russet)
+#4s

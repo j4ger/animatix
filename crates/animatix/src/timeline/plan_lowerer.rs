@@ -295,6 +295,12 @@ impl Timeline {
         } = placement;
         let mut local_end = plan.extent().map(PlanDuration::milliseconds);
         for op in plan.ops() {
+            if self.compiling_particle_clip
+                && let Err(msg) = super::particles::validate_op(op, self)
+            {
+                diagnostics.push(plan_timing_error(&msg, span));
+                return None;
+            }
             let end = match op {
                 PlanOp::Builtin(call) => {
                     let remapped = remap_builtin_call(call, plan.id(), mount_id, qualified_labels);
@@ -588,6 +594,15 @@ impl Timeline {
         let Some(action) = builtin_invocation(call, rate, diagnostics, span) else {
             return;
         };
+        if self.compiling_particle_clip
+            && action.targets.iter().any(|target| self.world.get_id(target).is_none())
+        {
+            diagnostics.push(plan_timing_error(
+                "particle_animation actions require component-local targets",
+                span,
+            ));
+            return;
+        }
         let targets_plan_owned = action.targets.iter().any(|label| {
             self.world
                 .get_id(label)

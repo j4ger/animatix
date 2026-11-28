@@ -398,6 +398,8 @@ declare_property_descriptors! {
     "particle_scale" => (Applicable::Actors(&["Emitter"]), Vec2),
     "particle_angle" => (Applicable::Actors(&["Emitter"]), Vec2),
     "particle_spin" => (Applicable::Actors(&["Emitter"]), Vec2),
+    "particle_animation" => (Applicable::Actors(&["Emitter"]), Generic),
+    "particle_exit" => (Applicable::Actors(&["Emitter"]), String),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

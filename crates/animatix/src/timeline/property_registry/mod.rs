@@ -545,6 +545,22 @@ static BINDINGS: &[PropertyBinding] = &[
         ReadSource::None_
     ),
     b!(
+        "particle_animation",
+        V::BuildTimeOnly,
+        F::empty(),
+        NoStorage,
+        val!(str ""),
+        ReadSource::None_
+    ),
+    b!(
+        "particle_exit",
+        V::String,
+        F::empty(),
+        NoStorage,
+        val!(str "shrink"),
+        ReadSource::None_
+    ),
+    b!(
         "particle_scale",
         V::Vec2,
         F::empty(),

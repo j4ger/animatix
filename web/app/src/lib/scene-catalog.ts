@@ -15,6 +15,7 @@ export function playgroundScenes(language: Language) {
     ...lessons.map(x => ({id: x.file, title: title(x.title, lessonCopy[x.id].title)})),
     ...works.map(x => ({id: x.id, title: title(x.title, workCopy[x.id].title)})),
     ...techniques.map(x => ({id: x.file, title: title(x.title, techniqueCopy[x.id].title)})),
+    {id: 'particle-lifecycle', title: title('One leaf, two clocks', '一片叶子的四秒')},
     {id: 'first-beat', title: title('First beat · wave only', '第一拍 · 波纹')},
     {id: 'give-it-a-beat', title: title('Give it a beat.', '给画面一点节奏')},
   ];

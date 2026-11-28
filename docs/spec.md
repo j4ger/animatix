@@ -1677,6 +1677,23 @@ import "leaf.amx"
 - `motion` accepts `"linear"` for straight flight, `"drift"` for horizontal sway and `"ballistic"` for downward acceleration. A custom shape defaults to linear flight. `heading` sets travel direction independently of the artwork's orientation. The component supplies custom particle colors and nominal size. `particle_style` and `particle_size` select and size the original presets.
 - [The falling-leaves scene](../crates/animatix/tests/fixtures/particles/autumn.amx) uses [one authored leaf](../crates/animatix/tests/fixtures/particles/leaf.amx) for both the enlarged specimen and the falling particles.
 
+##### Animating the particle component
+
+Pass a one-argument closure to `particle_animation`. Its argument is the component instance supplied by `particle_shape`. The closure runs once when the emitter is built and returns a Timeline with a positive, finite duration. It can capture scene values and call a public component method with ordinary named arguments. In the example below, place the caller beside the [demo source](../web/content/scenes/particle-lifecycle.amx). The demo defines `Leaf.autumn(end_color)` with `pub fn`. It turns the blade, changes its face color and lightens its shadow over one authored second. You choose the method name and parameters for your component.
+
+```animatix
+import "particle-lifecycle.amx" as art
+let russet = hex_color("a33832")
+#0s
+  leaves: Emitter, particle_shape: art::Leaf, rate: 4, lifetime: 3,
+    particle_animation: (leaf) => leaf.autumn(end_color: russet),
+    particle_exit: "none"
+```
+
+Each particle samples the returned Timeline at `clip_duration × age / actual_lifetime`. The seed determines its actual lifetime. The component's local position (`at`, `position`, `shift`), rotation, scale, color and opacity can change. Ordinary keyframes, sequencing and retiming work inside the appearance plan. The local actions `fade_in`, `fade_out`, `move`, `shift`, `rotate` and `scale` can target the component or its children. External writes, actor creation and scene actions such as `persist` produce build diagnostics. The emitter applies flight, spin and size variation to the resulting artwork. The default `particle_exit: "shrink"` scales it down over the final 22% of its life. Use `"none"` when the component supplies its own exit.
+
+A stretched plan scales the flight clock of an emitter it declares, including the rate of birth. A plan that schedules a burst on an existing emitter moves the burst in time; that emitter retains its own flight clock. The [side-by-side leaf example](../web/content/scenes/particle-lifecycle.amx) plays the same public method on an actor and on emitted leaves. [Watch the rendered comparison](assets/particle-lifecycle.mp4).
+
 **Procedural particles drawn with shapes.** A particle's position, size, tint and life
 are analytic functions of `(its seed, the elapsed time)`, so a burst needs no
 emitter, no integrator, and no per-frame accumulation — and it stays frame-exact

@@ -236,8 +236,21 @@ fn dense_pulse_fails_before_allocating_paths_and_recovers_after_the_window() {
 fn loaded_particle_test(source: &str) -> crate::diagnostics::BuildReport<Timeline> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/particles/autumn.amx");
+    load_particle_source(&path, source)
+}
+
+fn loaded_lifecycle_test(source: &str) -> crate::diagnostics::BuildReport<Timeline> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../web/content/scenes/particle-test-caller.amx");
+    load_particle_source(&path, source)
+}
+
+fn load_particle_source(
+    path: &std::path::Path,
+    source: &str,
+) -> crate::diagnostics::BuildReport<Timeline> {
     let mut graph = crate::module::ModuleGraph::new();
-    let program = graph.load_program_with_source(&path, Some(source)).unwrap();
+    let program = graph.load_program_with_source(path, Some(source)).unwrap();
     let expanded = program.expand_components().unwrap();
     Timeline::build_with_options(
         &expanded.statements,
@@ -343,5 +356,170 @@ fn custom_shape_scrub_benchmark() {
             "duration={duration} leaf_cpu_p95_us={:.1}",
             scrub_p95_us(&report.output, duration)
         );
+    }
+}
+
+fn appearance(
+    timeline: &Timeline,
+    time: f64,
+) -> Vec<(kurbo::BezPath, kurbo::Affine, peniko::Brush)> {
+    timeline
+        .evaluate(time, DIMS)
+        .into_draws()
+        .into_iter()
+        .skip(1)
+        .filter_map(|draw| match draw {
+            Draw::Fill {
+                path,
+                transform,
+                brush,
+                ..
+            }
+            | Draw::Stroke {
+                path,
+                transform,
+                brush,
+                ..
+            } => Some((path, transform, brush)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn checked_scene(source: &str) -> Timeline {
+    let result = loaded_lifecycle_test(source);
+    assert!(!result.diagnostics.iter().any(|d| d.is_error()), "{:?}", result.diagnostics);
+    result.output
+}
+
+#[test]
+fn lifecycle_matches_actor_tracks_on_cold_reverse_and_sequential_seeks() {
+    let header = "import \"particle-lifecycle.amx\" as art\nlet red = hex_color(\"ab3434\")\n#0s\n";
+    let actor = checked_scene(&format!("{header}l:art::Leaf\nl.autumn(end_color:red)\n#4s"));
+    let source = format!(
+        "{header}e:Emitter, speed:0, lifetime:4, seed:42, particle_exit:\"none\", particle_animation:(l) => stretch(l.autumn(end_color:red), 2), particle_shape:art::Leaf\nburst(target:e,count:1,track:\"one\")\n#4s"
+    );
+    let flight = checked_scene(&source);
+    assert_eq!(flight.world.len(), 1);
+    let life = 4. * (0.72 + 0.28 * unit(42, hash("one"), 0, 0, 1));
+    let check = |flight: &Timeline, u: f64| {
+        // Both clocks sample the same position inside an authored millisecond.
+        let u = u + 0.0001;
+        let actual = appearance(flight, u * life);
+        let expected = appearance(&actor, u);
+        assert!(!expected.is_empty());
+        assert_eq!(actual, expected, "normalized age {u}");
+    };
+    for u in [0.95, 0.25, 0.7] {
+        check(&checked_scene(&source), u);
+        check(&flight, u);
+    }
+    for i in 0..96 {
+        appearance(&flight, f64::from(i) / 96. * life);
+    }
+    check(&flight, 0.25);
+    assert_ne!(appearance(&actor, 0.25), appearance(&actor, 0.95));
+    assert!(appearance(&flight, life + 0.001).is_empty());
+}
+
+#[test]
+fn invalid_lifecycles_fail_during_build() {
+    let base = "import \"particle-lifecycle.amx\" as art\n#0s\nparticle:Rect\n";
+    for (props, reason) in [
+        ("particle_animation:(p) => 1", "requires particle_shape"),
+        ("particle_shape:art::Leaf, particle_animation:\"autumn\"", "expects a closure"),
+        ("particle_shape:art::Leaf, particle_animation:(p) => 1", "return a Timeline"),
+        (
+            "particle_shape:art::Leaf, particle_animation:(p) => #{ p.opacity = 0 }",
+            "positive finite",
+        ),
+        (
+            "particle_shape:art::Leaf, particle_animation:(p) => #{ particle.opacity = 0 [1s] }",
+            "component-local",
+        ),
+        (
+            "particle_shape:art::Leaf, particle_animation:(p) => #{ scene.background_color = hex_color(\"ffffff\") [1s] }",
+            "component-local",
+        ),
+        (
+            "particle_shape:art::Leaf, particle_animation:(p) => stretch(#{ extra:Rect }, 2)",
+            "local property tracks",
+        ),
+        (
+            "particle_shape:art::Leaf, particle_animation:(p) => fade_out(target:particle,duration:1s)",
+            "component-local",
+        ),
+        (
+            "particle_shape:art::Leaf, particle_animation:(p) => persist(target:p)",
+            "does not support",
+        ),
+        ("particle_exit:\"fade\"", "expects shrink or none"),
+    ] {
+        let report = loaded_lifecycle_test(&format!("{base}e:Emitter, {props}\n"));
+        assert!(
+            report.diagnostics.iter().any(|d| d.is_error() && d.message.contains(reason)),
+            "{props}: {:?}",
+            report.diagnostics
+        );
+    }
+}
+
+#[test]
+fn retiming_only_changes_the_flight_clock_of_an_owned_emitter() {
+    let scene = |factor: u32, owned| {
+        let decl = "e:Emitter, particle_shape:art::Leaf, particle_animation:(p) => p.autumn(end_color:hex_color(\"901212\")), speed:50, lifetime:1, particle_spin:(40,40), particle_exit:\"none\"";
+        let (outer, inner) = if owned { ("", decl) } else { (decl, "") };
+        checked_scene(&format!(
+            "import \"particle-lifecycle.amx\" as art\n#0s\n{outer}\nlet clip = #{{\n{inner}\n#1s\nburst(target:e,count:1,track:\"one\")\n#2s\n}}\nstretch(clip,{factor})\n#6s"
+        ))
+    };
+    for owned in [true, false] {
+        let plain = scene(1, owned);
+        let stretched = scene(2, owned);
+        let expected = appearance(&plain, 1.25);
+        assert!(!expected.is_empty());
+        assert!(appearance(&stretched, 1.99).is_empty());
+        assert_eq!(expected, appearance(&stretched, if owned { 2.5 } else { 2.25 }));
+    }
+}
+
+#[test]
+#[ignore = "manual CPU random-seek timing of the same leaf with and without a lifecycle"]
+fn lifecycle_scrub_benchmark() {
+    for (duration, rate) in [(10, 20), (600, 20), (600, 200)] {
+        for (kind, animation) in [
+            ("static", ""),
+            (
+                "animated",
+                ", particle_animation:(leaf) => leaf.autumn(end_color:hex_color(\"a33832\"))",
+            ),
+        ] {
+            let timeline = checked_scene(&format!(
+                "import \"particle-lifecycle.amx\" as art\nconfig {{duration:{duration},canvas_size:(640,360)}}\n#0s\ne:Emitter, particle_shape:art::Leaf, lifetime:2, rate:{rate}, seed:42{animation}\n#{duration}s"
+            ));
+            println!(
+                "{duration}s rate={rate} {kind} CPU seek p95 {:.0} us",
+                scrub_p95_us(&timeline, duration)
+            );
+        }
+    }
+}
+
+#[test]
+fn a_local_fade_action_and_a_literal_plan_can_use_the_closure_receiver() {
+    for (animation, reference) in [
+        ("(p) => fade_out(target:p,duration:1s)", "fade_out(target:l,duration:1s)"),
+        ("(p) => #{ p.opacity = 0 [1s] }", "l.opacity = 0 [1s]"),
+    ] {
+        let scene = checked_scene(&format!(
+            "import \"particle-lifecycle.amx\" as art\n#0s\ne:Emitter, particle_shape:art::Leaf, particle_animation:{animation}, speed:0, seed:42, particle_exit:\"none\", lifetime:2\nburst(target:e,count:1,track:\"one\")"
+        ));
+        let actor = checked_scene(&format!(
+            "import \"particle-lifecycle.amx\" as art\n#0s\nl:art::Leaf\n{reference}"
+        ));
+        let life = 2. * (0.72 + 0.28 * unit(42, hash("one"), 0, 0, 1));
+        let expected = appearance(&actor, 0.7001);
+        assert_ne!(expected, appearance(&actor, 0.));
+        assert_eq!(expected, appearance(&scene, life * 0.7001));
     }
 }

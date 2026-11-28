@@ -36,7 +36,7 @@ pub(super) fn expand_particle_shape(
                     continue;
                 }
                 let (statements, instance_methods) = expand_component_instance(
-                    "particle",
+                    crate::module::PARTICLE_TEMPLATE_ROOT,
                     &None,
                     &[],
                     &[],

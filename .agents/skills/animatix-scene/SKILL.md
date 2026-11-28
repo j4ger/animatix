@@ -2,7 +2,7 @@
 name: animatix-scene
 description: Write, revise, or verify Animatix AMX scenes from a settled brief or approved storyboard. Use for scene composition, cue timing, component integration and visual QA of a scene.
 metadata:
-  version: "0.9.0-draft.48"
+  version: "0.9.0-draft.49"
 ---
 
 # Animatix scene
@@ -29,6 +29,8 @@ The [component import example](assets/attached-status.amx) runs in this checkout
 Use an existing component directly when its inputs cover the beat. Compose a one-off from primitives in the scene. In either case, continue with staging here. For a new object shared across scenes, independently actuated instances, or a mechanism that needs its own visual checks, use [animatix-component](../animatix-component/SKILL.md). Pass its planned uses, delivery sizes, cues, attachments and any existing art direction or reference frame. A separate author can own it when several scenes depend on it or the mechanism merits focused work. The same author can follow the component skill inline. Agree on one project-local import path with the other callers. If another scene already owns the module, use its handoff.
 
 Resume scene production with the returned import, controls and state references. Schedule the action, attach through the public anchors and inspect it in the actual composition. Return an interface gap to the component owner and recheck the integrated scene after the fix.
+
+For a stream or burst of repeated marks, place one emitter and choose its origin, birth timing and flight. Use `particle_shape` for shared vector art. Add `particle_animation` when each mark changes appearance as it ages. Preview the busiest moment at delivery size. [Particle emitter reference](../../../docs/spec.md#particle-emitters)
 
 ## Stage the beat
 

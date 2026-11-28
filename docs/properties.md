@@ -364,6 +364,8 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `particle_scale` | `Vec2` | `Vec2` | — | — | `Emitter` |
 | `particle_angle` | `Vec2` | `Vec2` | — | — | `Emitter` |
 | `particle_spin` | `Vec2` | `Vec2` | — | — | `Emitter` |
+| `particle_animation` | `Any` | `BuildTimeOnly` | — | — | `Emitter` |
+| `particle_exit` | `Str` | `String` | — | — | `Emitter` |
 <!-- generated-property-table:particles:end -->
 
 Set the particle properties when declaring the emitter. Keyframes can also change `rate` in a step or a linear ramp. A rate of zero stops continuous births and lets the particles already in flight finish. Each particle samples `origin` at its birth time.

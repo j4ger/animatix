@@ -61,7 +61,13 @@ pub(crate) fn build(
     let mut e = Emitter {
         schedule: Schedule::default(),
         origin: None,
-        seed: hash(label),
+        // Plan mounts prefix private names with a process-local mount id.
+        // Derive the default seed from the authored name across rebuilds.
+        seed: hash(if label.starts_with("@animatix:plan:") {
+            label.rsplit(':').next().unwrap_or(label)
+        } else {
+            label
+        }),
         life: 2.0,
         speed: 75.0,
         radius: 4.0,
@@ -70,6 +76,8 @@ pub(crate) fn build(
         jitter: 0.0,
         style: Style::Bubble,
         template: None,
+        shrink: true,
+        clock_scale: timeline.plan_clock_rate,
         motion: None,
         scale: None,
         angle: [0.; 2],
@@ -84,6 +92,10 @@ pub(crate) fn build(
             label,
             "A particle_shape uses its component colors and dimensions; choose particle_scale for size variations and omit particle_style and particle_size",
         )]);
+    }
+    let animation = props.iter().find(|p| p.name == "particle_animation");
+    if animation.is_some() && !props.iter().any(|p| p.name == "particle_shape") {
+        return Err(vec![issue(label, "particle_animation requires particle_shape")]);
     }
     let mut visual = Vec::new();
     for p in props {
@@ -116,9 +128,11 @@ pub(crate) fn build(
                     }
                 },
                 "seed" => e.seed = integer(parse()?, 0, u32::MAX)?.into(),
-                "rate" => {
-                    e.schedule.rate(time_ms / 1000., time_ms / 1000., number(parse()?, 0., 10000.)?)
-                },
+                "rate" => e.schedule.rate(
+                    time_ms / 1000.,
+                    time_ms / 1000.,
+                    number(parse()?, 0., 10000.)? / e.clock_scale,
+                ),
                 "lifetime" => e.life = number(parse()?, 0.001, 600.)?,
                 "speed" => e.speed = number(parse()?, 0., 1e6)?,
                 "spread" => e.spread = number(parse()?, 0., 360.)?,
@@ -126,7 +140,18 @@ pub(crate) fn build(
                 "particle_size" => e.radius = number(parse()?, 0.01, 10000.)?,
                 "jitter" => e.jitter = number(parse()?, 0., 60.)?,
                 "particle_shape" => {
-                    e.template = Some(super::template::compile(&p.value, timeline, &env)?)
+                    e.template = Some(super::template::compile(
+                        &p.value,
+                        animation.map(|p| &p.value),
+                        timeline,
+                        &env,
+                    )?);
+                },
+                "particle_animation" => {}, // compiled with the shape regardless of declaration order
+                "particle_exit" => match parse()? {
+                    Value::Str(s) if s == "none" => e.shrink = false,
+                    Value::Str(s) if s == "shrink" => e.shrink = true,
+                    _ => return Err("particle_exit expects shrink or none".into()),
                 },
                 "particle_angle" => e.angle = range(parse()?, f64::NEG_INFINITY)?,
                 "particle_spin" => e.spin = range(parse()?, f64::NEG_INFINITY)?,
@@ -182,6 +207,8 @@ pub(crate) fn set_rate(
     if !matches!(
         property,
         "rate"
+            | "particle_animation"
+            | "particle_exit"
             | "particle_shape"
             | "motion"
             | "particle_angle"
@@ -206,7 +233,7 @@ pub(crate) fn set_rate(
     } else {
         eval(value, env).and_then(|v| number(v, 0., 10000.)).and_then(|r| {
             let e = timeline.world.emitters.get_mut(id).ok_or("missing emitter")?;
-            e.schedule.rate(start as f64 / 1000., end as f64 / 1000., r);
+            e.schedule.rate(start as f64 / 1000., end as f64 / 1000., r / e.clock_scale);
             Ok(())
         })
     };

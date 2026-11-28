@@ -166,7 +166,7 @@ Note: Missing files report build diagnostics. Source changes are discrete (cross
 
 ## Emitter
 
-An `Emitter` can draw an authored static vector component with `particle_shape`, or use the bubble, dust and spark presets. Set `rate` for a continuous stream, call `burst` for one batch, or use `emit_pulse` for repeated batches. An origin such as `nozzle.top` follows an actor as it emits. Each particle continues from its own birth position. See the [authoring example and property meanings](spec.md#particle-emitters).
+An `Emitter` can draw an authored vector component with `particle_shape`, or use the bubble, dust and spark presets. To animate the component during flight, pass a closure to `particle_animation`. Each particle plays the returned Timeline over its own lifetime. [See the component method and its caller](../web/content/scenes/particle-lifecycle.amx). Set `rate` for a continuous stream, call `burst` for one batch, or use `emit_pulse` for repeated batches. An origin such as `nozzle.top` follows an actor as it emits. Each particle continues from its own birth position. See the [authoring example and property meanings](spec.md#particle-emitters).
 
 ## Video
 
