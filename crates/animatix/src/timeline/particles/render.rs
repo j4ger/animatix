@@ -158,17 +158,16 @@ pub(crate) fn evaluate(
         }
     }
     if matches!(e.template, Some(Template::Animated(_))) {
-        return Ok(Some(animated));
+        return Ok((!animated.is_empty()).then_some(animated));
     }
     if let Some(Template::Static(template)) = &e.template {
-        return Ok(Some(vec![RenderCommand::VectorInstances {
-            artwork: template.clone(),
-            transforms,
-        }]));
+        return Ok((!transforms.is_empty()).then(|| {
+            vec![RenderCommand::VectorInstances {
+                artwork: template.clone(),
+                transforms,
+            }]
+        }));
     }
-    Ok(Some(if paths.is_empty() {
-        vec![]
-    } else {
-        vec![RenderCommand::Paths { paths }]
-    }))
+    // With no live ink, the emitter has no draw item or measured ink bounds.
+    Ok((!paths.is_empty()).then(|| vec![RenderCommand::Paths { paths }]))
 }

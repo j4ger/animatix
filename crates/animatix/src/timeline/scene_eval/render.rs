@@ -647,7 +647,11 @@ impl Timeline {
                 hit_regions,
                 program_items,
             );
-            return (local_transform, opacity);
+        } else if debug_options.compute_hit_regions && self.world.emitters.get(node_id).is_some() {
+            // An idle emitter has no ink, but its layout box remains pickable in Studio.
+            let [x, y] = half_size.map(f64::from);
+            let layout_box = kurbo::Rect::new(-x, -y, x, y);
+            hit_regions.push((node_id, transform_rect_bbox(&local_transform, layout_box)));
         }
 
         (local_transform, opacity)

@@ -49,6 +49,61 @@ fn linear_ramp_solves_the_integral() {
     }
 }
 #[test]
+fn equivalent_rate_keys_preserve_jittered_birth_times() {
+    for ramp in [false, true] {
+        let build_schedule = |with_split: bool| {
+            let mut s = Schedule::default();
+            s.rate(0.25, 0.25, 8.);
+            if ramp {
+                if with_split {
+                    s.rate(0.25, 0.75, 12.);
+                    s.rate(0.75, 1.25, 16.);
+                } else {
+                    s.rate(0.25, 1.25, 16.);
+                }
+            } else if with_split {
+                s.rate(1.0, 1.0, 8.);
+            }
+            s.rate(1.4, 1.4, 0.);
+            s.rate(1.8, 1.8, 8.);
+            if with_split {
+                s.rate(2.5, 2.5, 8.); // Redundant trailing key must not clamp jitter either.
+            }
+            s
+        };
+        let control = build_schedule(false);
+        let candidate = build_schedule(true);
+        for seed in [0, 4, 42] {
+            for t in [2.9, 0.24, 0.25, 0.77, 0.95, 1.0, 1.4, 1.7, 1.8, 2.5, 2.9] {
+                let original = births(&control, t, 0.63, seed, 0.115);
+                assert_eq!(
+                    births(&candidate, t, 0.63, seed, 0.115),
+                    original,
+                    "ramp={ramp}, t={t}, seed={seed}"
+                );
+                assert!(
+                    original
+                        .iter()
+                        .all(|(birth, _, _, _)| { (0.25..1.4).contains(birth) || *birth >= 1.8 })
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn warmed_jitter_schedule_is_invalidated_by_a_rate_edit() {
+    let mut s = Schedule::default();
+    s.rate(0., 0., 8.);
+    let before = births(&s, 1., 1., 4, 0.115);
+    assert!(!before.is_empty());
+    s.rate(0.5, 0.5, 0.);
+    let after = births(&s, 1., 1., 4, 0.115);
+    assert_ne!(before, after);
+    assert!(after.iter().all(|b| b.0 < 0.5));
+}
+
+#[test]
 fn jitter_is_per_batch_and_channels_do_not_depend_on_batch_size() {
     let train = Train {
         start: 1.,
@@ -94,6 +149,28 @@ fn particle_geometry(tl: &Timeline, t: f64) -> Vec<kurbo::BezPath> {
         })
         .collect()
 }
+#[test]
+fn idle_emitter_has_a_pick_region_but_no_ink_bounds() {
+    let tl = build(
+        r#"#0s
+e: Emitter, at: (100,100), lifetime: 1, speed: 0, opacity: 1
+#1s
+burst(target:e, count:1)
+#2s
+"#,
+    );
+    let options = crate::timeline::DebugRenderOptions {
+        compute_hit_regions: true,
+        ..Default::default()
+    };
+    for (t, active) in [(0.5, false), (1.25, true), (2.0, false), (0.5, false)] {
+        let program = tl.evaluate_program_with_debug(t, DIMS, options, &mut None);
+        assert_eq!(program.items.iter().any(|item| item.label == "e"), active);
+        assert_eq!(program.precise_bounds.contains_key("e"), active);
+        assert!(tl.hit_regions().iter().any(|(label, _)| label == "e"));
+    }
+}
+
 #[test]
 fn direct_reverse_and_forward_preserve_birth_world_positions() {
     let src = r#"config { duration: 6, canvas_size: (640,360) }
@@ -306,7 +383,8 @@ config { duration:4, canvas_size:(640,360) }
                 && (v.y - 2. * a.to_radians().sin()).abs() < 1e-8
         );
     }
-    sample(3.8);
+    let expired = timeline.evaluate_program_with_debug(4.0, DIMS, Default::default(), &mut None);
+    assert!(!expired.items.iter().any(|item| item.label == "e"));
     assert_eq!(sample(1.).1, after);
     for i in 0..30 {
         sample(i as f64 / 30.);

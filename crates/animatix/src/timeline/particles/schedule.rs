@@ -1,7 +1,11 @@
 //! Closed-form emission. All times are seconds, and rates are births/second.
+use std::sync::OnceLock;
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct Schedule {
     rates: Vec<RateKey>,
+    // Collapse equivalent authored keys once, only when a jittered stream is sampled.
+    jitter_rates: OnceLock<Vec<RateKey>>,
     trains: Vec<Train>,
     // In each subtree, the latest possible birth (including jitter). A long
     // pulse train must not force a seek to scan all intervening expired bursts.
@@ -183,7 +187,46 @@ impl Schedule {
         }
     }
 
+    /// Keep only the boundaries that change the rate curve. The authored keys are
+    /// retained for subsequent edits, which may change whether a key is redundant.
+    fn jitter_rate_keys(&self) -> &[RateKey] {
+        self.jitter_rates.get_or_init(|| {
+            let mut keys: Vec<RateKey> = Vec::with_capacity(self.rates.len());
+            for &next in &self.rates {
+                while let [.., prev, mid] = keys.as_slice() {
+                    // Removing a step changes the curve, even when slopes agree.
+                    if mid.rate != mid.incoming.unwrap_or(prev.rate) {
+                        break;
+                    }
+                    let end_rate = next.incoming.unwrap_or(mid.rate);
+                    let fraction = (mid.time - prev.time) / (next.time - prev.time);
+                    let linear = (end_rate - prev.rate).mul_add(fraction, prev.rate);
+                    let tolerance = 4.0 * f64::EPSILON * linear.abs().max(mid.rate.abs());
+                    if (mid.rate - linear).abs() > tolerance {
+                        break;
+                    }
+                    keys.pop();
+                }
+                let mut next = next;
+                if let Some(prev) = keys.last() {
+                    let mean = next.incoming.map_or(prev.rate, |end| (prev.rate + end) * 0.5);
+                    next.integral = prev.integral + (next.time - prev.time) * mean;
+                }
+                keys.push(next);
+            }
+            // The final key is redundant when it continues a flat segment.
+            while let [.., prev, last] = keys.as_slice() {
+                if prev.rate != last.rate || prev.rate != last.incoming.unwrap_or(prev.rate) {
+                    break;
+                }
+                keys.pop();
+            }
+            keys
+        })
+    }
+
     pub fn rate(&mut self, start: f64, end: f64, rate: f64) {
+        self.jitter_rates.take();
         let (from, incoming) = self.segment_at(start);
         if start < end {
             self.key(start, from, incoming);
@@ -214,13 +257,18 @@ impl Schedule {
         if !self.trains.is_empty() {
             self.visit_trains(1, 0, self.last_birth.len() / 2, lo, t, seed, &mut draw)?;
         }
-        let start = self.rates.partition_point(|k| k.time <= lo - jitter).saturating_sub(1);
-        for i in start..self.rates.len() {
-            let k = self.rates[i];
+        let rates = if jitter > 0.0 {
+            self.jitter_rate_keys()
+        } else {
+            &self.rates
+        };
+        let start = rates.partition_point(|k| k.time <= lo - jitter).saturating_sub(1);
+        for i in start..rates.len() {
+            let k = rates[i];
             if k.time > t + jitter {
                 break;
             }
-            let next = self.rates.get(i + 1);
+            let next = rates.get(i + 1);
             let end = next.map_or(f64::INFINITY, |n| n.time);
             let slope =
                 next.and_then(|n| n.incoming).map_or(0.0, |r| (r - k.rate) / (end - k.time));

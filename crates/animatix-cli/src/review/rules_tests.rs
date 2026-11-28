@@ -291,6 +291,83 @@ fn verify_draw_missing_flags_empty_commands() {
 }
 
 #[test]
+fn audit_distinguishes_idle_emitters_from_missing_draws() {
+    let source = r#"
+config {canvas_size:(360,200),duration:3}
+pub component Dot() {
+  pub fn dim() {
+    return #{
+      self.dot.opacity = 0.4 [1s, ease:linear]
+    }
+  }
+  dot: Ellipse, size:(12,12), color:hex_color("ff7020")
+}
+#0s
+  scene.background_color = hex_color("102030")
+  base: Rect, at:(180,160), size:(280,12), color:hex_color("46627a")
+  preset: Emitter, at:(90,70), speed:0, seed:7, lifetime:1, particle_style:"spark"
+  static_dot: Emitter, at:(180,70), speed:0, seed:7, lifetime:1, particle_shape:Dot
+  animated: Emitter, at:(270,70), speed:0, seed:7, lifetime:1,
+    particle_shape:Dot, particle_animation:(p) => p.dim()
+  offstage: Emitter, at:(-40,110), speed:250, heading:180, spread:0, motion:"linear",
+    seed:7, lifetime:1, particle_style:"dust"
+#1s
+  burst(target:preset,count:1,track:"verify")
+  burst(target:static_dot,count:1,track:"verify")
+  burst(target:animated,count:1,track:"verify")
+  burst(target:offstage,count:1,track:"verify")
+#3s
+"#;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("delayed.amx");
+    std::fs::write(&path, source).unwrap();
+    let (target, diagnostics) =
+        crate::build::try_load_and_build(&path, &Default::default(), &[]).unwrap();
+    assert!(!diagnostics.iter().any(|d| d.is_error()), "{diagnostics:?}");
+    let mut facts = crate::review::facts::collect_facts(
+        &target,
+        animatix::timeline::SceneDimensions {
+            width: 360,
+            height: 200,
+        },
+        vec![0.9, 1.2, 2.0, 2.2],
+        &diagnostics,
+        None,
+    )
+    .unwrap();
+    for label in ["preset", "static_dot", "animated"] {
+        let fact_at =
+            |index: usize| facts.actor_frame(&facts.frames[index], "main", label).unwrap();
+        for index in [0, 2, 3] {
+            assert!(fact_at(index).bounds.is_none(), "{label} frame {index}");
+            assert_eq!(fact_at(index).draw_commands, None, "{label} frame {index}");
+        }
+        assert!(fact_at(1).bounds.is_some(), "{label}");
+        assert!(fact_at(1).draw_commands.unwrap() > 0, "{label}");
+    }
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default, None);
+    assert!(
+        !run.issues
+            .iter()
+            .any(|issue| { matches!(issue.rule_id, "actor.draw-missing" | "actor.clipped") }),
+        "{:?}",
+        run.issues
+    );
+
+    assert!(run.issues.iter().any(|issue| issue.rule_id == "actor.never-on-frame"
+        && issue.actor.as_deref() == Some("offstage")
+        && issue.time_s == Some(1.2)));
+
+    // The general rule still catches a genuinely empty draw item on a live frame.
+    let live = facts.frames[1].actors.iter_mut().find(|f| f.label == "preset").unwrap();
+    live.draw_commands = Some(0);
+    let run = evaluate(&facts, &MarkerSet::default(), Policy::Default, None);
+    assert!(run.issues.iter().any(|issue| issue.rule_id == "actor.draw-missing"
+        && issue.actor.as_deref() == Some("preset")
+        && issue.time_s == Some(1.2)));
+}
+
+#[test]
 fn plot_empty_path_is_a_candidate_between_drawn_samples() {
     let source = r#"
 config { duration: 3 }
