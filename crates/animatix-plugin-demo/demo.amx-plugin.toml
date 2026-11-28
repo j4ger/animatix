@@ -6,7 +6,7 @@ display_name = "Pulse"
 category = "Shapes"
 icon_id = "extension:pulse"
 vector_paths = true
-properties = ["glow", "mode", "caption", "origin", "image_url"]
+properties = ["glow", "mode", "caption", "pulse_origin", "image_url"]
 
 [[properties]]
 actor_type = "Pulse"
@@ -37,7 +37,7 @@ help = "Label rendered below the pulse"
 
 [[properties]]
 actor_type = "Pulse"
-name = "origin"
+name = "pulse_origin"
 type = "Vec2"
 injectable = true
 display_name = "Origin"

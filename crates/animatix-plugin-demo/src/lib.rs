@@ -5,7 +5,7 @@
 //! - a keyframable `Num` property (`glow`)
 //! - a manifest-driven `Enum` property (`mode: ring | dot | cross`) that renders as a dropdown in
 //!   the GUI inspector
-//! - `Str` (`caption`, `image_url`) and `Vec2` (`origin`) properties
+//! - `Str` (`caption`, `image_url`) and `Vec2` (`pulse_origin`) properties
 //! - vector paths, text (`Text` + `Code` render kinds), a highlight layer, and a best-effort image
 //!   command resolved from the asset cache
 //! - a native expression function (`scale`)
@@ -177,7 +177,7 @@ fn register_properties(api: &NativePluginApi, host: *mut c_void) -> i32 {
         },
         NativePropertyDescriptor {
             actor_type: c"Pulse".as_ptr(),
-            name: c"origin".as_ptr(),
+            name: c"pulse_origin".as_ptr(),
             display_name: c"Origin".as_ptr(),
             kind: NATIVE_PROPERTY_VEC2,
             type_info: c"Vec2".as_ptr(),
@@ -236,7 +236,7 @@ fn register_pulse_primitive(api: &NativePluginApi, host: *mut c_void) -> i32 {
         c"glow".as_ptr(),
         c"mode".as_ptr(),
         c"caption".as_ptr(),
-        c"origin".as_ptr(),
+        c"pulse_origin".as_ptr(),
         c"image_url".as_ptr(),
     ];
     let primitive = NativePrimitive {
@@ -379,7 +379,7 @@ unsafe extern "C" fn scale(
 
 /// Frame-time evaluate callback for the `Pulse` demo primitive.
 ///
-/// Reads the keyframed `glow`, `mode`, `caption`, `origin`, and `image_url`
+/// Reads the keyframed `glow`, `mode`, `caption`, `pulse_origin`, and `image_url`
 /// properties and emits paths, text, a highlight layer, and an optional image
 /// through the host context.
 ///
@@ -449,7 +449,8 @@ fn read_pulse_params(ctx: &NativePrimitiveEvaluateCtx) -> PulseParams {
         {
             caption = unsafe { read_c_string(native.string) }.unwrap_or_default();
         }
-        if unsafe { (get_property)(ctx.host, c"origin".as_ptr(), &mut native) } == NATIVE_STATUS_OK
+        if unsafe { (get_property)(ctx.host, c"pulse_origin".as_ptr(), &mut native) }
+            == NATIVE_STATUS_OK
             && native.tag == NATIVE_VALUE_VEC2
         {
             origin = [native.vec[0], native.vec[1]];

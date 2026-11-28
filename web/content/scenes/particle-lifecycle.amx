@@ -32,7 +32,16 @@ let russet = hex_color("a33832")
   twin: Emitter, at:(636,237), particle_shape:Leaf, seed:9480, speed:0, lifetime:4,
     particle_scale:(4,4), particle_exit:"none", particle_animation:(leaf) => leaf.autumn(end_color:russet)
   burst(target:twin, count:1, track:"comparison")
+  // Prepare a hidden copy of the method's final pose for the held frame.
+  rest: Leaf, at:(636,237)
+  rest.opacity = 0
+  rest.scale = 4
+  fit_duration(rest.autumn(end_color:russet), 1ms)
   caption: Text, at:(440,373), text_align:"center", text:"同一段变色和转动，由每片叶子的年龄决定。", font_size:19, color:paper
   breeze: Emitter, at:(28,440), particle_shape:Leaf, lifetime:3.8, speed:215, heading:0, spread:3, rate:6, seed:11,
     motion:"linear", particle_scale:(0.45,0.85), particle_angle:(-25,25), particle_animation:(leaf) => leaf.autumn(end_color:russet)
+#3999ms
+  // Switch before the seeded particle's half-open lifetime ends (~3.99994s).
+  twin.opacity = 0
+  rest.opacity = 1
 #4s

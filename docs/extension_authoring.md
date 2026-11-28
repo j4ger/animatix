@@ -235,6 +235,8 @@ animatix check crates/animatix-plugin-demo/demo.amx \
 ```
 
 Manifest property ids stay unset until runtime registration allocates them.
+Built-in property names are reserved across actor types. Use a distinct name
+for a plugin property, such as the demo's `Pulse.pulse_origin`.
 Property type strings can use primitive kinds or enum declarations such as
 `Enum(left, right, top)`; enum values can be bare identifiers or quoted
 strings in AMX source.

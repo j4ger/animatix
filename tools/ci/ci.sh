@@ -321,10 +321,8 @@ gate_scene_audit() {
   }
 
   audit_one() {
-    local f="$1" mode="${2:-standalone}" output
+    local f="$1" mode="${2:-standalone}" output status
     local -a policy=()
-    # The standalone scene gate suppresses CLI stderr. The union exposes it,
-    # retaining budget diagnostics that the second standalone pass would show.
     if [ "$mode" = joint ]; then
       policy=(--policy default)
     fi
@@ -332,22 +330,32 @@ gate_scene_audit() {
       echo "FAIL scene-audit (temp file): $f" >&2
       return 1
     }
-    if [ "$mode" = joint ]; then
-      local cleanup
-      printf -v cleanup 'rm -f -- %q' "$output"
-      trap "$cleanup" EXIT
-    fi
-    if ! {
-      if [ "$mode" = joint ]; then
-        ./target/debug/animatix audit "$f" --budget tools/quality/audit-budget.json \
-          --render never "${policy[@]}" --format json
-      else
-        ./target/debug/animatix audit "$f" --budget tools/quality/audit-budget.json \
-          --render never --format json 2>/dev/null
-      fi
-    } > "$output"; then
-      echo "FAIL scene-audit (exit code): $f" >&2
-      rm -f "$output"
+    local cleanup
+    printf -v cleanup 'rm -f -- %q' "$output"
+    trap "$cleanup" EXIT
+    if ./target/debug/animatix audit "$f" --budget tools/quality/audit-budget.json \
+      --render never "${policy[@]}" --format json > "$output"; then
+      :
+    else
+      status=$?
+      echo "FAIL scene-audit (exit $status): $f" >&2
+      python3 - "$output" >&2 <<'PY_REPORT'
+import json, sys
+try:
+    with open(sys.argv[1]) as stream:
+        report = json.load(stream)
+    findings = [row for row in report.get("findings", [])
+                if row.get("severity") in ("error", "warning")]
+    for row in findings[:12]:
+        print("audit finding:", json.dumps({k: row.get(k) for k in
+              ("code", "severity", "actor", "source_line", "time_s", "message")}, ensure_ascii=False))
+    if len(findings) > 12:
+        print(f"audit findings: {len(findings) - 12} more")
+    for row in ((report.get("budget") or {}).get("exceeded") or [])[:12]:
+        print("audit budget:", json.dumps(row, ensure_ascii=False))
+except (ValueError, OSError, AttributeError, TypeError) as error:
+    print(f"audit report unavailable: {error}")
+PY_REPORT
       return 1
     fi
 

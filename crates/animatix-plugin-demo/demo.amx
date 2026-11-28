@@ -16,7 +16,7 @@ config { colorscheme: "editorial-dark", canvas_size: (1280, 720) }
 // it from the asset cache (see the `image_url` property on `p`).
 checker: Image, url: "assets/checker.png", opacity: 0
 
-p: Pulse, glow: 0.25, mode: "dot", caption: "dot", at: (640, 360), origin: (0, 0), image_url: "assets/checker.png"
+p: Pulse, glow: 0.25, mode: "dot", caption: "dot", at: (640, 360), pulse_origin: (0, 0), image_url: "assets/checker.png"
 
 #0.5s
 fade_in(target: p, duration: 500ms)

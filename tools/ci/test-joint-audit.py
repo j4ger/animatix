@@ -46,6 +46,11 @@ if os.environ.get('FAIL_AUDIT') or mode=='exit': sys.exit(9)
 if mode=='malformed': print('{'); sys.exit(0)
 if mode=='truncated': print('{"schema_version":4,'); sys.exit(0)
 data={'schema_version':4,'kind':'audit','summary':{'errors':0}}
+if mode=='budget-exceeded':
+    data['findings']=[{'code':'actor.test','severity':'warning','actor':'leaf','message':'leaf needs attention'}]
+    data['budget']={'exceeded':[{'code':'actor.test','count':1,'allowed':0}]}
+    print(json.dumps(data))
+    sys.exit(1)
 if mode=='list': data=[]
 if mode=='null': data=None
 if mode=='summary': data['summary']=[]
@@ -121,6 +126,17 @@ print(json.dumps(data))
                     self.assertEqual(result.returncode,1,result.stderr)
                     self.assertNotIn('OK gate: budget-audit',result.stdout)
                     self.assertEqual(len(self.calls()),1)
+
+    def test_failed_audit_keeps_status_and_actionable_report(self):
+        for command in ('gate_scene_audit', 'run_explicit_gates scene-audit budget-audit'):
+            with self.subTest(command=command):
+                result = self.execute(command, AUDIT_MODE='budget-exceeded')
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn('FAIL scene-audit (exit 1):', result.stderr)
+                self.assertIn('audit diagnostic', result.stderr)
+                self.assertIn('audit finding: {"code": "actor.test"', result.stderr)
+                self.assertIn('leaf needs attention', result.stderr)
+                self.assertIn('audit budget: {"code": "actor.test", "count": 1, "allowed": 0}', result.stderr)
 
     def test_missing_summary_retains_legacy_default(self):
         for command in ('gate_scene_audit; gate_budget_audit',
